@@ -1,0 +1,166 @@
+diff --git a/node_modules/vaul/package.json b/node_modules/vaul/package.json
+index 5158223..43f7572 100644
+--- a/node_modules/vaul/package.json
++++ b/node_modules/vaul/package.json
+@@ -62,6 +62,6 @@
+     "eslint-config-custom": "workspace:*",
+     "react-dom": "^18.2.0",
+     "react": "^18.2.0",
+-    "typescript": "^5.2.2"
++    "typescript": "^5.2.2",
++    "eslint-plugin-react-hooks": "4.6.0"
+   },
+   "peerDependencies": {
+-    "react": "^16.8 || ^17.0 || ^18.0",
+-    "react-dom": "^16.8 || ^17.0 || ^18.0"
++    "react": "^16.8 || ^17.0 || ^18.0 || ^19.0",
++    "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0"
+   }
+ }
+diff --git a/node_modules/vaul/dist/index.mjs b/node_modules/vaul/dist/index.mjs
+index 9da6c5e..c6292b3 100644
+--- a/node_modules/vaul/dist/index.mjs
++++ b/node_modules/vaul/dist/index.mjs
+@@ -1,6 +1,6 @@
+ 'use client';
+-import o, { createContext as m, useContext as y, useState as S, useEffect as b, useRef as h, forwardRef as x, Children as E, cloneElement as I, isValidElement as F } from "react";
+-import { createPortal as $ } from "react-dom";
++import o, { createContext as m, useContext as y, useState as S, useEffect as b, useRef as h, forwardRef as x, Children as E, cloneElement as I, isValidElement as F, useSyncExternalStore as $ } from "react";
++import { createPortal as ce } from "react-dom";
+ var te = (e) => e.max(e.min(e.value, e.max), e.min);
+ function fe(e, t, n = 0) {
+   return Math.abs(e - t) < n;
+@@ -176,7 +176,7 @@
+   return v;
+ }
+ var Q = "vaul-portal";
+-var X = (e) => {
++var G = (e) => {
+   let { children: t, container: n } = e, [s, i] = S(null);
+   return b(() => {
+     i(n || document.body);
+@@ -184,8 +184,8 @@
+     return t;
+   }, [t]), s ? $(a, s) : a;
+ };
+-var Z = "vaul-overlay";
+-var ee = /* @__PURE__ */ x((e, t) => {
++var X = "vaul-overlay";
++var Z = /* @__PURE__ */ x((e, t) => {
+   let { asChild: n, ...s } = e;
+   let i = y(d);
+   if (!i)
+@@ -218,7 +218,7 @@
+     [i.setShouldScaleBackground, e.forceMount]
+   ), /* @__PURE__ */ o.createElement(n ? a : "div", p);
+ });
+-var re = /* @__PURE__ */ x((e, t) => {
++var ee = /* @__PURE__ */ x((e, t) => {
+   let { forceMount: n, ...s } = e, i = y(d), a = s.children;
+   if (!i)
+     throw new Error("Drawer.Content must be used within a Drawer.Root");
+@@ -351,7 +351,7 @@
+     [i, n]
+   );
+ });
+-var V = /* @__PURE__ */ x(
++var re = /* @__PURE__ */ x(
+   (e, t) => {
+     let { asChild: n, ...s } = e, i = y(d);
+     if (!i)
+@@ -367,7 +367,7 @@
+     return /* @__PURE__ */ o.createElement(n ? a : "div", p);
+   }
+ );
+-var ne = /* @__PURE__ */ x(
++var V = /* @__PURE__ */ x(
+   (e, t) => {
+     let { asChild: n, ...s } = e, i = y(d);
+     if (!i)
+@@ -383,7 +383,7 @@
+     return /* @__PURE__ */ o.createElement(n ? a : "div", p);
+   }
+ );
+-var oe = /* @__PURE__ */ x(
++var ne = /* @__PURE__ */ x(
+   (e, t) => {
+     let { asChild: n, ...s } = e, i = y(d);
+     if (!i)
+@@ -399,7 +399,7 @@
+     return /* @__PURE__ */ o.createElement(n ? a : "h2", p);
+   }
+ );
+-var se = /* @__PURE__ */ x(
++var oe = /* @__PURE__ */ x(
+   (e, t) => {
+     let { asChild: n, ...s } = e, i = y(d);
+     if (!i)
+@@ -415,7 +415,7 @@
+     return /* @__PURE__ */ o.createElement(n ? a : "p", p);
+   }
+ );
+-var ae = /* @__PURE__ */ x((e, t) => {
++var se = /* @__PURE__ */ x((e, t) => {
+   let n = y(d);
+   if (!n)
+     throw new Error("Drawer.Close must be used within a Drawer.Root");
+@@ -428,21 +428,21 @@
+     n.closeDrawer();
+   }, z = (r) => {
+     n.closeDrawer(), e.onClick && e.onClick(r);
+-  }, /* @__PURE__ */ o.createElement(V, c({ ref: t, type: "button", onClick: z, ...s }, p)));
+-});
+-var j = W;
+-j.Content = re;
++  }, /* @__PURE__ */ o.createElement(ne, c({ ref: t, type: "button", onClick: z, ...s }, p)));
++});
++var j = N;
++j.Content = ee;
+ j.Overlay = Z;
+-j.Trigger = ae;
+-j.Portal = X;
+-j.Close = ae;
+-j.Title = oe;
+-j.Description = se;
+-j.Header = V;
+-j.Footer = ne;
++j.Trigger = se;
++j.Portal = G;
++j.Close = se;
++j.Title = ne;
++j.Description = oe;
++j.Header = re;
++j.Footer = V;
+ j.displayName = "Drawer";
+-Z.displayName = "Drawer.Overlay";
+-re.displayName = "Drawer.Content";
+-ae.displayName = "Drawer.Trigger";
+-oe.displayName = "Drawer.Title";
+-se.displayName = "Drawer.Description";
++X.displayName = "Drawer.Overlay";
++ee.displayName = "Drawer.Content";
++se.displayName = "Drawer.Trigger";
++ne.displayName = "Drawer.Title";
++oe.displayName = "Drawer.Description";
+ export {
+-  ae as Close,
+-  re as Content,
++  se as Close,
++  ee as Content,
+   j as Drawer,
+-  se as Description,
+-  ne as Footer,
+-  V as Header,
++  oe as Description,
++  V as Footer,
++  re as Header,
+   Z as Overlay,
+-  X as Portal,
++  G as Portal,
+   j as Root,
+-  oe as Title,
+-  ae as Trigger
++  ne as Title,
++  se as Trigger
+ };
+ //# sourceMappingURL=index.mjs.map

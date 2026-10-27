@@ -1,0 +1,64 @@
+# Settings to manage and configure a Firebase App Hosting backend.
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  # Increase this value if you'd like to automatically spin up
+  # more instances in response to increased traffic.
+  maxInstances: 1
+
+# Environment variables for the backend.
+env:
+  - variable: GEMINI_API_KEY
+    value: AIzaSyCmVqu0L8Aww7mLKTvGyh7ryyGwqQZ_iZQ
+    availability:
+      - RUNTIME
+  - variable: EBULKSMS_USERNAME
+    value: electro1@emakemrnd.com.ng
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: EBULKSMS_API_KEY
+    value: 4e72ff9e21f1e875834598daeacfd997a892bca332fce1a90804cb15ca2da398
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: EBULKSMS_API_URL
+    value: https://api.ebulksms.com/sendwhatsapp.json
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyCne5ItldmICSUuCe0KHtHw_msG1vM49qQ
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: studio-6961382181-1ebba.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: studio-6961382181-1ebba
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: studio-6961382181-1ebba.appspot.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: '653430011626'
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:653430011626:web:e49f3cbc58bb44e7934993
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    value: https://studio-6961382181-1ebba-default-rtdb.firebaseio.com
+    availability:
+      - BUILD
+      - RUNTIME
