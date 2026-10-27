@@ -1,0 +1,22 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    .website-body {
+        @apply font-website-body bg-background-light dark:bg-background-dark text-charcoal dark:text-ivory selection:bg-accent-gold/30;
+    }
+    .website-body h1, .website-body h2, .website-body h3, .website-body h4, .website-body h5, .website-body h6 {
+        @apply font-website-display;
+    }
+}
+
+.masonry-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+}
+.custom-dark-map {
+    filter: grayscale(1) invert(1) contrast(1.2);
+}

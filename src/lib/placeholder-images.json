@@ -1,0 +1,100 @@
+{
+  "placeholderImages": [
+    {
+      "id": "login-background",
+      "description": "A modern and luxurious hotel lobby with a comfortable seating area.",
+      "imageUrl": "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "imageHint": "hotel lobby"
+    },
+    {
+      "id": "hero1",
+      "description": "A stunning hotel exterior with a pool at sunset.",
+      "imageUrl": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "hotel exterior pool"
+    },
+    {
+      "id": "room1",
+      "description": "Deluxe King Suite with city view.",
+      "imageUrl": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=1200",
+      "imageHint": "luxury hotel room"
+    },
+    {
+      "id": "room2",
+      "description": "Bright hotel room with ocean view.",
+      "imageUrl": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=1200",
+      "imageHint": "hotel room ocean"
+    },
+    {
+      "id": "room3",
+      "description": "Modern and spacious family studio.",
+      "imageUrl": "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=1200",
+      "imageHint": "hotel family room"
+    },
+    {
+      "id": "testimonial1",
+      "description": "Portrait of a happy female business traveler.",
+      "imageUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+      "imageHint": "professional woman portrait"
+    },
+    {
+      "id": "testimonial2",
+      "description": "Portrait of a relaxed male vacationer.",
+      "imageUrl": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=400",
+      "imageHint": "man smiling"
+    },
+    {
+      "id": "testimonial3",
+      "description": "Portrait of a smiling woman on a family trip.",
+      "imageUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400",
+      "imageHint": "woman smiling"
+    },
+    {
+      "id": "testimonial4",
+      "description": "Portrait of a relaxed male vacationer for a new testimonial.",
+      "imageUrl": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=400",
+      "imageHint": "man smiling"
+    },
+    {
+      "id": "food-banner-1",
+      "description": "Delicious gourmet burger on a wooden board.",
+      "imageUrl": "https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "gourmet burger"
+    },
+    {
+      "id": "food-banner-2",
+      "description": "Fresh and colorful salad in a white bowl.",
+      "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "fresh salad"
+    },
+    {
+      "id": "food-banner-3",
+      "description": "A steaming bowl of pasta with fresh basil.",
+      "imageUrl": "https://images.unsplash.com/photo-1589227365533-5f5f6b0015f3?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "pasta bowl"
+    },
+    {
+      "id": "gallery-1",
+      "description": "Serene spa and wellness area.",
+      "imageUrl": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "spa wellness"
+    },
+    {
+      "id": "gallery-2",
+      "description": "A cozy hotel suite bedroom.",
+      "imageUrl": "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "hotel bedroom"
+    },
+    {
+      "id": "gallery-3",
+      "description": "Elegant dining area with a view.",
+      "imageUrl": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "restaurant view"
+    },
+    {
+      "id": "gallery-4",
+      "description": "Beautiful hotel facade at dusk.",
+      "imageUrl": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=1920",
+      "imageHint": "hotel facade"
+    }
+  ]
+}
