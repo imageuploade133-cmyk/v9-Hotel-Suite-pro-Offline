@@ -1,13 +1,11 @@
 @echo off
-TITLE Hotel & Restaurant Local Master Server Mode
+TITLE Hotel and Restaurant Local Master Server Mode
 
 echo ==============================================================================
-echo             HOTEL & RESTAURANT LOCAL MASTER SERVER INITIALIZER
+echo             HOTEL AND RESTAURANT LOCAL MASTER SERVER INITIALIZER
 echo ==============================================================================
 
-set HOST=%HOST%
-if "%HOST%"=="" set HOST=127.0.0.1
-set PORT=%PORT%
+if "%HOST%"=="" set HOST=0.0.0.0
 if "%PORT%"=="" set PORT=3000
 
 echo [INFO] Starting Local Master Server on host %HOST% (Port %PORT%)...
