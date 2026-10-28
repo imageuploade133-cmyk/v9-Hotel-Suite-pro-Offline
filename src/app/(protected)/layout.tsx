@@ -100,6 +100,7 @@ import { DynamicIcon } from '@/components/ui/dynamic-icon';
 import { PagePermission } from '@/lib/permissions';
 import { useSettings } from '@/contexts/settings-context';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { LanSyncStatusIndicator } from '@/components/lan-sync/LanSyncStatusIndicator';
 import { useRoomStatus } from '@/hooks/use-room-status';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -874,6 +875,7 @@ export default function ProtectedLayout({
             </div>
 
             <div className="relative ml-auto flex items-center gap-2">
+               <LanSyncStatusIndicator />
                <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
