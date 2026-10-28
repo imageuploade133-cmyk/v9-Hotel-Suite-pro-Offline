@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -21,7 +21,13 @@ if (typeof window !== 'undefined') {
     } else {
         app = getApp();
     }
-    firestore = getFirestore(app);
+    try {
+        firestore = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        });
+    } catch {
+        firestore = getFirestore(app);
+    }
     storage = getStorage(app);
 }
 

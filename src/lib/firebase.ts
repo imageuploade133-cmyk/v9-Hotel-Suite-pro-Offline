@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -68,7 +68,13 @@ export function getDb(): Firestore | null {
     }
 
     if (!dbInstance) {
-      dbInstance = getFirestore(firebaseApp);
+      try {
+        dbInstance = initializeFirestore(firebaseApp, {
+          localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        });
+      } catch {
+        dbInstance = getFirestore(firebaseApp);
+      }
     }
     return dbInstance;
   } catch (error) {

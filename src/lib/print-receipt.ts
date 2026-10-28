@@ -162,6 +162,26 @@ export function printHtml(html: string, options: PrintOptions = {}): void {
  * 1. Ensure the element has an ID: <div id="receipt-content">...</div>
  * 2. Call: printById('receipt-content', { title: 'My Receipt' })
  */
+import { printEscPosBluetooth, isBluetoothSupported } from './bluetooth-printer';
+
+export async function printViaBluetooth(textOrElementId: string): Promise<boolean> {
+  if (!isBluetoothSupported()) {
+    console.warn('Web Bluetooth is not supported on this browser. Falling back to standard print.');
+    printById(textOrElementId);
+    return false;
+  }
+  try {
+    const el = document.getElementById(textOrElementId);
+    const content = el ? el.innerText : textOrElementId;
+    await printEscPosBluetooth(content);
+    return true;
+  } catch (err) {
+    console.warn('Bluetooth print failed or cancelled. Falling back to browser print:', err);
+    printById(textOrElementId);
+    return false;
+  }
+}
+
 export function printById(elementId: string, options: PrintOptions = {}): void {
   const { title = 'Receipt', copies = 1 } = options;
 
