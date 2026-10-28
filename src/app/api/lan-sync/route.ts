@@ -18,9 +18,10 @@ export async function GET(req: NextRequest) {
       summary,
       timestamp: Date.now(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to query LAN store';
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to query LAN store' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
@@ -46,9 +47,10 @@ export async function POST(req: NextRequest) {
       mutationId: mutation.id,
       summary: lanStore.getStateSummary(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process LAN mutation';
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to process LAN mutation' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

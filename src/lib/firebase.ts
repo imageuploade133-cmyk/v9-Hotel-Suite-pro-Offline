@@ -68,11 +68,15 @@ export function getDb(): Firestore | null {
     }
 
     if (!dbInstance) {
-      try {
-        dbInstance = initializeFirestore(firebaseApp, {
-          localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-        });
-      } catch {
+      if (!isServer) {
+        try {
+          dbInstance = initializeFirestore(firebaseApp, {
+            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+          });
+        } catch {
+          dbInstance = getFirestore(firebaseApp);
+        }
+      } else {
         dbInstance = getFirestore(firebaseApp);
       }
     }

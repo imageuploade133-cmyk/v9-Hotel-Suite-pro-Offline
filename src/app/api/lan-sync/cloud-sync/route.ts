@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lanStore } from '@/lib/lan-sync/lan-store';
 import { getDb } from '@/lib/firebase';
-import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, DocumentData } from 'firebase/firestore';
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   try {
     const db = getDb();
     if (!db) {
@@ -32,18 +32,21 @@ export async function POST(req: NextRequest) {
         const docRef = doc(db, mutation.collectionName, mutation.docId);
 
         if (mutation.action === 'set') {
-          await setDoc(docRef, mutation.data, { merge: true });
+          const payload = (mutation.data || {}) as DocumentData;
+          await setDoc(docRef, payload, { merge: true });
         } else if (mutation.action === 'update') {
-          await updateDoc(docRef, mutation.data);
+          const payload = (mutation.data || {}) as DocumentData;
+          await updateDoc(docRef, payload);
         } else if (mutation.action === 'delete') {
           await deleteDoc(docRef);
         }
 
         lanStore.markMutationSynced(mutation.id);
         syncedCount++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         failedCount++;
-        lanStore.markMutationFailed(mutation.id, err?.message || 'Cloud Firestore push failed');
+        const errorMessage = err instanceof Error ? err.message : 'Cloud Firestore push failed';
+        lanStore.markMutationFailed(mutation.id, errorMessage);
       }
     }
 
@@ -54,15 +57,16 @@ export async function POST(req: NextRequest) {
       failedCount,
       summary: lanStore.getStateSummary(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Error processing Cloud Sync';
     return NextResponse.json(
-      { success: false, error: error?.message || 'Error processing Cloud Sync' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-export async function GET() {
+export async function GET(_req: NextRequest) {
   return NextResponse.json({
     success: true,
     summary: lanStore.getStateSummary(),

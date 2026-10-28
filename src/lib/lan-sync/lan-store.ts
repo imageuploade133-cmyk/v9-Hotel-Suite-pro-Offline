@@ -1,12 +1,13 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
 export interface SyncMutation {
   id: string;
   collectionName: string;
   docId: string;
   action: 'set' | 'update' | 'delete';
-  data?: any;
+  data?: Record<string, unknown>;
   timestamp: number;
   syncedToCloud: boolean;
   attempts: number;
@@ -15,7 +16,7 @@ export interface SyncMutation {
 
 export interface LanStoreState {
   mutations: SyncMutation[];
-  collections: Record<string, Record<string, any>>;
+  collections: Record<string, Record<string, unknown>>;
   lastCloudSync: number | null;
   masterServerIp: string | null;
 }
@@ -23,7 +24,7 @@ export interface LanStoreState {
 const DB_DIR = path.join(process.cwd(), '.lan-data');
 const DB_FILE = path.join(DB_DIR, 'lan_db.json');
 
-function ensureDbDir() {
+function ensureDbDir(): void {
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
@@ -35,7 +36,7 @@ function loadState(): LanStoreState {
     try {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
       return JSON.parse(data);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[LAN Store] Error reading local store file:', err);
     }
   }
@@ -47,11 +48,11 @@ function loadState(): LanStoreState {
   };
 }
 
-function saveState(state: LanStoreState) {
+function saveState(state: LanStoreState): void {
   ensureDbDir();
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), 'utf-8');
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[LAN Store] Error writing local store file:', err);
   }
 }
@@ -71,9 +72,14 @@ export class LanStore {
     return LanStore.instance;
   }
 
-  public addMutation(collectionName: string, docId: string, action: 'set' | 'update' | 'delete', data?: any): SyncMutation {
+  public addMutation(
+    collectionName: string,
+    docId: string,
+    action: 'set' | 'update' | 'delete',
+    data?: Record<string, unknown>
+  ): SyncMutation {
     const mutation: SyncMutation = {
-      id: `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      id: crypto.randomUUID(),
       collectionName,
       docId,
       action,
@@ -83,7 +89,6 @@ export class LanStore {
       attempts: 0,
     };
 
-    // Update local document copy for instant LAN response
     if (!this.state.collections[collectionName]) {
       this.state.collections[collectionName] = {};
     }
@@ -91,11 +96,11 @@ export class LanStore {
     if (action === 'delete') {
       delete this.state.collections[collectionName][docId];
     } else if (action === 'set') {
-      this.state.collections[collectionName][docId] = { id: docId, ...data };
+      this.state.collections[collectionName][docId] = { id: docId, ...(data || {}) };
     } else if (action === 'update') {
       this.state.collections[collectionName][docId] = {
         ...(this.state.collections[collectionName][docId] || { id: docId }),
-        ...data,
+        ...(data || {}),
       };
     }
 
@@ -108,7 +113,7 @@ export class LanStore {
     return this.state.mutations.filter((m) => !m.syncedToCloud);
   }
 
-  public markMutationSynced(id: string) {
+  public markMutationSynced(id: string): void {
     const mutation = this.state.mutations.find((m) => m.id === id);
     if (mutation) {
       mutation.syncedToCloud = true;
@@ -117,7 +122,7 @@ export class LanStore {
     }
   }
 
-  public markMutationFailed(id: string, errorMsg: string) {
+  public markMutationFailed(id: string, errorMsg: string): void {
     const mutation = this.state.mutations.find((m) => m.id === id);
     if (mutation) {
       mutation.attempts += 1;
@@ -126,7 +131,7 @@ export class LanStore {
     }
   }
 
-  public getCollection(collectionName: string): Record<string, any> {
+  public getCollection(collectionName: string): Record<string, unknown> {
     return this.state.collections[collectionName] || {};
   }
 
@@ -141,7 +146,7 @@ export class LanStore {
     };
   }
 
-  public setMasterIp(ip: string) {
+  public setMasterIp(ip: string): void {
     this.state.masterServerIp = ip;
     saveState(this.state);
   }
