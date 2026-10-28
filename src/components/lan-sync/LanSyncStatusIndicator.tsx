@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Wifi, WifiOff, CloudCheck, CloudUpload, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Cloud, CloudUpload, RefreshCw } from 'lucide-react';
 
 export function LanSyncStatusIndicator() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -65,7 +65,7 @@ export function LanSyncStatusIndicator() {
 
       {isOnline ? (
         <span className="flex items-center gap-1.5 text-blue-300" title="WAN Cloud Firestore Connection">
-          <CloudCheck className="w-3.5 h-3.5 text-blue-400" />
+          <Cloud className="w-3.5 h-3.5 text-blue-400" />
           <span>Cloud Ready</span>
         </span>
       ) : (
