@@ -5,9 +5,11 @@ set -euo pipefail
 echo "=============================================================================="
 echo "            HOTEL & RESTAURANT LOCAL MASTER SERVER INITIALIZER               "
 echo "=============================================================================="
-echo "[INFO] Starting Local Master Server bound to 0.0.0.0 (Port 3000)..."
-echo "[INFO] All staff phones, reception PCs, and POS terminals on LAN Wi-Fi"
-echo "       can connect using your Master PC Local IP address."
+
+HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-3000}"
+
+echo "[INFO] Starting Local Master Server on host ${HOST} (Port ${PORT})..."
 echo "=============================================================================="
 
 # Detect local IP address on macOS / Linux
@@ -18,17 +20,15 @@ elif command -v ifconfig &> /dev/null; then
     LOCAL_IP="$(ifconfig | grep -E 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1 || echo "127.0.0.1")"
 fi
 
-echo "[LAN NETWORK IP] http://${LOCAL_IP}:3000"
+echo "[LAN NETWORK IP] http://${LOCAL_IP}:${PORT}"
 echo "=============================================================================="
-echo "[LAUNCHING] Next.js Application in Local Network Master Mode..."
+echo "[LAUNCHING] Next.js Application in Local Master Mode..."
 echo "=============================================================================="
 
-export HOST="0.0.0.0"
-export PORT="3000"
 export NODE_ENV="production"
 
 if [ -f "pnpm-lock.yaml" ]; then
-    exec pnpm start -H "0.0.0.0" -p "3000"
+    exec pnpm start -H "$HOST" -p "$PORT"
 else
-    exec npm run start -- -H "0.0.0.0" -p "3000"
+    exec npm run start -- -H "$HOST" -p "$PORT"
 fi

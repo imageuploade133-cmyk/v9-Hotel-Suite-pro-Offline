@@ -89,18 +89,23 @@ export class LanStore {
       attempts: 0,
     };
 
-    if (!this.state.collections[collectionName]) {
-      this.state.collections[collectionName] = {};
-    }
+    const collection = this.state.collections[collectionName] || {};
 
     if (action === 'delete') {
-      delete this.state.collections[collectionName][docId];
+      const updatedCollection = Object.fromEntries(
+        Object.entries(collection).filter(([id]) => id !== docId)
+      );
+      this.state.collections[collectionName] = updatedCollection;
     } else if (action === 'set') {
-      this.state.collections[collectionName][docId] = { id: docId, ...(data || {}) };
+      this.state.collections[collectionName] = {
+        ...collection,
+        [docId]: { id: docId, ...(data || {}) },
+      };
     } else if (action === 'update') {
-      this.state.collections[collectionName][docId] = {
-        ...(this.state.collections[collectionName][docId] || { id: docId }),
-        ...(data || {}),
+      const existingDoc = collection[docId] || { id: docId };
+      this.state.collections[collectionName] = {
+        ...collection,
+        [docId]: { ...existingDoc, ...(data || {}) },
       };
     }
 
