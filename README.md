@@ -1,208 +1,147 @@
 # Hotel Suite Pro
 
-A comprehensive hotel/property management web application built with Next.js 14, React 18, TypeScript, and Firebase.
-
-## 🚀 Recent Updates
-
-### WhatsApp Messaging Fix (Feb 7, 2026)
-
-Fixed critical issue where WhatsApp messages showed "successfully sent" but weren't actually being delivered.
-
-**Quick Setup:**
-1. See [WHATSAPP_QUICKSTART.md](./WHATSAPP_QUICKSTART.md) for 5-minute setup
-2. Read [WHATSAPP_FIX_SUMMARY.md](./WHATSAPP_FIX_SUMMARY.md) for technical details
-
-**Your Credentials:**
-- Username: `electro1@emakemrnd.com.ng`
-- API Key: `4e72ff9e21f1e875834598daeacfd997a892bca332fce1a90804cb15ca2da398`
-
-Add these in **Settings → Page 2 → EbulkSMS Settings**
-
-## 📋 Features
-
-- **Hotel Operations**: Bookings, reservations, check-ins, room management
-- **POS & Sales**: Point of sale, product sales, inventory management
-- **Services**: Restaurant, kitchen, laundry, gym, barbing salon
-- **Finance**: Payments, expenses, accounting, salary, reporting
-- **Guest Experience**: Public website, menus, guest bill/report, booking confirmation
-- **Automation**: Daily reports, WhatsApp notifications, alerts
-- **AI Features**: Image generation for menus using Google Imagen
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Next.js 14 (App Router), React 18, TypeScript
-- **UI/UX**: Tailwind CSS, Radix UI, Framer Motion, lucide-react icons
-- **Backend**: Firebase (Firestore, Auth), Next.js API Routes
-- **AI**: Genkit with Google Gemini & Imagen
-- **Integrations**: eBulkSMS WhatsApp API
-
-## 📂 Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/            # Authentication routes
-│   ├── (protected)/       # Protected app pages
-│   └── (public)/          # Public-facing pages
-├── components/            # React components
-├── contexts/              # React contexts
-├── hooks/                 # Custom hooks
-├── firebase/              # Firebase setup
-├── ai/                    # Genkit AI flows
-└── lib/                   # Utilities and helpers
-```
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- Firebase project
-- Google Apps Script (for WhatsApp integration)
-- eBulkSMS account (for WhatsApp messaging)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone [your-repo-url]
-
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your Firebase credentials
-
-# Run development server
-npm run dev
-```
-
-Visit `http://localhost:3000` to see your application.
-
-## 🔧 Configuration
-
-### 1. Firebase Setup
-
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Enable Firestore and Authentication
-3. Add your Firebase config to `.env.local`
-
-### 2. WhatsApp Messaging Setup
-
-See [WHATSAPP_QUICKSTART.md](./WHATSAPP_QUICKSTART.md) for detailed instructions.
-
-Quick steps:
-1. Add eBulkSMS credentials in Settings → Page 2
-2. Deploy Google Apps Script (see Code.gs)
-3. Add script URL to Firestore
-4. Test by sending a message
-
-### 3. Google Apps Script
-
-Deploy the `Code.gs` file as a Web App:
-1. Create new project at [script.google.com](https://script.google.com)
-2. Copy contents of `Code.gs`
-3. Add FirestoreApp library
-4. Deploy as Web App
-5. Copy Web App URL to Firestore `settings/googleAppsScript`
-
-## 📚 Documentation
-
-- [WHATSAPP_QUICKSTART.md](./WHATSAPP_QUICKSTART.md) - Quick setup for WhatsApp messaging
-- [WHATSAPP_SETUP_GUIDE.md](./WHATSAPP_SETUP_GUIDE.md) - Detailed WhatsApp configuration
-- [WHATSAPP_FIX_SUMMARY.md](./WHATSAPP_FIX_SUMMARY.md) - Technical details of recent fix
-- [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) - Overall implementation notes
-- [TESTING_CHECKLIST.md](./TESTING_CHECKLIST.md) - Testing guidelines
-
-## 🧪 Testing
-
-```bash
-# Run tests (if available)
-npm test
-
-# Type check
-npm run type-check
-
-# Lint
-npm run lint
-```
-
-## 🚀 Deployment
-
-This project is configured for Firebase App Hosting.
-
-```bash
-# Build for production
-npm run build
-
-# Deploy to Firebase
-firebase deploy
-```
-
-## 📝 Key Features Setup
-
-### WhatsApp Notifications
-- Reservation alerts
-- Transfer receipts
-- Bulk messaging to customers/staff/gym members
-- Status tracking and logging
-
-### Room Management
-- Real-time availability
-- Housekeeping queues
-- Room status (vacant/cleaning/maintenance/DND)
-
-### POS System
-- Product sales
-- Credit sales
-- Stock management
-- Supplier management
-
-### Guest Services
-- Digital menu
-- Guest bill generation
-- Online booking
-- Engagement features
-
-## 🔐 Security
-
-- Firebase Authentication for user management
-- Firestore security rules (see `firestore.rules`)
-- Role-based permissions
-- Secure API key storage
-
-## 🐛 Troubleshooting
-
-### WhatsApp Messages Not Sending
-1. Check credentials in Settings → Page 2
-2. Verify Google Apps Script URL is configured
-3. Review `whatsapp-logs` collection in Firestore
-4. Check Google Apps Script execution logs
-
-### Build Errors
-- Clear `.next` folder: `rm -rf .next`
-- Delete node_modules: `rm -rf node_modules && npm install`
-- Check TypeScript errors: `npm run type-check`
-
-## 📄 License
-
-[Add your license here]
-
-## 🤝 Contributing
-
-[Add contribution guidelines]
-
-## 📧 Support
-
-For issues or questions:
-1. Check the documentation in this repository
-2. Review Firestore logs
-3. Check Google Apps Script execution logs
-4. [Add your support contact]
+A comprehensive, **100% Offline-Capable** hotel, restaurant, and property management system built with Next.js 14, React 18, TypeScript, and Firebase Cloud Sync.
 
 ---
 
-**Current Version**: 9.0
-**Last Updated**: February 7, 2026
-**Status**: ✅ Production Ready
+## 🌟 100% Offline & Local Wi-Fi Master Server Mode
+
+Hotel Suite Pro supports **100% Offline Operation over Local Wi-Fi (LAN Mode)**.
+
+- **Zero Internet Dependency**: All daily operations—POS Billing, Room Check-ins, KOT Kitchen Printing, Barbing Salon, Laundry, Gym, Inventory/Stock Management, and Guest Folios—run completely offline with 0 ms response delay.
+- **Multi-Device Wi-Fi Sync**: All staff phones, tablets, and reception PCs connect to the Local Master PC (`http://<MASTER_PC_IP>:3000`) over your local Wi-Fi router.
+- **Multi-Year Local Storage**: Transactions, check-ins, and stock entries are stored locally on the Master PC (`.lan-data/lan_db.json` & IndexedDB) for months or years without needing internet.
+- **Automatic Cloud Firestore Sync**: Whenever internet is connected, the background sync engine automatically queues and pushes all offline data to Cloud Firestore for permanent cloud backup.
+- **Web Bluetooth Printing**: Direct ESC/POS thermal printing over Web Bluetooth on handheld POS phone terminals and reception PCs.
+
+---
+
+## 🚀 How to Install & Run Offline on Any Computer
+
+### Step 1: Install Node.js & pnpm
+1. Download and install [Node.js 18+](https://nodejs.org/).
+2. Install `pnpm` (recommended):
+   ```bash
+   npm install -g pnpm
+   ```
+
+### Step 2: Download & Install Project
+```bash
+# Clone the repository
+git clone https://github.com/imageuploade133-cmyk/v9-Hotel-Suite-pro-Offline.git
+
+# Navigate into project directory
+cd v9-Hotel-Suite-pro-Offline
+
+# Install dependencies
+pnpm install
+```
+
+### Step 3: Build & Launch Local Master Server
+```bash
+# Build production bundle (one time)
+pnpm build
+
+# Launch Local Master Server
+# On Windows: Double-click start-master-server.bat
+# On macOS / Linux: Run ./start-master-server.sh
+```
+
+The script will launch the application and display your Master PC Local IP address:
+```text
+[LAN NETWORK IP] http://192.168.1.100:3000
+```
+
+### Step 4: Connect Staff Devices on Wi-Fi
+On any staff phone, tablet, or reception computer connected to the same Wi-Fi router, open the browser and navigate to:
+```text
+http://192.168.1.100:3000
+```
+
+---
+
+## 📋 Core Features
+
+- **Hotel Operations**: Real-time room availability, reservations, active check-ins, housekeeping, guest folios.
+- **Point of Sale (POS)**: Product sales, running tables, credit sales, refunds, POS accounting, categories.
+- **Services**: Kitchen orders (KOT), restaurant, barbing salon, gym, laundry management.
+- **Inventory & Finance**: Global stock management, restock alerts, suppliers, expenses, payments, salary/dockets.
+- **Thermal Printing**: ESC/POS Bluetooth printing on handheld phone terminals and thermal receipts on reception PCs.
+- **Automation**: WhatsApp notifications (via eBulkSMS & Google Apps Script), daily reports, guest feedback.
+- **AI Features**: Genkit image generation for restaurant menus using Google Imagen.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 (App Router), React 18, TypeScript
+- **UI & Styling**: Tailwind CSS, Radix UI, Framer Motion, Lucide Icons
+- **Database & Offline Engine**: Local Master Persistence Store (`lan-store`), IndexedDB Cache, Cloud Firestore
+- **Hardware Integrations**: Web Bluetooth ESC/POS Printers, LAN Thermal Printers
+- **Messaging & Alerts**: eBulkSMS WhatsApp API, Google Apps Script Web App
+
+---
+
+## 📂 Project Structure
+
+```text
+src/
+├── app/                    # Next.js App Router (pages & API routes)
+│   ├── api/lan-sync/      # Local Master LAN sync & Cloud backup endpoints
+│   ├── (auth)/            # Authentication routes
+│   └── (protected)/       # Protected app pages
+├── components/            # React UI components
+│   └── lan-sync/          # LAN sync status monitor indicator
+├── firebase/              # Firebase initialization & offline persistence config
+├── lib/
+│   ├── lan-sync/          # Local JSON persistent store engine
+│   └── bluetooth-printer  # Web Bluetooth ESC/POS thermal printer driver
+└── start-master-server.bat/sh # Automated Master PC startup launchers
+```
+
+---
+
+## 🚦 Quick Setup & Configuration
+
+### 1. Firebase Setup (Optional for Cloud Sync)
+1. Add your Firebase credentials in `.env.local` or environment variables:
+   ```env
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+   ```
+
+### 2. WhatsApp Messaging Credentials
+Add your eBulkSMS details in **Settings → Page 2 → EbulkSMS Settings**:
+- **Username**: `electro1@emakemrnd.com.ng`
+- **API Key**: `4e72ff9e21f1e875834598daeacfd997a892bca332fce1a90804cb15ca2da398`
+
+---
+
+## 📖 Documentation
+
+- `OFFLINE_LAN_SYNC_GUIDE.md` - Complete 100% Offline LAN Master Server & Cloud Sync Guide.
+- `WHATSAPP_QUICKSTART.md` - WhatsApp messaging setup.
+- `WHATSAPP_FIX_SUMMARY.md` - Technical details on WhatsApp delivery fixes.
+
+---
+
+## 🧪 Verification & Type Check
+
+```bash
+# Type check
+pnpm typecheck
+
+# Linting
+pnpm lint
+```
+
+---
+
+## 📄 License & Status
+
+**Version**: 9.0
+**Status**: ✅ 100% Offline LAN & Production Ready
