@@ -59,10 +59,28 @@ function saveState(state: LanStoreState): void {
 
 export class LanStore {
   private static instance: LanStore;
-  private state: LanStoreState;
+  private readonly collectionsMap = new Map<string, Map<string, Record<string, unknown>>>();
+  private readonly mutationsList: SyncMutation[] = [];
+  private lastCloudSyncTime: number | null = null;
+  private masterIpAddress: string | null = null;
 
   private constructor() {
-    this.state = loadState();
+    const initialState = loadState();
+    this.mutationsList = initialState.mutations || [];
+    this.lastCloudSyncTime = initialState.lastCloudSync || null;
+    this.masterIpAddress = initialState.masterServerIp || null;
+
+    if (initialState.collections) {
+      for (const [colName, colDocs] of Object.entries(initialState.collections)) {
+        const docMap = new Map<string, Record<string, unknown>>();
+        if (colDocs) {
+          for (const [docId, docData] of Object.entries(colDocs)) {
+            docMap.set(docId, docData);
+          }
+        }
+        this.collectionsMap.set(colName, docMap);
+      }
+    }
   }
 
   public static getInstance(): LanStore {
@@ -70,6 +88,19 @@ export class LanStore {
       LanStore.instance = new LanStore();
     }
     return LanStore.instance;
+  }
+
+  private persist(): void {
+    const collectionsObj: Record<string, Record<string, unknown>> = {};
+    for (const [colName, docMap] of this.collectionsMap.entries()) {
+      collectionsObj[colName] = Object.fromEntries(docMap.entries());
+    }
+    saveState({
+      mutations: this.mutationsList,
+      collections: collectionsObj,
+      lastCloudSync: this.lastCloudSyncTime,
+      masterServerIp: this.masterIpAddress,
+    });
   }
 
   public addMutation(
@@ -89,71 +120,68 @@ export class LanStore {
       attempts: 0,
     };
 
-    const collection = this.state.collections[collectionName] || {};
-
-    if (action === 'delete') {
-      const updatedCollection = Object.fromEntries(
-        Object.entries(collection).filter(([id]) => id !== docId)
-      );
-      this.state.collections[collectionName] = updatedCollection;
-    } else if (action === 'set') {
-      this.state.collections[collectionName] = {
-        ...collection,
-        [docId]: { id: docId, ...(data || {}) },
-      };
-    } else if (action === 'update') {
-      const existingDoc = collection[docId] || { id: docId };
-      this.state.collections[collectionName] = {
-        ...collection,
-        [docId]: { ...existingDoc, ...(data || {}) },
-      };
+    let docMap = this.collectionsMap.get(collectionName);
+    if (!docMap) {
+      docMap = new Map<string, Record<string, unknown>>();
+      this.collectionsMap.set(collectionName, docMap);
     }
 
-    this.state.mutations.push(mutation);
-    saveState(this.state);
+    if (action === 'delete') {
+      docMap.delete(docId);
+    } else if (action === 'set') {
+      docMap.set(docId, { id: docId, ...(data || {}) });
+    } else if (action === 'update') {
+      const existingDoc = docMap.get(docId) || { id: docId };
+      docMap.set(docId, { ...existingDoc, ...(data || {}) });
+    }
+
+    this.mutationsList.push(mutation);
+    this.persist();
     return mutation;
   }
 
   public getPendingMutations(): SyncMutation[] {
-    return this.state.mutations.filter((m) => !m.syncedToCloud);
+    return this.mutationsList.filter((m) => !m.syncedToCloud);
   }
 
   public markMutationSynced(id: string): void {
-    const mutation = this.state.mutations.find((m) => m.id === id);
+    const mutation = this.mutationsList.find((m) => m.id === id);
     if (mutation) {
       mutation.syncedToCloud = true;
-      this.state.lastCloudSync = Date.now();
-      saveState(this.state);
+      this.lastCloudSyncTime = Date.now();
+      this.persist();
     }
   }
 
   public markMutationFailed(id: string, errorMsg: string): void {
-    const mutation = this.state.mutations.find((m) => m.id === id);
+    const mutation = this.mutationsList.find((m) => m.id === id);
     if (mutation) {
       mutation.attempts += 1;
       mutation.error = errorMsg;
-      saveState(this.state);
+      this.persist();
     }
   }
 
   public getCollection(collectionName: string): Record<string, unknown> {
-    return this.state.collections[collectionName] || {};
+    const docMap = this.collectionsMap.get(collectionName);
+    if (!docMap) return {};
+    return Object.fromEntries(docMap.entries());
   }
 
   public getStateSummary() {
     const pending = this.getPendingMutations().length;
-    const total = this.state.mutations.length;
+    const total = this.mutationsList.length;
     return {
       pendingMutationsCount: pending,
       totalMutationsCount: total,
-      lastCloudSync: this.state.lastCloudSync,
-      collectionsCount: Object.keys(this.state.collections).length,
+      lastCloudSync: this.lastCloudSyncTime,
+      collectionsCount: this.collectionsMap.size,
     };
   }
 
   public setMasterIp(ip: string): void {
-    this.state.masterServerIp = ip;
-    saveState(this.state);
+    this.masterIpAddress = ip;
+    this.persist();
   }
 }
 
