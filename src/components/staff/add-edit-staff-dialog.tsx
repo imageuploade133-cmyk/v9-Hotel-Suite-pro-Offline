@@ -24,7 +24,7 @@ import { collection, query, updateDoc, doc, setDoc, serverTimestamp, addDoc } fr
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { useAuth } from '../auth/auth-provider';
-import { PERMISSION_GROUPS, PagePermission } from '@/lib/permissions';
+import { PERMISSION_GROUPS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
@@ -80,7 +80,8 @@ function AddEditStaffFormFields({ form, isEditMode }: AddEditStaffFormFieldsProp
         if (!firestore) return null;
         return query(collection(firestore, 'roles'));
     }, [firestore]);
-    const { data: roles } = useCollection<Role>(rolesQuery);
+    const { data: fetchedRoles } = useCollection<Role>(rolesQuery);
+    const roles = (fetchedRoles && fetchedRoles.length > 0) ? fetchedRoles : (DEFAULT_SYSTEM_ROLES as Role[]);
 
     const accountType = form.watch('accountType');
 
@@ -422,10 +423,27 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
             return;
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth.auth, data.email, data.password);
-        const newUser = userCredential.user;
+        let newUid = '';
+        let createdOnline = false;
 
-        await updateProfile(newUser, { displayName: data.name, photoURL: null });
+        try {
+          if (auth.auth && navigator.onLine) {
+            const userCredential = await createUserWithEmailAndPassword(auth.auth, data.email, data.password);
+            const newUser = userCredential.user;
+            newUid = newUser.uid;
+            await updateProfile(newUser, { displayName: data.name, photoURL: null });
+            createdOnline = true;
+          } else {
+            newUid = `offline_user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          }
+        } catch (authError: any) {
+          if (authError.code === 'auth/network-request-failed' || !navigator.onLine) {
+            newUid = `offline_user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+            console.warn('[Offline Mode] Network request failed. Registering staff account locally on Master PC.');
+          } else {
+            throw authError;
+          }
+        }
 
         if (!firestore) throw new Error("Database not connected.");
 
@@ -433,9 +451,6 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
         let permissions: string[] = [];
         let isActive = false;
 
-        // For Staff account type, always use role permissions
-        // For Admin account type, only give full permissions if no role is selected
-        // If Admin selects a specific role, use that role's permissions (not full admin)
         if (data.roleId && data.roleId !== 'no-role') {
             const role = roles?.find(r => r.id === data.roleId);
             if (!role) throw new Error("Selected role not found.");
@@ -443,15 +458,13 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
             permissions = role.permissions || [];
             isActive = true;
         } else if (data.accountType === 'Admin') {
-            // Admin with no role selected gets full permissions
             roleName = 'Admin';
             permissions = PERMISSION_GROUPS.flatMap(group => group.permissions.map(p => p.id));
             isActive = true;
         }
-        // Staff with no role selected stays as 'Staff (No Role)' with no permissions
 
-        const userProfile: Omit<UserProfile, 'id'> = {
-          uid: newUser.uid,
+        const userProfile = {
+          uid: newUid,
           name: data.name,
           email: data.email,
           role: roleName,
@@ -461,11 +474,39 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
           isActive: isActive,
           permissions: permissions,
           assignedBranches: data.assignedBranches || [],
+          pendingCloudAuthSync: !createdOnline,
           createdAt: serverTimestamp()
         };
-        await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
 
-        toast({ variant: 'success', title: 'Staff Created', description: `Successfully created staff user ${data.name}.` });
+        // Save staff profile in Firestore / Local Cache
+        await setDoc(doc(firestore, 'users', newUid), userProfile);
+
+        // Record mutation in Local Master Store for zero-delay LAN sync & background Cloud backup
+        try {
+          await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName: 'users',
+              docId: newUid,
+              action: 'set',
+              data: {
+                ...userProfile,
+                pendingPasswordSync: data.password,
+              },
+            }),
+          });
+        } catch {
+          // Saved locally in IndexedDB & LAN Store
+        }
+
+        toast({
+          variant: 'success',
+          title: createdOnline ? 'Staff Created' : 'Staff Created (Offline Mode)',
+          description: createdOnline
+            ? `Successfully created staff user ${data.name}.`
+            : `Staff account ${data.name} saved locally. Will sync to Cloud Firestore when internet is connected.`
+        });
         onSuccess();
       }
       onOpenChange(false);

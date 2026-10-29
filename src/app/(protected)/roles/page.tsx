@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, Plus, MoreHorizontal, Edit, Trash2, UserPlus, Users, PowerOff, Power, RefreshCw, Copy } from 'lucide-react';
 import type { Role, UserProfile } from '@/lib/types';
 import withAuth from '@/components/auth/withAuth';
-import { PagePermission } from '@/lib/permissions';
+import { PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import {
   Card,
   CardHeader,
@@ -192,7 +192,8 @@ function RolesPage() {
     () => (firestore ? query(collection(firestore, 'roles'), orderBy('name')) : null),
     [firestore, reloadCounter]
   );
-  const { data: roles, isLoading: areRolesLoading } = useCollection<Role>(rolesQuery);
+  const { data: fetchedRoles, isLoading: areRolesLoading } = useCollection<Role>(rolesQuery);
+  const roles = (fetchedRoles && fetchedRoles.length > 0) ? fetchedRoles : (DEFAULT_SYSTEM_ROLES as Role[]);
 
   const usersQuery = React.useMemo(
     () => (firestore ? query(collection(firestore, 'users')) : null),

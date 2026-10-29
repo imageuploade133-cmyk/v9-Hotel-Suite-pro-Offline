@@ -252,6 +252,114 @@ export const PERMISSION_GROUPS = [
 
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(group => group.permissions.map(p => p.id));
 
+export const DEFAULT_SYSTEM_ROLES = [
+  {
+    id: 'role-super-admin',
+    name: 'Super Admin',
+    description: 'Full unrestricted access to all system features, configuration, and management.',
+    isGlobalRole: true,
+    permissions: ALL_PERMISSIONS,
+  },
+  {
+    id: 'role-admin',
+    name: 'Admin',
+    description: 'Full administrative access to manage staff, branches, sales, and settings.',
+    isGlobalRole: true,
+    permissions: ALL_PERMISSIONS,
+  },
+  {
+    id: 'role-manager',
+    name: 'Manager',
+    description: 'Operations manager for POS, bookings, staff reports, and stock management.',
+    isGlobalRole: true,
+    permissions: [
+      PagePermission.VIEW_DASHBOARD,
+      PagePermission.VIEW_BOOKINGS_PAGE,
+      PagePermission.CREATE_BOOKING,
+      PagePermission.EDIT_BOOKING,
+      PagePermission.VIEW_ROOMS_PAGE,
+      PagePermission.MANAGE_ROOM_STATUS,
+      PagePermission.VIEW_POS,
+      PagePermission.PROCESS_SALES,
+      PagePermission.APPLY_DISCOUNTS,
+      PagePermission.VIEW_SALES_REPORTS,
+      PagePermission.VIEW_STOCK_MANAGEMENT,
+      PagePermission.MANAGE_STOCK_ITEMS,
+      PagePermission.VIEW_KITCHEN_PAGE,
+      PagePermission.MANAGE_ORDERS,
+      PagePermission.VIEW_MANAGEMENT,
+    ],
+  },
+  {
+    id: 'role-receptionist',
+    name: 'Receptionist',
+    description: 'Front desk staff handling guest check-ins, bookings, room statuses, and bills.',
+    isGlobalRole: false,
+    permissions: [
+      PagePermission.VIEW_DASHBOARD,
+      PagePermission.VIEW_BOOKINGS_PAGE,
+      PagePermission.CREATE_BOOKING,
+      PagePermission.EDIT_BOOKING,
+      PagePermission.VIEW_ROOMS_PAGE,
+      PagePermission.MANAGE_ROOM_STATUS,
+      PagePermission.VIEW_PAYMENTS_PAGE,
+      PagePermission.VIEW_GUEST_FOLIO,
+      PagePermission.VIEW_CUSTOMERS_PAGE,
+      PagePermission.MANAGE_CUSTOMERS,
+    ],
+  },
+  {
+    id: 'role-waiter',
+    name: 'Waiter / Bar Staff',
+    description: 'Order taking at restaurant, bar, and tables with direct POS sales access.',
+    isGlobalRole: false,
+    permissions: [
+      PagePermission.VIEW_POS,
+      PagePermission.PROCESS_SALES,
+      PagePermission.VIEW_RUNNING_TABLES,
+      PagePermission.MANAGE_RUNNING_TABLES,
+      PagePermission.VIEW_MY_SALES_HISTORY,
+    ],
+  },
+  {
+    id: 'role-kitchen',
+    name: 'Kitchen Staff',
+    description: 'Live kitchen order display and KOT ticket processing.',
+    isGlobalRole: false,
+    permissions: [
+      PagePermission.VIEW_KITCHEN_PAGE,
+      PagePermission.MANAGE_ORDERS,
+      PagePermission.VIEW_MENUS_PAGE,
+    ],
+  },
+  {
+    id: 'role-housekeeping',
+    name: 'Housekeeper',
+    description: 'Room cleaning, housekeeping status updates, and laundry tasks.',
+    isGlobalRole: false,
+    permissions: [
+      PagePermission.MANAGE_ROOM_STATUS,
+      PagePermission.VIEW_CLEANING_PAGE,
+      PagePermission.VIEW_LAUNDRY_PAGE,
+      PagePermission.MANAGE_LAUNDRY_ORDERS,
+    ],
+  },
+  {
+    id: 'role-accountant',
+    name: 'Accountant',
+    description: 'Financial reports, expenses, salary calculations, and POS accounting.',
+    isGlobalRole: true,
+    permissions: [
+      PagePermission.VIEW_ACCOUNTING_PAGE,
+      PagePermission.MANAGE_EXPENSES,
+      PagePermission.VIEW_PAYMENTS_PAGE,
+      PagePermission.VIEW_POS_ACCOUNTING,
+      PagePermission.VIEW_STAFF_WORKING_HOURS,
+      PagePermission.VIEW_MANAGEMENT,
+    ],
+  },
+];
+
 // Default landing pages for different permission sets - ordered by priority
 export const DEFAULT_LANDING_PAGES = [
   { permission: PagePermission.VIEW_DASHBOARD, path: '/dashboard' },
