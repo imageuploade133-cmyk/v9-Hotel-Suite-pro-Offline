@@ -6,10 +6,10 @@
     "dev": "next dev -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "node -e \"const fs=require('fs'); if(fs.existsSync('.next')) fs.rmSync('.next', {recursive:true, force:true});\" && next build",
+    "build": "node -e \"const fs=require('fs'); if(fs.existsSync('.next')) fs.rmSync('.next', {recursive:true, force:true});\" && NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next build",
     "export": "npm run build",
-    "start": "next start",
-    "start:master": "next start -H 0.0.0.0 -p 3000",
+    "start": "NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next start",
+    "start:master": "NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
