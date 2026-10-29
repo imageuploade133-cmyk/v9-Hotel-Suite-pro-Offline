@@ -22,14 +22,8 @@ echo ===========================================================================
 
 set NODE_ENV=production
 
-:: Use CALL to prevent batch script auto-closing on Windows
-if exist "node_modules\.bin\pnpm.cmd" (
-    call pnpm run start:master
-) else if exist "node_modules\.bin\next.cmd" (
-    call npx next start -H %HOST% -p %PORT%
-) else (
-    call npm run start:master
-)
+:: Directly run start script using Node.js for instant startup
+node scripts\start.js
 
 if %ERRORLEVEL% NEQ 0 (
     echo ==============================================================================
