@@ -22,10 +22,21 @@ echo ===========================================================================
 
 set NODE_ENV=production
 
-if exist "node_modules\.bin\next.cmd" (
-    pnpm start -H %HOST% -p %PORT%
+:: Use CALL to prevent batch script auto-closing on Windows
+if exist "node_modules\.bin\pnpm.cmd" (
+    call pnpm run start:master
+) else if exist "node_modules\.bin\next.cmd" (
+    call npx next start -H %HOST% -p %PORT%
 ) else (
-    npm run start -- -H %HOST% -p %PORT%
+    call npm run start:master
 )
 
+if %ERRORLEVEL% NEQ 0 (
+    echo ==============================================================================
+    echo [ERROR] Server stopped with error code %ERRORLEVEL%.
+    echo ==============================================================================
+)
+
+echo.
+echo Press any key to exit...
 pause
