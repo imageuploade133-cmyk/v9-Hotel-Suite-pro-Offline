@@ -9,7 +9,7 @@
     "build": "node scripts/build.js",
     "export": "npm run build",
     "start": "NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next start",
-    "start:master": "NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next start -H 0.0.0.0 -p 3000",
+    "start:master": "node scripts/start.js",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
