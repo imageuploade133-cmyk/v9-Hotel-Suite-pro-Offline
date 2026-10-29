@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { SiteHeader } from '@/components/website/SiteHeader';
 import { Hero } from '@/components/website/Hero';
-import { Accommodations } from '@/components/website/Accommodations';
+import { Accommodations } from '@/components/website/accommodations';
 import { Testimonials } from '@/components/website/Testimonials';
 import { Footer } from '@/components/website/Footer';
 import { Gallery } from '@/components/website/Gallery';

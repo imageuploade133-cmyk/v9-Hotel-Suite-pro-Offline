@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { Label } from '../ui/label';
 import { useSettings } from '@/contexts/settings-context';
 import { uploadImage } from '@/lib/helpers';
-import { Accommodations } from './Accommodations';
+import { Accommodations } from './accommodations';
 import { set, format } from 'date-fns';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
