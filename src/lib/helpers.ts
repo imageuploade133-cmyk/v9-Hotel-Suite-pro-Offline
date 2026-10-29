@@ -69,7 +69,16 @@ export async function uploadImage(file: File, apiKey: string, name: string, expi
         const reader = new FileReader();
         reader.onload = async (event) => {
             if (event.target && typeof event.target.result === 'string') {
-                const base64Image = event.target.result.split(',')[1];
+                const fullDataUrl = event.target.result;
+                const base64Image = fullDataUrl.split(',')[1];
+
+                // If offline or no network connection, return local Data URL for instant 100% offline local display
+                if (!navigator.onLine) {
+                    console.warn('[Offline Mode] Network offline. Saving image locally as Data URL for instant display.');
+                    resolve(fullDataUrl);
+                    return;
+                }
+
                 const formData = new FormData();
                 formData.append('image', base64Image);
                 formData.append('name', name);
@@ -89,10 +98,14 @@ export async function uploadImage(file: File, apiKey: string, name: string, expi
                     if (result.success) {
                         resolve(result.data.url);
                     } else {
-                        reject(new Error(result.error?.message || 'Image upload failed'));
+                        // Fall back to local Data URL if imgbb upload fails
+                        console.warn('ImgBB upload error, falling back to local Data URL:', result.error?.message);
+                        resolve(fullDataUrl);
                     }
                 } catch (error) {
-                    reject(error);
+                    // Fall back to local Data URL on network error so image loads 100% offline
+                    console.warn('ImgBB network request failed, returning local Data URL:', error);
+                    resolve(fullDataUrl);
                 }
             } else {
                  reject(new Error('Failed to read file.'));
