@@ -11,6 +11,15 @@ try {
   });
 } catch (e) {}
 
+if (typeof globalThis.ReadableStream === 'undefined') {
+  try {
+    const { ReadableStream, WritableStream, TransformStream } = require('node:stream/web');
+    globalThis.ReadableStream = ReadableStream;
+    globalThis.WritableStream = WritableStream;
+    globalThis.TransformStream = TransformStream;
+  } catch (e) {}
+}
+
 if (typeof globalThis.Headers === 'undefined') {
   class Headers {
     constructor(init) {
@@ -64,10 +73,16 @@ if (typeof globalThis.Headers === 'undefined') {
 if (typeof globalThis.Request === 'undefined') {
   class Request {
     constructor(input, options = {}) {
-      this.url = typeof input === 'string' ? input : (input && input.url) || '';
+      this._url = typeof input === 'string' ? input : (input && input.url) || '';
       this.method = options.method || (input && input.method) || 'GET';
       this.headers = new globalThis.Headers(options.headers || (input && input.headers));
       this.body = options.body || (input && input.body) || null;
+    }
+    get url() {
+      return this._url;
+    }
+    set url(value) {
+      this._url = String(value);
     }
   }
   globalThis.Request = Request;
