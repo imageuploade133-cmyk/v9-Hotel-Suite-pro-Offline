@@ -8,11 +8,12 @@ if (fs.existsSync('.next')) {
 
 process.env.NEXT_IGNORE_INCORRECT_NODE_VERSION = '1';
 
+const shimPath = path.join(__dirname, 'node-shim.js');
 const nextBinPath = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
 
-const result = cp.spawnSync(process.execPath, [nextBinPath, 'build'], {
+const result = cp.spawnSync(process.execPath, ['-r', shimPath, nextBinPath, 'build'], {
   stdio: 'inherit',
-  env: Object.assign({}, process.env, { NEXT_IGNORE_INCORRECT_NODE_VERSION: '1' }),
+  env: process.env,
 });
 
 if (result.status !== 0) {
