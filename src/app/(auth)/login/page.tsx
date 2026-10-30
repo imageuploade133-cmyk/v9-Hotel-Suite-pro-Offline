@@ -168,20 +168,9 @@ export default function LoginPage() {
   const { userProfile, loading: profileLoading, permissions } = useUser();
 
   React.useEffect(() => {
-    if (user && !profileLoading && userProfile) {
+    if (user && !profileLoading) {
       // Redirect user to their appropriate landing page based on permissions
       const landingPage = getLandingPage(permissions);
-
-      // If user only has the fallback permission (MANAGE_OWN_PROFILE),
-      // redirect admin to staff page to assign proper permissions
-      if (landingPage === '/profile' &&
-          userProfile.role === 'Admin' &&
-          permissions.length === 1 &&
-          permissions[0] === PagePermission.MANAGE_OWN_PROFILE) {
-        router.replace('/staff');
-        return;
-      }
-
       router.replace(landingPage);
     }
   }, [user, profileLoading, userProfile, permissions, router]);
