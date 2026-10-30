@@ -70,14 +70,21 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
 
   const applyZoom = (zoom: number) => {
     if (typeof document !== 'undefined') {
-      const scale = Math.max(zoom / 100, 0.1);
-      (document.body.style as any).zoom = String(scale);
-      if (scale !== 1) {
-        document.body.style.width = `${100 / scale}%`;
-        document.body.style.minHeight = `${100 / scale}vh`;
+      const scale = Math.max(zoom / 100, 0.2);
+
+      // Reset explicit inline style dimensions to allow fluid CSS layout reflow
+      document.body.style.width = '';
+      document.body.style.minHeight = '';
+
+      // Apply zoom to documentElement for full page browser-native zoom adaptation
+      if ('zoom' in document.documentElement.style || (document.documentElement.style as any).zoom !== undefined) {
+        (document.documentElement.style as any).zoom = String(scale);
+        (document.body.style as any).zoom = String(scale);
       } else {
-        document.body.style.width = '100%';
-        document.body.style.minHeight = '100vh';
+        // Fallback for browsers that don't support CSS zoom property
+        document.documentElement.style.transform = `scale(${scale})`;
+        document.documentElement.style.transformOrigin = 'top left';
+        document.documentElement.style.width = `${100 / scale}%`;
       }
     }
   };
