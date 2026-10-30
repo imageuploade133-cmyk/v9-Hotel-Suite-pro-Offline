@@ -26,16 +26,23 @@ export function CameraCapture({ onCapture, open, onOpenChange }: CameraCapturePr
     setError(null);
     setCapturedImage(null);
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      } catch {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
     } catch (err) {
       console.error("Error accessing camera: ", err);
-      let message = 'Could not access the camera. Please ensure you have given permission in your browser settings.';
+      let message = 'Could not access camera. Please ensure camera permissions are allowed.';
       if (err instanceof Error && err.name === 'NotAllowedError') {
-        message = 'Camera access was denied. Please enable it in your browser settings.';
+        message = 'Camera access was denied. Please enable camera permission in your mobile browser settings.';
       }
       setError(message);
     }
@@ -74,14 +81,22 @@ export function CameraCapture({ onCapture, open, onOpenChange }: CameraCapturePr
 
   const handleConfirm = () => {
     if (capturedImage) {
-      fetch(capturedImage)
-        .then(res => res.blob())
-        .then(blob => {
-          const file = new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' });
-          onCapture(file);
-          toast({ variant: 'success', title: 'Photo Captured' });
-          onOpenChange(false);
-        });
+      try {
+        const arr = capturedImage.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const file = new File([u8arr], `capture-${Date.now()}.png`, { type: mime });
+        onCapture(file);
+        toast({ variant: 'success', title: 'Photo Captured' });
+        onOpenChange(false);
+      } catch (e) {
+        console.error('Error creating offline image file:', e);
+      }
     }
   };
 

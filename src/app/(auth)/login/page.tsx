@@ -471,31 +471,12 @@ export default function LoginPage() {
               </form>
             </Form>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or
-                </span>
-              </div>
-            </div>
-
             <div className="flex flex-col gap-2">
-                <Button variant="secondary" className="w-full" onClick={handleSeedData} loading={isSeeding} disabled={authLoading}>
-                    <Database />
-                    <span>Seed Sample Data</span>
-                </Button>
                  <Button variant="outline" className="w-full" onClick={handleCopyLink}>
                     <Copy className="mr-2 h-4 w-4" />
                     <span>Copy public website link</span>
                 </Button>
             </div>
-
-            <p className="pt-4 px-8 text-center text-xs text-muted-foreground">
-              For demo purposes, you can use `test@example.com` and `password`.
-            </p>
 
             <p className="text-center text-xs text-muted-foreground font-bold">
               Powered by ADS Developments Inc.
