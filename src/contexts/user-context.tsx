@@ -204,48 +204,48 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     setLoading(true);
+
+    const loadProfile = async () => {
+      let matchedProfile: UserProfile | null = null;
+
+      try {
+        if (user.email) {
+          const res = await fetch(`/api/lan-sync?collection=users`);
+          if (res.ok) {
+            const result = await res.json();
+            if (result.data) {
+              const usersList = Object.values(result.data) as UserProfile[];
+              const found = usersList.find(
+                u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid)
+              );
+              if (found) matchedProfile = found;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[LAN Sync] Local profile lookup error:', e);
+      }
+
+      if (matchedProfile) {
+        setUserProfile(matchedProfile);
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
         setUserProfile(profileData);
+        setLoading(false);
       } else {
-        console.warn(`No Firestore profile found for user ${user.uid}. Creating temporary profile with full access.`);
-        // Create a temporary profile for users without a staff profile
-        // This allows them to access pages that require authentication
-        const temporaryProfile: UserProfile = {
-          id: user.uid,
-          uid: user.uid,
-          name: user.displayName || 'Unnamed User',
-          email: user.email || '',
-          role: 'Staff',
-          photoURL: user.photoURL || undefined,
-          permissions: ALL_PERMISSIONS,
-          isActive: true,
-          assignedBranches: [],
-        };
-        setUserProfile(temporaryProfile);
+        loadProfile();
       }
-      setLoading(false);
     }, (error) => {
-      console.error("Error fetching user profile:", error);
-      // When there's an error (e.g., permission denied due to security rules),
-      // create a temporary profile so the user can still access the application.
-      // This handles cases where the user is authenticated but doesn't have
-      // a staff profile in Firestore due to permission issues or missing data.
-      const temporaryProfile: UserProfile = {
-        id: user.uid,
-        uid: user.uid,
-        name: user.displayName || 'Unnamed User',
-        email: user.email || '',
-        role: 'Staff',
-        photoURL: user.photoURL || undefined,
-        permissions: ALL_PERMISSIONS,
-        isActive: true,
-        assignedBranches: [],
-      };
-      setUserProfile(temporaryProfile);
-      setLoading(false);
+      console.warn("Firestore profile snapshot error, checking local LAN store profile:", error);
+      loadProfile();
     });
 
     return () => unsubscribe();

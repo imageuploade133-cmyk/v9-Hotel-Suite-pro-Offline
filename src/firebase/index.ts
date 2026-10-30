@@ -152,6 +152,15 @@ export function useCollection<T>(
       return;
     }
 
+    // Immediately fetch from Local Master Server LAN API (0 ms latency)
+    fetchLanCollectionData<T>(pathStr).then(lanResults => {
+      if (mountedRef.current && lanResults && lanResults.length > 0) {
+        setData(lanResults);
+        onDataRef.current?.(lanResults);
+        setIsLoading(false);
+      }
+    });
+
     // Set up real-time subscription
     const unsubscribe = onSnapshot(memoizedQuery,
       (snapshot) => {
@@ -164,7 +173,6 @@ export function useCollection<T>(
         }
       },
       async (err) => {
-        console.error("useCollection error, attempting local LAN store:", err);
         const lanResults = await fetchLanCollectionData<T>(pathStr);
         if (mountedRef.current) {
           setData(lanResults);
