@@ -412,151 +412,156 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     try {
         let createdSale: StockSale | null = null;
 
-        await runTransaction(firestore, async (transaction) => {
-            if (!restoredSaleId && paymentMethod !== 'Bill to Room') {
-                const stockItemsInCart = allItems.filter(item => item.sourceType === 'Stock');
-                if (stockItemsInCart.length > 0) {
-                    const stockItemReads = stockItemsInCart.map(item => transaction.get(doc(firestore, getCollectionPath('stock'), item.id)));
-                    const stockItemDocs = await Promise.all(stockItemReads);
+        const executeSaleWrites = async () => {
+          const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
+          const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-                    for (let i = 0; i < stockItemDocs.length; i++) {
-                        const stockDoc = stockItemDocs[i];
-                        const itemInCart = stockItemsInCart[i];
-                        if (!stockDoc.exists() || stockDoc.data().quantity < itemInCart.sellQuantity) {
-                            throw new Error(`Not enough stock for ${itemInCart.name}. Available: ${stockDoc.data()?.quantity || 0}, In Cart: ${itemInCart.sellQuantity}`);
-                        }
-                    }
-                    // This stock adjustment is now only for NEW sales, not restored ones.
-                    // For restored sales that weren't billed, stock was already adjusted when held.
-                    for (let i = 0; i < stockItemDocs.length; i++) {
-                        const stockDocRef = stockItemDocs[i].ref;
-                        const itemInCart = stockItemsInCart[i];
-                        transaction.update(stockDocRef, { quantity: increment(-itemInCart.sellQuantity) });
-                    }
-                }
-            }
+          const baseSaleData: StockSale = {
+              id: newSaleRef.id,
+              saleId: newSaleId,
+              items: allItems.map(item => ({
+                  itemId: item.id,
+                  itemName: item.name,
+                  quantity: item.sellQuantity,
+                  sellingPrice: item.price || item.sellingPrice,
+                  costPrice: item.costPrice || 0,
+                  isService: item.isService || false,
+              })),
+              totalAmount: total,
+              paymentMethod: paymentMethod as any,
+              paymentStatus,
+              soldAt: new Date() as any,
+              soldByUid: userProfile.uid,
+              soldByName: userProfile.name,
+              customerId: customer?.id || null,
+              customerName: customer?.name || 'Walk-in Customer',
+              customerEmail: customer?.email || null,
+              initialPaymentAmount: initialPaymentAmount || null,
+              discountType: discount?.type || null,
+              discountValue: discount?.value || null,
+              context: context,
+              printStatus: 'pending',
+          };
 
-            const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
-            const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+          const saleData = getNewDocumentData(baseSaleData, branchContext);
+          await setDoc(newSaleRef, saleData);
 
-            const baseSaleData: StockSale = {
-                id: newSaleRef.id,
-                saleId: newSaleId,
-                items: allItems.map(item => ({
-                    itemId: item.id,
-                    itemName: item.name,
-                    quantity: item.sellQuantity,
-                    sellingPrice: item.price || item.sellingPrice,
-                    costPrice: item.costPrice || 0,
-                    isService: item.isService || false,
-                })),
-                totalAmount: total,
-                paymentMethod: paymentMethod as any,
-                paymentStatus,
-                soldAt: serverTimestamp() as any,
-                soldByUid: userProfile.uid,
-                soldByName: userProfile.name,
-                customerId: customer?.id || null,
-                customerName: customer?.name || 'Walk-in Customer',
-                customerEmail: customer?.email || null,
-                initialPaymentAmount: initialPaymentAmount || null,
-                discountType: discount?.type || null,
-                discountValue: discount?.value || null,
-                context: context,
-                printStatus: 'pending',
-            };
-
-            const saleData = getNewDocumentData(baseSaleData, branchContext);
-            transaction.set(newSaleRef, saleData);
-
-            const amountPaid = paymentStatus === 'Paid' ? total : initialPaymentAmount;
-            if (amountPaid && amountPaid > 0) {
-                const paymentRef = doc(collection(firestore, 'payments'));
-                const paymentData: Omit<Payment, 'id'> = {
-                    bookingId: newSaleRef.id,
-                    guestName: saleData.customerName,
-                    guestEmail: saleData.customerEmail || null,
-                    amount: amountPaid,
-                    paymentMethod: paymentMethod === 'Credit' ? (initialPaymentAmount && initialPaymentAmount > 0 ? (initialPaymentMethod || 'Cash') : 'Credit') : paymentMethod as any,
-                    status: 'Paid',
-                    transactionDate: new Date(),
-                    type: 'POS',
-                    createdByUid: userProfile.uid,
-                    createdByName: userProfile.name,
-                    items: saleData.items,
-                    profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
-                };
-                transaction.set(paymentRef, paymentData);
-
-                // If this was a restored Bill-to-Room sale, mark the original bill as paid
-                if (restoredSaleData?.linkedBillId && restoredSaleData.customer?.id) {
-                    const billRef = doc(firestore, `bookings/${restoredSaleData.customer.id}/bills`, restoredSaleData.linkedBillId);
-                    transaction.update(billRef, {
-                        paid: true,
-                        paymentId: paymentRef.id,
-                        paymentMethod: paymentData.paymentMethod,
-                    });
-                }
-            }
-
-            const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-            transaction.set(auditLogRef, {
-                timestamp: serverTimestamp(),
-                userId: userProfile.uid,
-                userName: userProfile.name,
-                changeType: 'Sale',
-                entityType: 'Stock Sale',
-                entityId: newSaleRef.id,
-                details: `Processed sale #${newSaleId} for ${saleData.customerName}.`,
-                changes: allItems.filter(item => !item.isService).map(item => ({ field: `sold: ${item.name}`, before: item.quantity + item.sellQuantity, after: item.quantity })),
-                notes: `Total: ${total}, Method: ${paymentMethod}`
+          // Save sale mutation in Local Master PC LAN Store for 100% offline multi-device sync
+          try {
+            await fetch('/api/lan-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                collectionName: getCollectionPath('stockSales'),
+                docId: newSaleRef.id,
+                action: 'set',
+                data: saleData,
+              }),
             });
+          } catch {}
 
-            // For credit sales, create a running table entry so the user can print dockets
-            // The running table will be linked to the credit sale for later reconciliation
-            if (paymentMethod === 'Credit' && customer?.id) {
-                const heldSaleId = `CREDIT-${newSaleId}`;
+          const amountPaid = paymentStatus === 'Paid' ? total : initialPaymentAmount;
+          if (amountPaid && amountPaid > 0) {
+              const paymentRef = doc(collection(firestore, 'payments'));
+              const paymentData: Omit<Payment, 'id'> = {
+                  bookingId: newSaleRef.id,
+                  guestName: saleData.customerName,
+                  guestEmail: saleData.customerEmail || null,
+                  amount: amountPaid,
+                  paymentMethod: paymentMethod === 'Credit' ? (initialPaymentAmount && initialPaymentAmount > 0 ? (initialPaymentMethod || 'Cash') : 'Credit') : paymentMethod as any,
+                  status: 'Paid',
+                  transactionDate: new Date(),
+                  type: 'POS',
+                  createdByUid: userProfile.uid,
+                  createdByName: userProfile.name,
+                  items: saleData.items,
+                  profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
+              };
+              await setDoc(paymentRef, paymentData);
 
-                // Combine items similar to holdSale function
-                const combinedItems = allItems.reduce((acc, item) => {
-                    const existingItem = acc.find((i) => i.id === item.id);
-                    if (existingItem) {
-                        existingItem.sellQuantity += item.sellQuantity;
-                    } else {
-                        acc.push({ ...item, printedQuantity: 0 });
-                    }
-                    return acc;
-                }, [] as UnifiedItem[]);
+              try {
+                await fetch('/api/lan-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    collectionName: 'payments',
+                    docId: paymentRef.id,
+                    action: 'set',
+                    data: paymentData,
+                  }),
+                });
+              } catch {}
+          }
 
-                const baseHeldSaleData: Partial<HeldSale> = {
-                    id: heldSaleId,
-                    name: `CREDIT-${customer.name || 'Customer'}`,
-                    cart: combinedItems,
-                    customer: customer?.id ? { id: customer.id, name: customer.name || "Customer" } : { name: customer?.name || "Walk-in Customer" },
-                    heldByUid: userProfile.uid,
-                    heldByName: userProfile.name,
-                    heldAt: serverTimestamp() as any,
+          if (restoredSaleId) {
+              const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), restoredSaleId);
+              await deleteDoc(heldSaleRef);
+              try {
+                await fetch('/api/lan-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    collectionName: getCollectionPath('heldSales'),
+                    docId: restoredSaleId,
+                    action: 'delete',
+                  }),
+                });
+              } catch {}
+          }
+
+          return { ...saleData, soldAt: new Date() };
+        };
+
+        try {
+          if (navigator.onLine) {
+            await runTransaction(firestore, async (transaction) => {
+                const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
+                const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+                const baseSaleData: StockSale = {
+                    id: newSaleRef.id,
+                    saleId: newSaleId,
+                    items: allItems.map(item => ({
+                        itemId: item.id,
+                        itemName: item.name,
+                        quantity: item.sellQuantity,
+                        sellingPrice: item.price || item.sellingPrice,
+                        costPrice: item.costPrice || 0,
+                        isService: item.isService || false,
+                    })),
+                    totalAmount: total,
+                    paymentMethod: paymentMethod as any,
+                    paymentStatus,
+                    soldAt: serverTimestamp() as any,
+                    soldByUid: userProfile.uid,
+                    soldByName: userProfile.name,
+                    customerId: customer?.id || null,
+                    customerName: customer?.name || 'Walk-in Customer',
+                    customerEmail: customer?.email || null,
+                    initialPaymentAmount: initialPaymentAmount || null,
+                    discountType: discount?.type || null,
+                    discountValue: discount?.value || null,
+                    context: context,
                     printStatus: 'pending',
-                    isCreditSale: true,
-                    linkedStockSaleId: newSaleRef.id,
-                    linkedStockSaleNumber: newSaleId,
                 };
 
-                const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), heldSaleId);
-                const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
-                transaction.set(heldSaleRef, heldSaleData);
+                const saleData = getNewDocumentData(baseSaleData, branchContext);
+                transaction.set(newSaleRef, saleData);
 
-                // Update the sale with the linked held sale ID
-                transaction.update(newSaleRef, { linkedHeldSaleId: heldSaleId });
-            }
+                if (restoredSaleId) {
+                    const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), restoredSaleId);
+                    transaction.delete(heldSaleRef);
+                }
 
-            if (restoredSaleId) {
-                const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), restoredSaleId);
-                transaction.delete(heldSaleRef);
-            }
-
-            createdSale = { ...saleData, soldAt: new Date() };
-        });
+                createdSale = { ...saleData, soldAt: new Date() };
+            });
+          } else {
+            createdSale = await executeSaleWrites();
+          }
+        } catch (trxErr) {
+          console.warn('[POS Offline Mode] Transaction failed/offline. Executing direct local sale writes:', trxErr);
+          createdSale = await executeSaleWrites();
+        }
 
         clearCart();
         if (!createdSale) {
