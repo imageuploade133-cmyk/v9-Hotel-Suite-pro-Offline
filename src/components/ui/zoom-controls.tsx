@@ -52,64 +52,17 @@ export function ZoomControls() {
           <DropdownMenuSeparator />
 
           {/* Quick preset zoom levels */}
-          <DropdownMenuItem onClick={() => zoomLevel !== 0 && (() => {
-            while (zoomLevel > 0) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 0 && 'font-bold text-primary')}>
-              0% (Minimum)
-            </span>
-            {zoomLevel === 0 && <span className="ml-2 text-xs">✓</span>}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 50 && (() => {
-            while (zoomLevel < 50) zoomIn();
-            while (zoomLevel > 50) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 50 && 'font-bold text-primary')}>
-              50%
-            </span>
-            {zoomLevel === 50 && <span className="ml-2 text-xs">✓</span>}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 75 && (() => {
-            while (zoomLevel < 75) zoomIn();
-            while (zoomLevel > 75) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 75 && 'font-bold text-primary')}>
-              75%
-            </span>
-            {zoomLevel === 75 && <span className="ml-2 text-xs">✓</span>}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 100 && resetZoom()}>
+          <DropdownMenuItem onClick={() => resetZoom()}>
             <span className={cn('flex-1', zoomLevel === 100 && 'font-bold text-primary')}>
               100% (Default)
             </span>
             {zoomLevel === 100 && <span className="ml-2 text-xs">✓</span>}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 125 && (() => {
-            while (zoomLevel < 125) zoomIn();
-            while (zoomLevel > 125) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 125 && 'font-bold text-primary')}>
-              125%
-            </span>
-            {zoomLevel === 125 && <span className="ml-2 text-xs">✓</span>}
+          <DropdownMenuItem onClick={zoomOut}>
+            <span className="flex-1">Zoom Out (-10%)</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 150 && (() => {
-            while (zoomLevel < 150) zoomIn();
-            while (zoomLevel > 150) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 150 && 'font-bold text-primary')}>
-              150%
-            </span>
-            {zoomLevel === 150 && <span className="ml-2 text-xs">✓</span>}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomLevel !== 200 && (() => {
-            while (zoomLevel < 200) zoomIn();
-            while (zoomLevel > 200) zoomOut();
-          })()}>
-            <span className={cn('flex-1', zoomLevel === 200 && 'font-bold text-primary')}>
-              200% (Maximum)
-            </span>
-            {zoomLevel === 200 && <span className="ml-2 text-xs">✓</span>}
+          <DropdownMenuItem onClick={zoomIn}>
+            <span className="flex-1">Zoom In (+10%)</span>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />

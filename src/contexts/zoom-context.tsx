@@ -70,7 +70,8 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
 
   const applyZoom = (zoom: number) => {
     if (typeof document !== 'undefined') {
-      document.documentElement.style.fontSize = `${(zoom / 100) * 16}px`;
+      const scale = zoom / 100;
+      (document.body.style as any).zoom = String(scale);
     }
   };
 
