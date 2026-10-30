@@ -55,6 +55,24 @@ export interface UseDocResult<T> {
     refetch: () => Promise<void>;
 }
 
+async function fetchLanCollectionData<T>(pathStr: string): Promise<T[]> {
+  try {
+    const res = await fetch(`/api/lan-sync?collection=${encodeURIComponent(pathStr)}`);
+    if (res.ok) {
+      const result = await res.json();
+      if (result.data) {
+        return Object.entries(result.data).map(([id, val]: [string, any]) => ({
+          id,
+          ...(typeof val === 'object' ? val : {}),
+        })) as T[];
+      }
+    }
+  } catch (err) {
+    console.warn('[LAN Sync] Local store query fallback failed:', err);
+  }
+  return [];
+}
+
 export function useCollection<T>(
     q: Query | CollectionReference | null,
     options?: UseCollectionOptions<T>
@@ -97,12 +115,19 @@ export function useCollection<T>(
       unsubscribeRef.current = null;
     }
 
+    const pathStr = (memoizedQuery as any).path || 'collections';
+
     // If not realtime, do a one-time fetch
     if (!realtime) {
       const fetchData = async () => {
         try {
           const snapshot = await getDocs(memoizedQuery);
-          const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+          let results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+
+          if (results.length === 0 && !navigator.onLine) {
+            const lanResults = await fetchLanCollectionData<T>(pathStr);
+            if (lanResults.length > 0) results = lanResults;
+          }
 
           if (mountedRef.current) {
             setData(results);
@@ -110,11 +135,12 @@ export function useCollection<T>(
             setError(null);
           }
         } catch (err) {
-          console.error("useCollection fetch error:", err);
+          console.error("useCollection fetch error, attempting local LAN store:", err);
+          const lanResults = await fetchLanCollectionData<T>(pathStr);
           if (mountedRef.current) {
-            const error = err as Error;
-            setError(error);
-            onErrorRef.current?.(error);
+            setData(lanResults);
+            onDataRef.current?.(lanResults);
+            setError(null);
           }
         } finally {
           if (mountedRef.current) {
@@ -137,12 +163,14 @@ export function useCollection<T>(
           setError(null);
         }
       },
-      (err) => {
-        console.error("useCollection error:", err);
+      async (err) => {
+        console.error("useCollection error, attempting local LAN store:", err);
+        const lanResults = await fetchLanCollectionData<T>(pathStr);
         if (mountedRef.current) {
-          setError(err);
-          onErrorRef.current?.(err);
+          setData(lanResults);
+          onDataRef.current?.(lanResults);
           setIsLoading(false);
+          setError(null);
         }
       }
     );
