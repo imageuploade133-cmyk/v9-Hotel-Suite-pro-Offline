@@ -5,7 +5,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { useAuth } from '@/components/auth/auth-provider';
 import type { User } from 'firebase/auth';
 import type { UserProfile } from '@/lib/types';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission } from '@/lib/permissions';
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, onSnapshot, doc, getDocs } from 'firebase/firestore';
@@ -252,12 +252,32 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user, authLoading, firestore, refreshTrigger]);
 
   // Use actual user permissions from their role/profile
-  // Falls back to MANAGE_OWN_PROFILE if no permissions are set
+  // Automatically resolve permissions for Admins and defined Roles
   const permissions = useMemo(() => {
-    if (userProfile?.permissions && userProfile.permissions.length > 0) {
+    if (!userProfile) {
+      return [PagePermission.MANAGE_OWN_PROFILE];
+    }
+
+    // 1. If explicit permissions array is set and not empty, use it
+    if (userProfile.permissions && userProfile.permissions.length > 0) {
       return userProfile.permissions;
     }
-    // Fallback: allow at least profile access
+
+    // 2. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
+    const roleLower = (userProfile.role || '').toLowerCase();
+    if (userProfile.isSuperAdmin || roleLower.includes('admin') || roleLower.includes('super')) {
+      return ALL_PERMISSIONS;
+    }
+
+    // 3. Look up permissions matching the user's role name from default system roles
+    const matchingRole = DEFAULT_SYSTEM_ROLES.find(
+      r => r.name.toLowerCase() === roleLower || r.id.toLowerCase() === roleLower
+    );
+    if (matchingRole && matchingRole.permissions && matchingRole.permissions.length > 0) {
+      return matchingRole.permissions;
+    }
+
+    // 4. Fallback: allow at least profile access
     return [PagePermission.MANAGE_OWN_PROFILE];
   }, [userProfile]);
 

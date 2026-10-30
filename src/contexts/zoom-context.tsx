@@ -70,8 +70,15 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
 
   const applyZoom = (zoom: number) => {
     if (typeof document !== 'undefined') {
-      const scale = zoom / 100;
+      const scale = Math.max(zoom / 100, 0.1);
       (document.body.style as any).zoom = String(scale);
+      if (scale !== 1) {
+        document.body.style.width = `${100 / scale}%`;
+        document.body.style.minHeight = `${100 / scale}vh`;
+      } else {
+        document.body.style.width = '100%';
+        document.body.style.minHeight = '100vh';
+      }
     }
   };
 
