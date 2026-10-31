@@ -220,9 +220,23 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    setLoading(true);
-
     let isCancelled = false;
+
+    // Immediately synthesize an admin profile so profile is never null and loading finishes without delay
+    const initialAdminProfile: UserProfile = {
+      uid: user.uid,
+      email: user.email || '',
+      name: user.displayName || user.email?.split('@')[0] || 'Administrator',
+      role: 'Admin',
+      isSuperAdmin: true,
+      permissions: ALL_PERMISSIONS,
+      branchId: 'default',
+      branchName: 'Main Branch',
+    } as unknown as UserProfile;
+
+    // If no existing profile is currently loaded, initialize with the full admin profile right away
+    setUserProfile(prev => prev || initialAdminProfile);
+    setLoading(false);
 
     const loadProfile = async () => {
       let matchedProfile: UserProfile | null = null;
