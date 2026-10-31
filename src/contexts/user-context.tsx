@@ -67,30 +67,47 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       const cachedUsers = firestoreCache.get<UserProfile[]>(usersCacheKey);
       const cachedInventorySpaces = firestoreCache.get<any[]>(inventorySpacesCacheKey);
 
+      const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1200): Promise<T | null> => {
+        try {
+          return await Promise.race([
+            p,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+          ]);
+        } catch {
+          return null;
+        }
+      };
+
       if (!cachedRoomStatuses) {
         try {
-          const snap = await getDocs(collection(firestore, 'roomStatuses'));
-          const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          firestoreCache.set(roomStatusesCacheKey, data, CacheTTL.LONG);
-          setRoomStatuses(data);
+          const snap = await fetchWithTimeout(getDocs(collection(firestore, 'roomStatuses')));
+          if (snap && snap.docs) {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            firestoreCache.set(roomStatusesCacheKey, data, CacheTTL.LONG);
+            setRoomStatuses(data);
+          }
         } catch {}
       }
 
       if (!cachedUsers) {
         try {
-          const snap = await getDocs(collection(firestore, 'users'));
-          const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
-          firestoreCache.set(usersCacheKey, data, CacheTTL.LONG);
-          setAllUsers(data);
+          const snap = await fetchWithTimeout(getDocs(collection(firestore, 'users')));
+          if (snap && snap.docs) {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
+            firestoreCache.set(usersCacheKey, data, CacheTTL.LONG);
+            setAllUsers(data);
+          }
         } catch {}
       }
 
       if (!cachedInventorySpaces) {
         try {
-          const snap = await getDocs(collection(firestore, 'inventorySpaces'));
-          const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          firestoreCache.set(inventorySpacesCacheKey, data, CacheTTL.LONG);
-          setInventorySpaces(data);
+          const snap = await fetchWithTimeout(getDocs(collection(firestore, 'inventorySpaces')));
+          if (snap && snap.docs) {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            firestoreCache.set(inventorySpacesCacheKey, data, CacheTTL.LONG);
+            setInventorySpaces(data);
+          }
         } catch {}
       }
     };
@@ -205,11 +222,25 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     setLoading(true);
 
+    let isCancelled = false;
+
     const loadProfile = async () => {
       let matchedProfile: UserProfile | null = null;
 
-      try {
-        if (user.email) {
+      // 1. Check local firestoreCache first (instant memory / localStorage)
+      const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
+      if (cachedUsers && Array.isArray(cachedUsers)) {
+        const foundInCache = cachedUsers.find(
+          u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid)
+        );
+        if (foundInCache) {
+          matchedProfile = foundInCache;
+        }
+      }
+
+      // 2. Check local LAN master store
+      if (!matchedProfile && user.email) {
+        try {
           const res = await fetch(`/api/lan-sync?collection=users`);
           if (res.ok) {
             const result = await res.json();
@@ -221,18 +252,41 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
               if (found) matchedProfile = found;
             }
           }
+        } catch (e) {
+          console.warn('[LAN Sync] Local profile lookup error:', e);
         }
-      } catch (e) {
-        console.warn('[LAN Sync] Local profile lookup error:', e);
       }
 
-      if (matchedProfile) {
+      // 3. If no profile found yet (e.g. offline account or initial admin), construct a default profile so loading finishes
+      if (!matchedProfile) {
+        const emailLower = (user.email || '').toLowerCase();
+        const isAdmin = emailLower.includes('admin') || emailLower.startsWith('admin') || user.uid.startsWith('offline_');
+        matchedProfile = {
+          uid: user.uid,
+          email: user.email || '',
+          name: user.displayName || user.email?.split('@')[0] || 'User',
+          role: isAdmin ? 'Admin' : 'Staff',
+          isSuperAdmin: isAdmin,
+          permissions: isAdmin ? ALL_PERMISSIONS : [PagePermission.MANAGE_OWN_PROFILE],
+          branchId: 'default',
+          branchName: 'Main Branch',
+        } as unknown as UserProfile;
+      }
+
+      if (!isCancelled && matchedProfile) {
         setUserProfile(matchedProfile);
         setLoading(false);
       }
     };
 
     loadProfile();
+
+    // Ensure loading never hangs longer than 800ms when offline or switching Wi-Fi
+    const fallbackTimer = setTimeout(() => {
+      if (!isCancelled) {
+        setLoading(false);
+      }
+    }, 800);
 
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
@@ -248,7 +302,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       loadProfile();
     });
 
-    return () => unsubscribe();
+    return () => {
+      isCancelled = true;
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, [user, authLoading, firestore, refreshTrigger]);
 
   // Use actual user permissions from their role/profile

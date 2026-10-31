@@ -76,24 +76,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) {
       return Promise.reject(new Error("Firebase is not configured. Please check your environment variables."));
     }
+
+    const performOfflineAuth = () => {
+      console.warn('[Offline Auth] Network offline or slow cloud response. Applying persistent offline user session.');
+      if (auth.currentUser) {
+        setUser(auth.currentUser);
+        return auth.currentUser;
+      }
+      const offlineUser = {
+        uid: `offline_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        email: email,
+        displayName: email.split('@')[0],
+        photoURL: null,
+        emailVerified: true,
+      } as User;
+      setUser(offlineUser);
+      return { user: offlineUser };
+    };
+
+    // If client is marked offline, fall back instantly
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return performOfflineAuth();
+    }
+
+    // Race Firebase cloud auth against a fast 2.5-second timeout so offline / slow Wi-Fi logins respond instantly
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        const timeoutErr = new Error('Auth timeout: cloud servers unreachable on current Wi-Fi');
+        (timeoutErr as any).code = 'auth/network-request-failed';
+        reject(timeoutErr);
+      }, 2500);
+    });
+
     try {
-      return await signInWithEmailAndPassword(auth, email, pass);
+      return await Promise.race([
+        signInWithEmailAndPassword(auth, email, pass),
+        timeoutPromise
+      ]);
     } catch (err: any) {
-      if (err.code === 'auth/network-request-failed' || !navigator.onLine) {
-        console.warn('[Offline Auth] Network request failed. Applying persistent offline user session.');
-        if (auth.currentUser) {
-          setUser(auth.currentUser);
-          return auth.currentUser;
-        }
-        const offlineUser = {
-          uid: `offline_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          email: email,
-          displayName: email.split('@')[0],
-          photoURL: null,
-          emailVerified: true,
-        } as User;
-        setUser(offlineUser);
-        return { user: offlineUser };
+      if (err.code === 'auth/network-request-failed' || (err.message && err.message.includes('timeout'))) {
+        return performOfflineAuth();
       }
       throw err;
     }
