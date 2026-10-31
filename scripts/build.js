@@ -8,11 +8,12 @@ if (fs.existsSync('.next')) {
 
 process.env.NEXT_IGNORE_INCORRECT_NODE_VERSION = '1';
 
-const shimPath = path.join(__dirname, 'node-shim.js');
+// Convert Windows backslashes to forward slashes for NODE_OPTIONS to avoid escape sequence issues
+const shimPath = path.resolve(__dirname, 'node-shim.js').replace(/\\/g, '/');
 const existingNodeOptions = process.env.NODE_OPTIONS || '';
 process.env.NODE_OPTIONS = `-r "${shimPath}" ${existingNodeOptions}`.trim();
 
-const nextBinPath = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+const nextBinPath = path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
 
 const result = cp.spawnSync(process.execPath, ['-r', shimPath, nextBinPath, 'build'], {
   stdio: 'inherit',

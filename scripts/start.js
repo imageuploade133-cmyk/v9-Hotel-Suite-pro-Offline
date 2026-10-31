@@ -4,8 +4,8 @@ const cp = require('child_process');
 process.env.NEXT_IGNORE_INCORRECT_NODE_VERSION = '1';
 process.env.NODE_ENV = 'production';
 
-const shimPath = path.join(__dirname, 'node-shim.js');
-const nextBinPath = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+const shimPath = path.resolve(__dirname, 'node-shim.js').replace(/\\/g, '/');
+const nextBinPath = path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
 
 const host = process.env.HOST || '0.0.0.0';
 const port = process.env.PORT || '3000';
