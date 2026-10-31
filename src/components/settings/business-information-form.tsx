@@ -292,21 +292,50 @@ export function BusinessInformationForm() {
             });
 
             if (changes.length > 0) {
-                batch.set(settingsDocRef, settingsToSave, { merge: true });
+                try {
+                    batch.set(settingsDocRef, settingsToSave, { merge: true });
 
-                const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-                batch.set(auditLogRef, {
-                    timestamp: serverTimestamp(),
-                    userId: userProfile.uid,
-                    userName: userProfile.name,
-                    changeType: 'Update',
-                    entityType: 'Settings',
-                    entityId: 'Business Information',
-                    details: 'Updated business information settings.',
-                    changes,
-                });
+                    const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
+                    batch.set(auditLogRef, {
+                        timestamp: serverTimestamp(),
+                        userId: userProfile.uid,
+                        userName: userProfile.name,
+                        changeType: 'Update',
+                        entityType: 'Settings',
+                        entityId: 'Business Information',
+                        details: 'Updated business information settings.',
+                        changes,
+                    });
 
-                await batch.commit();
+                    await batch.commit();
+                } catch (cloudErr) {
+                    console.warn('[Business Info] Cloud write error (offline mode):', cloudErr);
+                }
+
+                // Sync directly to Local Master Server LAN Store for instant 100% offline persistence
+                try {
+                    await fetch('/api/lan-sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            collectionName: 'settings',
+                            docId: 'global',
+                            action: 'set',
+                            data: settingsToSave,
+                        }),
+                    });
+                } catch (lanErr) {
+                    console.warn('[Business Info] LAN sync error:', lanErr);
+                }
+
+                // Sync immediately to local browser storage & firestoreCache
+                try {
+                    if (typeof window !== 'undefined') {
+                        const existing = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
+                        const updated = { ...existing, ...settingsToSave };
+                        localStorage.setItem('app_saved_settings', JSON.stringify(updated));
+                    }
+                } catch {}
             }
 
             toast({

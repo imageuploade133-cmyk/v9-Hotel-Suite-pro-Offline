@@ -69,8 +69,20 @@ export const useSettings = () => useContext(SettingsContext);
 
 const getInitialSettings = (): Settings => {
   if (typeof window !== 'undefined') {
+    // 1. Check firestoreCache
     const cached = firestoreCache.get<Settings>(CacheKeys.settings());
-    if (cached) return cached;
+    if (cached && Object.keys(cached).length > 0) return { ...DEFAULT_SETTINGS, ...cached };
+
+    // 2. Check direct localStorage fallback for persistent offline configuration
+    try {
+      const raw = localStorage.getItem('app_saved_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_SETTINGS, ...parsed };
+        }
+      }
+    } catch {}
   }
   return DEFAULT_SETTINGS;
 };
@@ -106,15 +118,47 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     };
 
     try {
-        // 1. Fetch global settings from root 'settings' collection with fast fallback
-        const settingsCollectionRef = collection(db, 'settings');
-        const settingsSnapshot = await fetchWithTimeout(getDocs(settingsCollectionRef));
-        const mergedSettings: Settings = { ...DEFAULT_SETTINGS };
-        if (settingsSnapshot && settingsSnapshot.forEach) {
-          settingsSnapshot.forEach((doc) => {
-              Object.assign(mergedSettings, doc.data());
-          });
+        // Multi-tier fallback strategy for settings:
+        // Priority 1: Keep current settings as baseline (never drop currency/configuration)
+        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...settings };
+
+        // Priority 2: Query Local Master LAN Store (/api/lan-sync?collection=settings)
+        try {
+          const lanRes = await fetchWithTimeout(fetch(`/api/lan-sync?collection=settings`), 1000);
+          if (lanRes && lanRes.ok) {
+            const lanResult = await lanRes.json();
+            if (lanResult.data) {
+              const settingsDocs = Object.values(lanResult.data);
+              settingsDocs.forEach((docData: any) => {
+                if (docData && typeof docData === 'object') {
+                  Object.assign(mergedSettings, docData);
+                }
+              });
+            }
+          }
+        } catch (lanErr) {
+          console.warn('[Settings Context] LAN settings query error:', lanErr);
         }
+
+        // Priority 3: Fetch directly from 'settings/global' document in Firestore
+        try {
+          const globalDocRef = doc(db, 'settings', 'global');
+          const globalDocSnap = await fetchWithTimeout(getDoc(globalDocRef), 1200);
+          if (globalDocSnap && globalDocSnap.exists()) {
+            Object.assign(mergedSettings, globalDocSnap.data());
+          }
+        } catch {}
+
+        // Priority 4: Fetch all documents in 'settings' collection
+        try {
+          const settingsCollectionRef = collection(db, 'settings');
+          const settingsSnapshot = await fetchWithTimeout(getDocs(settingsCollectionRef), 1200);
+          if (settingsSnapshot && settingsSnapshot.forEach) {
+            settingsSnapshot.forEach((doc) => {
+                Object.assign(mergedSettings, doc.data());
+            });
+          }
+        } catch {}
 
         // Store global POS settings separately (for reference when in branch mode)
         const extractedGlobalPosSettings: Partial<Settings> = {};
@@ -158,6 +202,11 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         mergedSettings.paymentMethods = paymentMethods;
 
         firestoreCache.set(CacheKeys.settings(), mergedSettings, CacheTTL.HOUR);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('app_saved_settings', JSON.stringify(mergedSettings));
+          }
+        } catch {}
 
         if (mountedRef.current) {
             setSettings(mergedSettings);

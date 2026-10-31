@@ -136,21 +136,50 @@ export function LocalizationForm() {
             if (settings?.countryCode !== phoneCodeToSave) changes.push({ field: 'countryCode', before: settings?.countryCode ?? null, after: phoneCodeToSave });
 
             if (changes.length > 0) {
-                batch.set(settingsDocRef, settingsToSave, { merge: true });
+                try {
+                    batch.set(settingsDocRef, settingsToSave, { merge: true });
 
-                const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-                batch.set(auditLogRef, {
-                    timestamp: serverTimestamp(),
-                    userId: userProfile.uid,
-                    userName: userProfile.name,
-                    changeType: 'Update',
-                    entityType: 'Settings',
-                    entityId: 'Localization',
-                    details: 'Updated currency and region settings.',
-                    changes,
-                });
+                    const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
+                    batch.set(auditLogRef, {
+                        timestamp: serverTimestamp(),
+                        userId: userProfile.uid,
+                        userName: userProfile.name,
+                        changeType: 'Update',
+                        entityType: 'Settings',
+                        entityId: 'Localization',
+                        details: 'Updated currency and region settings.',
+                        changes,
+                    });
 
-                await batch.commit();
+                    await batch.commit();
+                } catch (cloudErr) {
+                    console.warn('[Localization Form] Cloud write error (offline mode):', cloudErr);
+                }
+
+                // Sync directly to Local Master Server LAN Store for instant 100% offline persistence
+                try {
+                    await fetch('/api/lan-sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            collectionName: 'settings',
+                            docId: 'global',
+                            action: 'set',
+                            data: settingsToSave,
+                        }),
+                    });
+                } catch (lanErr) {
+                    console.warn('[Localization Form] LAN sync error:', lanErr);
+                }
+
+                // Sync immediately to local browser storage & firestoreCache
+                try {
+                    if (typeof window !== 'undefined') {
+                        const existing = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
+                        const updated = { ...existing, ...settingsToSave };
+                        localStorage.setItem('app_saved_settings', JSON.stringify(updated));
+                    }
+                } catch {}
             }
 
             const countryName = data.country === 'OTHER' ? data.customCountry : countries.find(c => c.code === data.country)?.name;
