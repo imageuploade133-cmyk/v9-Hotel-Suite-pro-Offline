@@ -76,15 +76,19 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
       document.body.style.width = '';
       document.body.style.minHeight = '';
 
+      // Set CSS custom property so calculations like calc(100vh / var(--zoom-scale)) work accurately
+      document.documentElement.style.setProperty('--zoom-scale', String(scale));
+
       // Apply zoom to documentElement for full page browser-native zoom adaptation
       if ('zoom' in document.documentElement.style || (document.documentElement.style as any).zoom !== undefined) {
         (document.documentElement.style as any).zoom = String(scale);
         (document.body.style as any).zoom = String(scale);
       } else {
         // Fallback for browsers that don't support CSS zoom property
-        document.documentElement.style.transform = `scale(${scale})`;
-        document.documentElement.style.transformOrigin = 'top left';
-        document.documentElement.style.width = `${100 / scale}%`;
+        const rootStyle = document.documentElement.style as CSSStyleDeclaration;
+        rootStyle.transform = `scale(${scale})`;
+        rootStyle.transformOrigin = 'top left';
+        rootStyle.width = `${100 / scale}%`;
       }
     }
   };

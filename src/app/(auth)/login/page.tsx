@@ -18,6 +18,7 @@ import {
 import { useAuth } from '@/components/auth/auth-provider';
 import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ZoomControls } from '@/components/ui/zoom-controls';
 import { ForgotPasswordDialog } from '@/components/auth/forgot-password-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -304,8 +305,13 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="relative flex min-h-screen w-full bg-background">
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex">
+      <div className="relative flex min-h-[calc(100vh/var(--zoom-scale,1))] w-full bg-background">
+        {/* Floating zoom controls on login page */}
+        <div className="absolute top-4 right-4 z-50">
+          <ZoomControls />
+        </div>
+
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex min-h-[calc(100vh/var(--zoom-scale,1))]">
           <div className="absolute inset-0">
              {loginImage && (
               <Image
@@ -326,8 +332,8 @@ export default function LoginPage() {
           <TopCountries />
         </div>
 
-        <div className="flex w-full items-center justify-center p-6 lg:w-1/2 lg:p-8">
-          <div className="mx-auto flex w-full max-w-sm flex-col justify-center space-y-6">
+        <div className="flex w-full items-center justify-center p-6 lg:w-1/2 lg:p-8 min-h-[calc(100vh/var(--zoom-scale,1))] overflow-y-auto">
+          <div className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-6 py-6">
             <div className="flex flex-col items-center text-center">
               <div className="flex items-center gap-4 mb-4 lg:hidden">
                   <Building2 className="h-10 w-10 text-primary" />
