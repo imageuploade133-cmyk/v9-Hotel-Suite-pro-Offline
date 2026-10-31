@@ -180,14 +180,22 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     form.clearErrors();
     try {
-      await login(values.email, values.password, values.rememberMe);
-      // On successful login, the useEffect above will handle redirection
-      // based on the user's permissions once the profile is loaded.
+      const loggedInUser = await login(values.email, values.password, values.rememberMe);
       toast({
         variant: 'success',
         title: 'Login Successful',
         description: 'Glad to see you again! Redirecting to your dashboard...',
       });
+
+      // Directly trigger navigation to landing page or /dashboard to ensure instant redirection online & offline
+      const userEmail = (values.email || '').toLowerCase();
+      const isAdmin = userEmail.includes('admin') || userEmail.startsWith('admin') || userProfile?.role?.toLowerCase().includes('admin');
+      const targetPage = isAdmin ? '/dashboard' : (getLandingPage(permissions) || '/dashboard');
+
+      // Delay slightly for user feedback toast then redirect reliably
+      setTimeout(() => {
+        router.replace(targetPage);
+      }, 400);
       // Don't redirect here - let the useEffect handle it once profile is loaded
     } catch (error: any) {
         let errorMessage = 'An unexpected error occurred. Please try again.';

@@ -94,14 +94,27 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
 
     isFetchingRef.current = true;
 
+    const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1500): Promise<T | null> => {
+      try {
+        return await Promise.race([
+          p,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+      } catch {
+        return null;
+      }
+    };
+
     try {
-        // 1. Fetch global settings from root 'settings' collection
+        // 1. Fetch global settings from root 'settings' collection with fast fallback
         const settingsCollectionRef = collection(db, 'settings');
-        const settingsSnapshot = await getDocs(settingsCollectionRef);
+        const settingsSnapshot = await fetchWithTimeout(getDocs(settingsCollectionRef));
         const mergedSettings: Settings = { ...DEFAULT_SETTINGS };
-        settingsSnapshot.forEach((doc) => {
-            Object.assign(mergedSettings, doc.data());
-        });
+        if (settingsSnapshot && settingsSnapshot.forEach) {
+          settingsSnapshot.forEach((doc) => {
+              Object.assign(mergedSettings, doc.data());
+          });
+        }
 
         // Store global POS settings separately (for reference when in branch mode)
         const extractedGlobalPosSettings: Partial<Settings> = {};
