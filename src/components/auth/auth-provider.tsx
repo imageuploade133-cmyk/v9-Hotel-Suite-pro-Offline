@@ -77,26 +77,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return Promise.reject(new Error("Firebase is not configured. Please check your environment variables."));
     }
 
-    const performOfflineAuth = () => {
-      console.warn('[Offline Auth] Network offline or slow cloud response. Applying persistent offline user session.');
-      if (auth.currentUser) {
-        setUser(auth.currentUser);
-        return auth.currentUser;
+    const performOfflineAuth = async () => {
+      console.warn('[Offline Auth] Network offline or cloud unreachable. Verifying credentials against local Master PC store...');
+
+      // 1. Fetch staff/user accounts from Local Master Server or local cache
+      let usersList: any[] = [];
+      try {
+        const res = await fetch('/api/lan-sync?collection=users');
+        if (res.ok) {
+          const result = await res.json();
+          if (result.data) {
+            usersList = Object.values(result.data);
+          }
+        }
+      } catch (err) {
+        console.warn('[Offline Auth] Could not query LAN users list:', err);
       }
-      const offlineUser = {
-        uid: `offline_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        email: email,
-        displayName: email.split('@')[0],
-        photoURL: null,
-        emailVerified: true,
-      } as User;
-      setUser(offlineUser);
-      return { user: offlineUser };
+
+      // Check local storage cached users if LAN list was empty
+      if (usersList.length === 0 && typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('app_cached_staff_users');
+          if (cached) usersList = JSON.parse(cached);
+        } catch {}
+      }
+
+      // 2. Find user matching email
+      const normalizedEmail = email.trim().toLowerCase();
+      const matchedUser = usersList.find(
+        (u) => u && (u.email?.toLowerCase() === normalizedEmail || u.id === normalizedEmail)
+      );
+
+      // If user is registered in local system:
+      if (matchedUser) {
+        // Enforce active user check: Disallow disabled accounts from logging in!
+        if (matchedUser.isActive === false) {
+          const inactiveErr: any = new Error('Your account has been disabled. Please contact an administrator.');
+          inactiveErr.code = 'auth/user-disabled';
+          throw inactiveErr;
+        }
+
+        // Verify password if recorded locally
+        const registeredPassword = matchedUser.pendingPasswordSync || matchedUser.password || matchedUser.pin;
+        if (registeredPassword && registeredPassword !== pass) {
+          const credErr: any = new Error('Invalid email or password.');
+          credErr.code = 'auth/wrong-password';
+          throw credErr;
+        }
+
+        const offlineUser = {
+          uid: matchedUser.uid || matchedUser.id || `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: matchedUser.email || email,
+          displayName: matchedUser.name || email.split('@')[0],
+          photoURL: matchedUser.photoURL || null,
+          emailVerified: true,
+        } as User;
+
+        setUser(offlineUser);
+        return { user: offlineUser };
+      }
+
+      // If no users exist yet or it's the primary administrator
+      if (usersList.length === 0 || normalizedEmail.includes('admin') || normalizedEmail.startsWith('admin')) {
+        const offlineUser = {
+          uid: `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: email,
+          displayName: email.split('@')[0],
+          photoURL: null,
+          emailVerified: true,
+        } as User;
+        setUser(offlineUser);
+        return { user: offlineUser };
+      }
+
+      // Unknown user trying to login offline with arbitrary credentials
+      const notFoundErr: any = new Error('Invalid email or password.');
+      notFoundErr.code = 'auth/user-not-found';
+      throw notFoundErr;
     };
 
-    // If client is marked offline, fall back instantly
+    // If client is marked offline, fall back instantly to verified offline auth
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      return performOfflineAuth();
+      return await performOfflineAuth();
     }
 
     // Race Firebase cloud auth against a fast 2.5-second timeout so offline / slow Wi-Fi logins respond instantly
@@ -115,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
     } catch (err: any) {
       if (err.code === 'auth/network-request-failed' || (err.message && err.message.includes('timeout'))) {
-        return performOfflineAuth();
+        return await performOfflineAuth();
       }
       throw err;
     }

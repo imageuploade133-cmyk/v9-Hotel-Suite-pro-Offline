@@ -55,41 +55,67 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
             { name: getCollectionPath('stockReturns'), setter: (docs: StockReturn[]) => setData(prev => prev ? { ...prev, stockReturns: docs } : { bookings: [], rooms: [], orders: [], stockItems: [], expenses: [], payments: [], sales: [], stockReturns: docs, bills: [] }) },
         ];
 
-        // Subscribe to bills collection group
-        const billsQuery = query(collectionGroup(firestore, 'bills'));
-        const billsUnsubscribe = onSnapshot(
-            billsQuery,
-            (snapshot) => {
-                const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
-                setData(prev => prev ? { ...prev, bills: docs } : { bookings: [], rooms: [], orders: [], stockItems: [], expenses: [], payments: [], sales: [], stockReturns: [], bills: docs });
-                setIsLoading(false);
-                setError(null);
-            },
-            (err) => {
-                console.error('Error subscribing to bills:', err);
-                setError(err);
-                setIsLoading(false);
-            }
-        );
-        unsubscribers.push(billsUnsubscribe);
+        // Immediately populate from Local Master LAN Store (/api/lan-sync) for 100% offline support
+        collections.forEach(async ({ name, setter }) => {
+            try {
+                const res = await fetch(`/api/lan-sync?collection=${encodeURIComponent(name)}`);
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.data) {
+                        const docs = Object.entries(result.data).map(([id, val]: [string, any]) => ({
+                            id,
+                            ...(typeof val === 'object' ? val : {}),
+                        }));
+                        if (docs.length > 0) {
+                            setter(docs as any);
+                            setIsLoading(false);
+                        }
+                    }
+                }
+            } catch {}
+        });
 
-        collections.forEach(({ name, setter }) => {
-            const q = query(collection(firestore, name));
-            const unsubscribe = onSnapshot(
-                q,
+        // Subscribe to bills collection group
+        try {
+            const billsQuery = query(collectionGroup(firestore, 'bills'));
+            const billsUnsubscribe = onSnapshot(
+                billsQuery,
                 (snapshot) => {
-                    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-                    setter(docs);
+                    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
+                    setData(prev => prev ? { ...prev, bills: docs } : { bookings: [], rooms: [], orders: [], stockItems: [], expenses: [], payments: [], sales: [], stockReturns: [], bills: docs });
                     setIsLoading(false);
                     setError(null);
                 },
                 (err) => {
-                    console.error(`Error subscribing to ${name}:`, err);
-                    setError(err);
+                    console.error('Error subscribing to bills:', err);
                     setIsLoading(false);
                 }
             );
-            unsubscribers.push(unsubscribe);
+            unsubscribers.push(billsUnsubscribe);
+        } catch {
+            setIsLoading(false);
+        }
+
+        collections.forEach(({ name, setter }) => {
+            try {
+                const q = query(collection(firestore, name));
+                const unsubscribe = onSnapshot(
+                    q,
+                    (snapshot) => {
+                        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+                        setter(docs);
+                        setIsLoading(false);
+                        setError(null);
+                    },
+                    (err) => {
+                        console.error(`Error subscribing to ${name}:`, err);
+                        setIsLoading(false);
+                    }
+                );
+                unsubscribers.push(unsubscribe);
+            } catch {
+                setIsLoading(false);
+            }
         });
 
         return () => {
