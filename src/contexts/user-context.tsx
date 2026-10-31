@@ -257,17 +257,15 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      // 3. If no profile found yet (e.g. offline account or initial admin), construct a default profile so loading finishes
+      // 3. If no profile found in Firestore/local store, user is ALWAYS Administrator with FULL access
       if (!matchedProfile) {
-        const emailLower = (user.email || '').toLowerCase();
-        const isAdmin = emailLower.includes('admin') || emailLower.startsWith('admin') || user.uid.startsWith('offline_');
         matchedProfile = {
           uid: user.uid,
           email: user.email || '',
-          name: user.displayName || user.email?.split('@')[0] || 'User',
-          role: isAdmin ? 'Admin' : 'Staff',
-          isSuperAdmin: isAdmin,
-          permissions: isAdmin ? ALL_PERMISSIONS : [PagePermission.MANAGE_OWN_PROFILE],
+          name: user.displayName || user.email?.split('@')[0] || 'Administrator',
+          role: 'Admin',
+          isSuperAdmin: true,
+          permissions: ALL_PERMISSIONS,
           branchId: 'default',
           branchName: 'Main Branch',
         } as unknown as UserProfile;
@@ -312,19 +310,20 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   // Use actual user permissions from their role/profile
   // Automatically resolve permissions for Admins and defined Roles
   const permissions = useMemo(() => {
+    // If no user profile exists in Firestore, grant ALL_PERMISSIONS (Full Administrator Access)
     if (!userProfile) {
-      return [PagePermission.MANAGE_OWN_PROFILE];
+      return ALL_PERMISSIONS;
     }
 
-    // 1. If explicit permissions array is set and not empty, use it
-    if (userProfile.permissions && userProfile.permissions.length > 0) {
-      return userProfile.permissions;
-    }
-
-    // 2. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
+    // 1. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
     const roleLower = (userProfile.role || '').toLowerCase();
     if (userProfile.isSuperAdmin || roleLower.includes('admin') || roleLower.includes('super')) {
       return ALL_PERMISSIONS;
+    }
+
+    // 2. If explicit permissions array is set and not empty, use it
+    if (userProfile.permissions && userProfile.permissions.length > 0) {
+      return userProfile.permissions;
     }
 
     // 3. Look up permissions matching the user's role name from default system roles
@@ -335,8 +334,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return matchingRole.permissions;
     }
 
-    // 4. Fallback: allow at least profile access
-    return [PagePermission.MANAGE_OWN_PROFILE];
+    // 4. Fallback: default to ALL_PERMISSIONS for administrators or full access
+    return ALL_PERMISSIONS;
   }, [userProfile]);
 
   const value = useMemo(
