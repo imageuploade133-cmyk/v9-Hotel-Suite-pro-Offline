@@ -222,37 +222,39 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     let isCancelled = false;
 
-    // Immediately synthesize an admin profile so profile is never null and loading finishes without delay
-    const initialAdminProfile: UserProfile = {
-      uid: user.uid,
-      email: user.email || '',
-      name: user.displayName || user.email?.split('@')[0] || 'Administrator',
-      role: 'Admin',
-      isSuperAdmin: true,
-      permissions: ALL_PERMISSIONS,
-      branchId: 'default',
-      branchName: 'Main Branch',
-    } as unknown as UserProfile;
-
-    // If no existing profile is currently loaded, initialize with the full admin profile right away
-    setUserProfile(prev => prev || initialAdminProfile);
-    setLoading(false);
+    // Set loading while user profile is resolved to prevent granting unauthorized access
+    setLoading(true);
 
     const loadProfile = async () => {
       let matchedProfile: UserProfile | null = null;
 
-      // 1. Check local firestoreCache first (instant memory / localStorage)
-      const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
-      if (cachedUsers && Array.isArray(cachedUsers)) {
-        const foundInCache = cachedUsers.find(
-          u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid)
-        );
-        if (foundInCache) {
-          matchedProfile = foundInCache;
+      // 1. Check direct Firestore user document first
+      try {
+        const snap = await getDocs(collection(firestore, 'users'));
+        if (snap && snap.docs) {
+          const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
+          firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
+          const found = usersList.find(
+            u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
+          );
+          if (found) matchedProfile = found;
+        }
+      } catch {}
+
+      // 2. Check local firestoreCache next (instant memory / localStorage)
+      if (!matchedProfile) {
+        const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
+        if (cachedUsers && Array.isArray(cachedUsers)) {
+          const foundInCache = cachedUsers.find(
+            u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
+          );
+          if (foundInCache) {
+            matchedProfile = foundInCache;
+          }
         }
       }
 
-      // 2. Check local LAN master store
+      // 3. Check local LAN master store
       if (!matchedProfile && user.email) {
         try {
           const res = await fetch(`/api/lan-sync?collection=users`);
@@ -261,7 +263,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             if (result.data) {
               const usersList = Object.values(result.data) as UserProfile[];
               const found = usersList.find(
-                u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid)
+                u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
               );
               if (found) matchedProfile = found;
             }
@@ -271,10 +273,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      // 3. If no profile found in Firestore/local store, user is ALWAYS Administrator with FULL access
+      // 4. For user with firebase account only (no firestore permission and role), that person is administrator full access
       if (!matchedProfile) {
         matchedProfile = {
           uid: user.uid,
+          id: user.uid,
           email: user.email || '',
           name: user.displayName || user.email?.split('@')[0] || 'Administrator',
           role: 'Admin',
@@ -324,23 +327,23 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   // Use actual user permissions from their role/profile
   // Automatically resolve permissions for Admins and defined Roles
   const permissions = useMemo(() => {
-    // If no user profile exists in Firestore, grant ALL_PERMISSIONS (Full Administrator Access)
+    // If no user profile exists in Firestore, grant ALL_PERMISSIONS (Firebase Account Only = Full Administrator Access)
     if (!userProfile) {
       return ALL_PERMISSIONS;
     }
 
     // 1. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
     const roleLower = (userProfile.role || '').toLowerCase();
-    if (userProfile.isSuperAdmin || roleLower.includes('admin') || roleLower.includes('super')) {
+    if (userProfile.isSuperAdmin || roleLower === 'admin' || roleLower === 'super admin' || roleLower.includes('super admin')) {
       return ALL_PERMISSIONS;
     }
 
-    // 2. If explicit permissions array is set and not empty, use it
-    if (userProfile.permissions && userProfile.permissions.length > 0) {
+    // 2. If explicit permissions array is set on the user's Firestore profile, strictly use it
+    if (Array.isArray(userProfile.permissions) && userProfile.permissions.length > 0) {
       return userProfile.permissions;
     }
 
-    // 3. Look up permissions matching the user's role name from default system roles
+    // 3. Look up permissions matching the user's assigned role name from system roles
     const matchingRole = DEFAULT_SYSTEM_ROLES.find(
       r => r.name.toLowerCase() === roleLower || r.id.toLowerCase() === roleLower
     );
@@ -348,8 +351,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return matchingRole.permissions;
     }
 
-    // 4. Fallback: default to ALL_PERMISSIONS for administrators or full access
-    return ALL_PERMISSIONS;
+    // 4. If user profile has no assigned permissions/role, do NOT grant arbitrary permissions
+    return userProfile.permissions || [];
   }, [userProfile]);
 
   const value = useMemo(

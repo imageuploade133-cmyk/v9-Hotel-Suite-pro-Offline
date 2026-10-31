@@ -69,11 +69,7 @@ export const useSettings = () => useContext(SettingsContext);
 
 const getInitialSettings = (): Settings => {
   if (typeof window !== 'undefined') {
-    // 1. Check firestoreCache
-    const cached = firestoreCache.get<Settings>(CacheKeys.settings());
-    if (cached && Object.keys(cached).length > 0) return { ...DEFAULT_SETTINGS, ...cached };
-
-    // 2. Check direct localStorage fallback for persistent offline configuration
+    // 1. Check direct localStorage fallback first for persistent instant retrieval
     try {
       const raw = localStorage.getItem('app_saved_settings');
       if (raw) {
@@ -83,6 +79,10 @@ const getInitialSettings = (): Settings => {
         }
       }
     } catch {}
+
+    // 2. Check firestoreCache
+    const cached = firestoreCache.get<Settings>(CacheKeys.settings());
+    if (cached && Object.keys(cached).length > 0) return { ...DEFAULT_SETTINGS, ...cached };
   }
   return DEFAULT_SETTINGS;
 };

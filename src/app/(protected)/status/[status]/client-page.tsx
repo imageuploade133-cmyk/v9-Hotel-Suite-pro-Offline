@@ -218,8 +218,30 @@ const StatusPageWrapper = () => {
         return <CustomStatusLoading statusName={status} />;
     }
 
-    // All Firebase authenticated users have full admin access
-    const hasRequiredPermission = true;
+    const { permissions } = useUser();
+    const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
+    const canManageRoomStatus = isSuperAdmin || permissions.includes(PagePermission.MANAGE_ROOM_STATUS);
+    const hasRequiredPermission = isSuperAdmin || permissions.includes(requiredPermission) || canManageRoomStatus;
+
+    if (!hasRequiredPermission) {
+      return (
+        <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
+          <Card className="w-full max-w-md text-center">
+            <CardHeader>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldAlert className="h-10 w-10 text-destructive" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <CardTitle className="text-2xl font-bold text-destructive">Permission Denied</CardTitle>
+              <CardDescription>
+                Your assigned role (<span className="font-semibold">{userProfile?.role || 'Unassigned'}</span>) does not have permission to view rooms with status "{status}".
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
     return <StatusPageContent />;
 };
