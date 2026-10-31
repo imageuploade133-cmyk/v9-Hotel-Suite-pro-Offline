@@ -579,7 +579,16 @@ export default function ProtectedLayout({
     setIsCollapsed(!isCollapsed);
   };
 
-  const isLoading = authLoading || profileLoading || areSettingsLoading;
+  // Protect against infinite loading spinners by auto-releasing the spinner after a short delay
+  const [forceReady, setForceReady] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceReady(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isLoading = !forceReady && (authLoading || profileLoading || areSettingsLoading);
 
   if (isLoading) {
     return (
