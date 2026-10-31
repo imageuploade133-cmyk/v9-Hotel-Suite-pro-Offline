@@ -61,8 +61,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
-      if (!user) {
-        // router.push('/'); // Redirect to login page on logout
+      if (user && user.email && typeof window !== 'undefined') {
+        // Update user profile info in cache without overwriting any stored password hash
+        try {
+          const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
+          const existing = authCache[user.email.toLowerCase()] || {};
+          authCache[user.email.toLowerCase()] = {
+            ...existing,
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            lastAuthenticated: Date.now(),
+          };
+          localStorage.setItem('app_auth_credentials_cache', JSON.stringify(authCache));
+        } catch {}
       }
     });
 
@@ -108,7 +121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (u) => u && (u.email?.toLowerCase() === normalizedEmail || u.id === normalizedEmail)
       );
 
-      // If user is registered in local system:
+      // 3. Check previously authenticated credentials cache
+      let cachedAuthUser: any = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
+          cachedAuthUser = authCache[normalizedEmail];
+        } catch {}
+      }
+
+      // If user is registered in local staff system:
       if (matchedUser) {
         // Enforce active user check: Disallow disabled accounts from logging in!
         if (matchedUser.isActive === false) {
@@ -117,9 +139,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw inactiveErr;
         }
 
-        // Verify password if recorded locally
+        // Verify password against recorded local credentials or previous auth cache
         const registeredPassword = matchedUser.pendingPasswordSync || matchedUser.password || matchedUser.pin;
-        if (registeredPassword && registeredPassword !== pass) {
+        let passwordMatches = false;
+
+        if (registeredPassword) {
+          passwordMatches = registeredPassword === pass;
+        } else if (cachedAuthUser && cachedAuthUser.passHash) {
+          passwordMatches = cachedAuthUser.passHash === btoa(pass);
+        } else {
+          // If no password recorded locally or cached from previous login, reject for security
+          passwordMatches = false;
+        }
+
+        if (!passwordMatches) {
           const credErr: any = new Error('Invalid email or password.');
           credErr.code = 'auth/wrong-password';
           throw credErr;
@@ -137,20 +170,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { user: offlineUser };
       }
 
-      // If no users exist yet or it's the primary administrator
-      if (usersList.length === 0 || normalizedEmail.includes('admin') || normalizedEmail.startsWith('admin')) {
+      // If user was previously authenticated on this device (e.g. Firebase Admin user)
+      if (cachedAuthUser) {
+        // Enforce verified password check: if passHash is missing or mismatch, reject login
+        const passHash = cachedAuthUser.passHash;
+        const inputHash = btoa(pass);
+        if (!passHash || passHash !== inputHash) {
+          const credErr: any = new Error('Invalid email or password.');
+          credErr.code = 'auth/wrong-password';
+          throw credErr;
+        }
+
         const offlineUser = {
-          uid: `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          email: email,
-          displayName: email.split('@')[0],
-          photoURL: null,
+          uid: cachedAuthUser.uid || `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: cachedAuthUser.email || email,
+          displayName: cachedAuthUser.displayName || email.split('@')[0],
+          photoURL: cachedAuthUser.photoURL || null,
           emailVerified: true,
         } as User;
+
         setUser(offlineUser);
         return { user: offlineUser };
       }
 
-      // Unknown user trying to login offline with arbitrary credentials
+      // Disallow unauthorized login with invalid credentials offline
       const notFoundErr: any = new Error('Invalid email or password.');
       notFoundErr.code = 'auth/user-not-found';
       throw notFoundErr;
@@ -171,10 +214,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      return await Promise.race([
+      const res = await Promise.race([
         signInWithEmailAndPassword(auth, email, pass),
         timeoutPromise
       ]);
+
+      // Cache successful login credentials hash/record for verified offline authentication fallback
+      if (res && (res as any).user && typeof window !== 'undefined') {
+        try {
+          const u = (res as any).user;
+          const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
+          authCache[email.trim().toLowerCase()] = {
+            uid: u.uid,
+            email: u.email || email,
+            displayName: u.displayName,
+            photoURL: u.photoURL,
+            // Simple credential verification record
+            passHash: btoa(pass),
+            lastAuthenticated: Date.now(),
+          };
+          localStorage.setItem('app_auth_credentials_cache', JSON.stringify(authCache));
+        } catch {}
+      }
+
+      return res;
     } catch (err: any) {
       if (err.code === 'auth/network-request-failed' || (err.message && err.message.includes('timeout'))) {
         return await performOfflineAuth();

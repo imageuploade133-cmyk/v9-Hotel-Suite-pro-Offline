@@ -16,9 +16,8 @@ export default function withAuth<P extends object>(
 ) {
   const WithAuthComponent: React.FC<P> = (props) => {
     const { user, loading: authLoading } = useAuth();
-    const { userProfile, loading: profileLoading } = useUser();
+    const { userProfile, loading: profileLoading, permissions: contextPermissions } = useUser();
     const router = useRouter();
-    const [isRedirecting, setIsRedirecting] = React.useState(false);
 
     if (authLoading || profileLoading) {
       return null;
@@ -28,16 +27,13 @@ export default function withAuth<P extends object>(
       return null;
     }
 
-    // Use actual user permissions from their profile
-    const hasStaffProfile = !!userProfile;
-    const isSuperAdmin = userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
-    const finalPermissions = userProfile?.permissions || [];
+    // If user has no profile in Firestore (Firebase account only), they are administrator full access
+    const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
+    const finalPermissions = isSuperAdmin ? Object.values(PagePermission) : (userProfile?.permissions || contextPermissions || []);
 
-    // All users are admin, so no branch assignment restrictions
+    const canManageRoomStatus = isSuperAdmin || finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
-    const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
-
-    let hasRequiredPermission = requiredPermission ? finalPermissions.includes(requiredPermission) : true;
+    let hasRequiredPermission = requiredPermission ? (isSuperAdmin || finalPermissions.includes(requiredPermission)) : true;
 
     // If it's a custom room status page (format: view:custom_status_name) and the user doesn't have the specific permission,
     // check if they have the general `manage:room_status` permission.
@@ -49,14 +45,6 @@ export default function withAuth<P extends object>(
     if (isCustomStatusPage && !hasRequiredPermission) {
       hasRequiredPermission = canManageRoomStatus;
     }
-
-    // Enforce staff profile requirement: if a page requires permissions,
-    // only users with a valid staff profile can access it
-    if (requiredPermission && !hasStaffProfile) {
-      hasRequiredPermission = false;
-    }
-
-    // All users have full access, no redirect needed
 
     if (!hasRequiredPermission) {
       return (
