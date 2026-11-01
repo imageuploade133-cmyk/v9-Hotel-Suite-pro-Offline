@@ -79,7 +79,7 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
       if (isLoginPage) {
         document.documentElement.style.setProperty('--zoom-scale', '1');
         (document.documentElement.style as any).zoom = '1';
-        (document.body.style as any).zoom = '1';
+        document.body.style.zoom = '';
         document.documentElement.style.transform = '';
         document.documentElement.style.transformOrigin = '';
         document.documentElement.style.width = '';
@@ -95,10 +95,11 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
       // Set CSS custom property so calculations like calc(100vh / var(--zoom-scale)) and calc(16px * var(--zoom-scale)) work accurately
       document.documentElement.style.setProperty('--zoom-scale', String(scale));
 
-      // Apply zoom to documentElement and body so text, font size, layouts, and cards scale cohesively
+      // Apply CSS zoom once at the document root. Applying it again to body
+      // compounds the scale for every descendant (including portaled dialogs).
+      document.body.style.zoom = '';
       if ('zoom' in document.documentElement.style || (document.documentElement.style as any).zoom !== undefined) {
         (document.documentElement.style as any).zoom = String(scale);
-        (document.body.style as any).zoom = String(scale);
       } else {
         // Fallback for browsers that don't support CSS zoom property
         const rootStyle = document.documentElement.style as CSSStyleDeclaration;
