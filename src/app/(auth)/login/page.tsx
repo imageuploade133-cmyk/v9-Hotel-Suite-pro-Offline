@@ -302,13 +302,13 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="relative flex h-screen max-h-screen w-full bg-background overflow-hidden">
+      <div className="relative flex min-h-screen min-h-[calc(100vh/var(--zoom-scale,1))] w-full bg-background overflow-hidden">
         {/* Floating zoom controls on login page */}
         <div className="absolute top-4 right-4 z-50">
           <ZoomControls />
         </div>
 
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-6 lg:p-8 xl:p-10 text-white lg:flex h-full max-h-screen">
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-6 lg:p-8 xl:p-10 text-white lg:flex min-h-[calc(100vh/var(--zoom-scale,1))] self-stretch">
           <div className="absolute inset-0 h-full w-full">
             <Image
               src="/login-bg.png"
