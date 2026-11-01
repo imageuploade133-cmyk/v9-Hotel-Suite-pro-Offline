@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/form';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2 } from 'lucide-react';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { ForgotPasswordDialog } from '@/components/auth/forgot-password-dialog';
@@ -294,11 +295,7 @@ export default function LoginPage() {
   };
 
   if (authLoading || user) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FullscreenLoader message="Please wait..." subtext="Signing in..." />;
   }
 
   return (

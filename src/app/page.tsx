@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useUser } from '@/contexts/user-context';
 import { getLandingPage } from '@/lib/permissions';
-import { Loader2 } from 'lucide-react';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 export default function RootPage() {
   const { user, loading: authLoading } = useAuth();
@@ -27,9 +27,5 @@ export default function RootPage() {
     }
   }, [user, loading, permissions, router]);
 
-  return (
-    <div className="flex h-screen w-full items-center justify-center bg-background">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  );
+  return <FullscreenLoader message="Please wait..." subtext="Checking authentication status" />;
 }
