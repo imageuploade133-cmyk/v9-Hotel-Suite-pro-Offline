@@ -33,8 +33,10 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
         applyZoom(zoom);
       }
     }
-    // Add keyboard shortcuts for zoom
+    // Add keyboard shortcuts for zoom (disabled on login page)
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isLoginPage) return;
+
       // Ctrl/Cmd + Plus or Ctrl/Cmd + Equals for zoom in
       if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
         e.preventDefault();
@@ -66,7 +68,7 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pathname]);
+  }, [pathname, isLoginPage]);
 
   const applyZoom = (zoom: number) => {
     if (typeof document !== 'undefined') {
