@@ -20,7 +20,6 @@ const STORAGE_KEY = 'app-zoom-level';
 
 export function ZoomProvider({ children }: { children: React.ReactNode }) {
   const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
-  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const isLoginPage = pathname === '/login';
 
@@ -34,8 +33,6 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
         applyZoom(zoom);
       }
     }
-    setMounted(true);
-
     // Add keyboard shortcuts for zoom
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + Plus or Ctrl/Cmd + Equals for zoom in
