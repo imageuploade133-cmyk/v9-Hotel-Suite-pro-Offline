@@ -123,19 +123,19 @@ const TopCountries = () => {
     ].sort((a, b) => b.hotels - a.hotels);
 
     return (
-        <div className="relative z-10 mt-auto">
-            <h3 className="font-semibold text-white/80 text-sm mb-3">Powering hotels in top destinations</h3>
-            <div className="space-y-3">
+        <div className="relative z-10 mt-auto pt-2">
+            <h3 className="font-semibold text-white/80 text-xs sm:text-sm mb-2">Powering hotels in top destinations</h3>
+            <div className="grid grid-cols-1 gap-2">
                 {top.map(country => (
-                    <div key={country.code} className="flex items-center gap-4 bg-black/20 backdrop-blur-sm p-3 rounded-lg border border-white/10">
+                    <div key={country.code} className="flex items-center gap-3 bg-black/25 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/10">
                         <FlagIcon code={country.code} />
-                        <div className="flex-1">
-                            <p className="font-semibold text-white">{country.name}</p>
-                            <p className="text-xs text-white/70">{country.hotels.toLocaleString()} hotels</p>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-white text-xs sm:text-sm truncate">{country.name}</p>
+                            <p className="text-[11px] text-white/70">{country.hotels.toLocaleString()} hotels</p>
                         </div>
-                        <div className="flex flex-col items-end">
+                        <div className="flex flex-col items-end shrink-0">
                             <StarRating rating={country.rating} />
-                            <span className="text-xs font-bold text-white mt-1">{country.rating.toFixed(1)}</span>
+                            <span className="text-[11px] font-bold text-white mt-0.5">{country.rating.toFixed(1)}</span>
                         </div>
                     </div>
                 ))}
@@ -303,13 +303,13 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="relative flex min-h-[calc(100vh/var(--zoom-scale,1))] w-full bg-background">
+      <div className="relative flex h-screen max-h-screen w-full bg-background overflow-hidden">
         {/* Floating zoom controls on login page */}
         <div className="absolute top-4 right-4 z-50">
           <ZoomControls />
         </div>
 
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex min-h-screen min-h-[calc(100vh/var(--zoom-scale,1))]">
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-6 lg:p-8 xl:p-10 text-white lg:flex h-full max-h-screen">
           <div className="absolute inset-0 h-full w-full">
             <Image
               src="/login-bg.png"
@@ -319,50 +319,50 @@ export default function LoginPage() {
               className="object-cover object-center w-full h-full"
               priority
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/30" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/35" />
           </div>
           <div className="relative z-10 flex items-center gap-2 text-lg font-bold">
             <Building2 className="h-8 w-8" />
-            <span className="font-bold text-lg">v9 Hotel Suite Pro</span>
+            <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
           </div>
           <TopCountries />
         </div>
 
-        <div className="flex w-full items-center justify-center p-6 lg:w-1/2 lg:p-8 min-h-[calc(100vh/var(--zoom-scale,1))] overflow-y-auto">
-          <div className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-6 py-6">
+        <div className="flex w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 h-full max-h-screen overflow-y-auto">
+          <div className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-4 sm:space-y-5 py-4">
             <div className="flex flex-col items-center text-center">
-              <div className="flex items-center gap-4 mb-4 lg:hidden">
-                  <Building2 className="h-10 w-10 text-primary" />
+              <div className="flex items-center gap-3 mb-2 lg:hidden">
+                  <Building2 className="h-9 w-9 text-primary" />
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="text-2xl font-bold tracking-tight">
                   Welcome Back
               </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 Sign in to access your hotel management dashboard.
               </p>
             </div>
 
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
                 <FormField
                   control={form.control}
                   name="email"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs sm:text-sm font-medium">Email</FormLabel>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <FormControl>
                           <Input
                             type="email"
                             placeholder="name@example.com"
-                            className="pl-10"
+                            className="pl-9 h-10 text-sm"
                             {...field}
                             disabled={isLoggingIn}
                           />
                         </FormControl>
                       </div>
-                      <FormMessage />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -371,15 +371,15 @@ export default function LoginPage() {
                   control={form.control}
                   name="password"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs sm:text-sm font-medium">Password</FormLabel>
                       <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <FormControl>
                           <Input
                             type={showPassword ? 'text' : 'password'}
                             placeholder="Enter your password"
-                            className="pl-10 pr-10"
+                            className="pl-9 pr-9 h-10 text-sm"
                             {...field}
                             disabled={isLoggingIn}
                           />
@@ -394,23 +394,23 @@ export default function LoginPage() {
                           disabled={isLoggingIn}
                         >
                           {showPassword ? (
-                            <EyeOff className="h-5 w-5" />
+                            <EyeOff className="h-4 w-4" />
                           ) : (
-                            <Eye className="h-5 w-5" />
+                            <Eye className="h-4 w-4" />
                           )}
                         </button>
                       </div>
-                      <FormMessage />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-1">
                   <FormField
                     control={form.control}
                     name="rememberMe"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="space-y-0">
                         <div className="flex items-center gap-2">
                            <FormControl>
                             <Checkbox
@@ -418,22 +418,22 @@ export default function LoginPage() {
                               onCheckedChange={field.onChange}
                               id="remember-me"
                               disabled={isLoggingIn}
-                              className="size-5 rounded-[4px]"
+                              className="size-4 rounded-[4px]"
                             />
                           </FormControl>
                           <FormLabel
                             htmlFor="remember-me"
-                            className="!mt-0 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            className="!mt-0 cursor-pointer text-xs sm:text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                           >
                             Stay logged in
                           </FormLabel>
                            <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <HelpCircle className="size-4 text-muted-foreground" />
+                                <HelpCircle className="size-3.5 text-muted-foreground" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="max-w-xs">
+                                <p className="max-w-xs text-xs">
                                   Check this box to stay logged in on this device.
                                   Do not use on shared or public computers.
                                 </p>
@@ -447,7 +447,7 @@ export default function LoginPage() {
                   <Button
                       type="button"
                       variant="link"
-                      className="h-auto p-0 text-sm font-medium"
+                      className="h-auto p-0 text-xs sm:text-sm font-medium"
                       onClick={() => setForgotPasswordOpen(true)}
                       disabled={isLoggingIn}
                   >
@@ -455,21 +455,21 @@ export default function LoginPage() {
                   </Button>
                 </div>
 
-                <Button type="submit" className="w-full" loading={isLoggingIn}>
-                  <LogIn />
+                <Button type="submit" className="w-full h-10 text-sm font-semibold mt-2" loading={isLoggingIn}>
+                  <LogIn className="mr-2 h-4 w-4" />
                   <span>Sign In</span>
                 </Button>
               </form>
             </Form>
 
-            <div className="flex flex-col gap-2">
-                 <Button variant="outline" className="w-full" onClick={handleCopyLink}>
-                    <Copy className="mr-2 h-4 w-4" />
+            <div className="flex flex-col gap-2 pt-1">
+                 <Button variant="outline" className="w-full h-9 text-xs sm:text-sm" onClick={handleCopyLink}>
+                    <Copy className="mr-2 h-3.5 w-3.5" />
                     <span>Copy public website link</span>
                 </Button>
             </div>
 
-            <p className="text-center text-xs text-muted-foreground font-bold">
+            <p className="text-center text-[11px] text-muted-foreground font-semibold pt-1">
               Powered by ADS Developments Inc.
             </p>
           </div>
