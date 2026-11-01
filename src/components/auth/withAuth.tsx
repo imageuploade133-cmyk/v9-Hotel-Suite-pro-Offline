@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useUser } from '@/contexts/user-context';
 import { PagePermission } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 export default function withAuth<P extends object>(
   WrappedComponent: React.ComponentType<P>,
@@ -20,7 +21,7 @@ export default function withAuth<P extends object>(
     const router = useRouter();
 
     if (authLoading || profileLoading) {
-      return null;
+      return <FullscreenLoader message="Please wait..." subtext="Verifying permissions..." />;
     }
 
     if (!user) {

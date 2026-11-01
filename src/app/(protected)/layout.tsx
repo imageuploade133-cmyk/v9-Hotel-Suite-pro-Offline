@@ -114,6 +114,7 @@ import { useAppInstall } from '@/contexts/app-install-context';
 import { useBranch } from '@/contexts/branch-context';
 import { FinancialProvider } from '@/contexts/financial-context';
 import { Building, Check } from 'lucide-react';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 
 const NavIcon = ({ iconName }: { iconName: string }) => {
@@ -593,9 +594,10 @@ export default function ProtectedLayout({
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <FullscreenLoader
+        message="Please wait..."
+        subtext="Preparing your workspace"
+      />
     );
   }
 
