@@ -5,8 +5,28 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { useModalHistory } from "@/hooks/use-modal-history"
 
-const AlertDialog = AlertDialogPrimitive.Root
+const AlertDialog = ({
+  open,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) => {
+  const modal = useModalHistory({ open, defaultOpen, onOpenChange });
+
+  return (
+    <AlertDialogPrimitive.Root
+      open={modal.open}
+      onOpenChange={modal.onOpenChange}
+      defaultOpen={undefined}
+      {...props}
+    >
+      {children}
+    </AlertDialogPrimitive.Root>
+  );
+}
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
@@ -36,8 +56,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-2xl",
-        "max-sm:inset-0 max-sm:h-full max-sm:w-full max-sm:max-w-none max-sm:max-h-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:p-4 max-sm:flex max-sm:flex-col max-sm:overflow-y-auto max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
+        "fixed inset-0 z-50 flex h-[100dvh] w-screen max-h-[100dvh] max-w-none translate-x-0 translate-y-0 flex-col gap-4 overflow-y-auto overscroll-contain border-0 bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:p-6",
         className
       )}
       {...props}
@@ -67,7 +86,7 @@ const AlertDialogFooter = ({
   <div
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      "max-sm:sticky max-sm:bottom-0 max-sm:mt-auto max-sm:w-full max-sm:bg-background/95 max-sm:backdrop-blur-sm max-sm:pt-3 max-sm:pb-1 max-sm:border-t max-sm:border-border/60 max-sm:z-10",
+      "sticky bottom-0 z-20 mt-auto w-full shrink-0 border-t border-border/60 bg-background/95 pt-3 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur-sm",
       className
     )}
     {...props}

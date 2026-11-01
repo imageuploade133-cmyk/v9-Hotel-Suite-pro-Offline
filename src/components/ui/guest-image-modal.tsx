@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useModalHistory } from '@/hooks/use-modal-history';
 
 interface GuestImageModalProps {
   isOpen: boolean;
@@ -23,6 +24,11 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
   const [hasError, setHasError] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const handleModalOpenChange = React.useCallback((nextOpen: boolean) => {
+    if (!nextOpen) onClose();
+  }, [onClose]);
+  const modal = useModalHistory({ open: isOpen, onOpenChange: handleModalOpenChange });
+  const closeModal = React.useCallback(() => modal.onOpenChange(false), [modal.onOpenChange]);
 
   const totalImages = images.length;
   const imageUrl = images[currentIndex];
@@ -41,7 +47,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        closeModal();
       }
       if (!canNavigate) return;
       if (event.key === 'ArrowRight') {
@@ -52,7 +58,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
       }
     };
 
-    if (isOpen) {
+    if (modal.open) {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
@@ -61,15 +67,15 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, canNavigate, totalImages]);
+  }, [modal.open, closeModal, canNavigate, totalImages]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (modal.open) {
       setCurrentIndex(initialIndex);
       setIsImageLoaded(false);
       setHasError(false);
     }
-  }, [isOpen, initialIndex, images]);
+  }, [modal.open, initialIndex, images]);
 
   useEffect(() => {
     setIsImageLoaded(false);
@@ -86,21 +92,21 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
     setCurrentIndex(prev => (prev + 1) % totalImages);
   };
 
-  if (!isOpen || !mounted || typeof document === 'undefined') return null;
+  if (!modal.open || !mounted || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={closeModal}
     >
       <div
-        className="relative max-w-5xl w-full max-h-[90vh] p-4 flex flex-col items-center"
+        className="relative flex h-full w-full max-w-none flex-col items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={onClose}
+          onClick={closeModal}
           className="absolute -top-2 right-4 text-white hover:text-gray-300 transition-colors bg-black/50 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Close modal"
         >

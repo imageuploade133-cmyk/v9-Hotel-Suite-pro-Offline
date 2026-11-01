@@ -5,16 +5,30 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
+import { useModalHistory } from "@/hooks/use-modal-history"
 
 const Drawer = ({
+  open,
+  defaultOpen,
+  onOpenChange,
+  children,
   shouldScaleBackground = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    {...props}
-  />
-)
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const modal = useModalHistory({ open, defaultOpen, onOpenChange });
+
+  return (
+    <DrawerPrimitive.Root
+      open={modal.open}
+      onOpenChange={modal.onOpenChange}
+      defaultOpen={undefined}
+      shouldScaleBackground={shouldScaleBackground}
+      {...props}
+    >
+      {children}
+    </DrawerPrimitive.Root>
+  );
+}
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger
@@ -44,7 +58,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-0 z-50 mt-0 flex h-[100dvh] max-h-[100dvh] w-screen flex-col overflow-y-auto overscroll-contain rounded-none border-0 bg-background",
         className
       )}
       {...props}
@@ -61,7 +75,7 @@ const DrawerHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
+    className={cn("grid shrink-0 gap-1.5 p-4 pt-[max(1rem,env(safe-area-inset-top))] text-center sm:text-left", className)}
     {...props}
   />
 )
@@ -72,7 +86,7 @@ const DrawerFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+    className={cn("sticky bottom-0 z-20 mt-auto flex shrink-0 flex-col gap-2 border-t border-border/60 bg-background/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm", className)}
     {...props}
   />
 )
