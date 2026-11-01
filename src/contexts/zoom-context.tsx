@@ -134,10 +134,8 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
     setZoomLevel(DEFAULT_ZOOM);
   };
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Keep the context available during server rendering and hydration.
+  // The default 100% value is safe until the saved preference loads in the effect.
   return (
     <ZoomContext.Provider value={{ zoomLevel, zoomIn, zoomOut, resetZoom }}>
       {children}
