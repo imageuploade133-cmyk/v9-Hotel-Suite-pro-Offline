@@ -61,7 +61,8 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
-            "fixed inset-0 z-50 flex h-[100dvh] w-screen max-h-[100dvh] max-w-none translate-x-0 translate-y-0 flex-col gap-4 overflow-y-auto overscroll-contain border-0 bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:p-6",
+            "fixed inset-0 z-50 flex h-[100dvh] w-screen max-h-[100dvh] max-w-none translate-x-0 translate-y-0 flex-col gap-4 overflow-y-auto overscroll-contain border-0 bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+            "sm:fixed sm:inset-auto sm:left-1/2 sm:top-1/2 sm:z-50 sm:flex sm:h-auto sm:w-full sm:max-w-lg sm:max-h-[90vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:flex-col sm:gap-4 sm:rounded-lg sm:border sm:bg-background sm:p-6 sm:shadow-lg sm:overflow-y-auto",
             className
           )}
           onOpenAutoFocus={(e) => e.preventDefault()}
@@ -69,7 +70,7 @@ const DialogContent = React.forwardRef<
         >
           <div className="mx-auto my-1 h-1 w-10 rounded-full bg-muted-foreground/20 sm:hidden shrink-0" />
           {children}
-          <DialogPrimitive.Close className="absolute right-4 top-4 z-50 rounded-full p-1.5 opacity-75 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground bg-muted/80">
+          <DialogPrimitive.Close className="absolute right-4 top-4 z-50 rounded-full p-1.5 opacity-75 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground bg-muted/80 sm:rounded-sm sm:opacity-70 sm:ring-offset-background sm:transition-opacity sm:hover:opacity-100 sm:bg-transparent">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -99,8 +100,8 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      "sticky bottom-0 z-20 mt-auto w-full shrink-0 border-t border-border/60 bg-background/95 pt-3 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur-sm",
+      "sticky bottom-0 z-20 mt-auto w-full shrink-0 border-t border-border/60 bg-background/95 pt-3 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur-sm flex flex-col-reverse gap-2",
+      "sm:static sm:z-auto sm:mt-0 sm:w-auto sm:border-0 sm:bg-transparent sm:p-0 sm:flex-row sm:justify-end sm:space-x-2 sm:gap-0",
       className
     )}
     {...props}
