@@ -309,19 +309,17 @@ export default function LoginPage() {
           <ZoomControls />
         </div>
 
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex min-h-[calc(100vh/var(--zoom-scale,1))]">
-          <div className="absolute inset-0">
-             {loginImage && (
-              <Image
-                src={loginImage.imageUrl}
-                alt={loginImage.description}
-                fill
-                className="object-cover"
-                data-ai-hint={loginImage.imageHint}
-                priority
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/20" />
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex min-h-screen min-h-[calc(100vh/var(--zoom-scale,1))]">
+          <div className="absolute inset-0 h-full w-full">
+            <Image
+              src="/login-bg.png"
+              alt="Hotel Luxury Interior"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover object-center w-full h-full"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/30" />
           </div>
           <div className="relative z-10 flex items-center gap-2 text-lg font-bold">
             <Building2 className="h-8 w-8" />
