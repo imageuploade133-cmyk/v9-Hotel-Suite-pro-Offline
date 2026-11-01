@@ -25,6 +25,7 @@ export function useModalHistory({
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const onOpenChangeRef = React.useRef(onOpenChange);
   const pendingHistoryCleanupRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeHistoryTokenRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -45,31 +46,42 @@ export function useModalHistory({
       pendingHistoryCleanupRef.current = null;
     }
 
-    const token = `modal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const currentState = window.history.state;
     const currentStack = Array.isArray(currentState?.[HISTORY_KEY])
       ? currentState[HISTORY_KEY] as string[]
       : [];
+    // Reuse the same token if React Strict Mode immediately replays this
+    // effect; otherwise the development replay would leave a ghost entry.
+    const previousToken = activeHistoryTokenRef.current;
+    const token = previousToken && currentStack.includes(previousToken)
+      ? previousToken
+      : `modal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    let historyEntryCreated = false;
+    let historyEntryCreated = currentStack.includes(token);
     let closedByPopState = false;
 
-    try {
-      window.history.pushState(
-        {
-          ...(currentState && typeof currentState === 'object' ? currentState : {}),
-          [HISTORY_KEY]: [...currentStack, token],
-        },
-        '',
-        window.location.href
-      );
-      historyEntryCreated = true;
-    } catch {
-      // If the browser disallows history state changes, the modal still works
-      // normally through its close button, Escape key, and overlay behavior.
+    if (!historyEntryCreated) {
+      try {
+        window.history.pushState(
+          {
+            ...(currentState && typeof currentState === 'object' ? currentState : {}),
+            [HISTORY_KEY]: [...currentStack, token],
+          },
+          '',
+          window.location.href
+        );
+        historyEntryCreated = true;
+      } catch {
+        // If the browser disallows history state changes, the modal still works
+        // normally through its close button, Escape key, and overlay behavior.
+      }
     }
 
-    if (!historyEntryCreated) return;
+    if (!historyEntryCreated) {
+      activeHistoryTokenRef.current = null;
+      return;
+    }
+    activeHistoryTokenRef.current = token;
 
     const handlePopState = () => {
       const state = window.history.state;
@@ -78,6 +90,7 @@ export function useModalHistory({
       if (stack.includes(token)) return;
 
       closedByPopState = true;
+      activeHistoryTokenRef.current = null;
       handleOpenChange(false);
     };
 
@@ -90,7 +103,10 @@ export function useModalHistory({
       const state = window.history.state;
       const stack = Array.isArray(state?.[HISTORY_KEY]) ? state[HISTORY_KEY] as string[] : [];
       const tokenIndex = stack.lastIndexOf(token);
-      if (tokenIndex === -1) return;
+      if (tokenIndex === -1) {
+        if (activeHistoryTokenRef.current === token) activeHistoryTokenRef.current = null;
+        return;
+      }
 
       if (tokenIndex === stack.length - 1) {
         // Defer one tick so React Strict Mode's setup/cleanup replay can cancel
@@ -103,8 +119,10 @@ export function useModalHistory({
             : [];
           const latestTokenIndex = latestStack.lastIndexOf(token);
           if (latestTokenIndex === latestStack.length - 1) {
+            if (activeHistoryTokenRef.current === token) activeHistoryTokenRef.current = null;
             window.history.back();
           } else if (latestTokenIndex !== -1) {
+            if (activeHistoryTokenRef.current === token) activeHistoryTokenRef.current = null;
             window.history.replaceState(
               { ...(latestState && typeof latestState === 'object' ? latestState : {}), [HISTORY_KEY]: latestStack.filter(item => item !== token) },
               '',
@@ -113,6 +131,7 @@ export function useModalHistory({
           }
         }, 0);
       } else {
+        if (activeHistoryTokenRef.current === token) activeHistoryTokenRef.current = null;
         // A parent was closed while a nested modal is still open. Remove only
         // the parent's marker from the current entry without navigating.
         window.history.replaceState(
