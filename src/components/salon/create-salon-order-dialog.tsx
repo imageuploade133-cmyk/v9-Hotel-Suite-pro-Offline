@@ -186,7 +186,7 @@ export function CreateSalonOrderDialog({ isOpen, onClose, onSuccess }: CreateSal
         </DialogHeader>
         <Form {...form}>
           <form id="salon-order-form" onSubmit={form.handleSubmit(handleFormSubmit)}>
-            <ScrollArea className="max-h-[65vh] -mx-6 px-6">
+            <ScrollArea className="max-h-[65vh] -mx-6 px-6 flex-1 min-h-0">
               <div className="space-y-4">
                 <FormField
                     control={form.control}

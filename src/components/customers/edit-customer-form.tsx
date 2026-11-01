@@ -149,7 +149,7 @@ export function EditCustomerForm({ open, onOpenChange, customer, onSuccess, coll
           <DialogTitle>Edit Customer: {customer.name}</DialogTitle>
           <DialogDescription>Update the details for this customer.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+        <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
             <CustomerFormFields
                 formId={formId}
                 form={form}

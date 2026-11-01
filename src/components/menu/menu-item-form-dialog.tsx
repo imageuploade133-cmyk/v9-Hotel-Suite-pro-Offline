@@ -323,7 +323,7 @@ export function MenuItemFormDialog({
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Menu Item</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+          <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
              <Form {...form}>
               <form id="menu-item-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                  <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />

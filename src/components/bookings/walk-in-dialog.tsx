@@ -280,7 +280,7 @@ Please confirm payment in the dashboard.
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-            <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+            <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
                 <div className="pr-1">{FormContent}</div>
             </ScrollArea>
         </Form>

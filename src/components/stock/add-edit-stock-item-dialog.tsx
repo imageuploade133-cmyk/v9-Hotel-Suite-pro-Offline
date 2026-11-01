@@ -419,7 +419,7 @@ export function AddEditStockItemDialog({
               {isEditMode ? `Update the details for ${item?.name}.` : 'Add a new item to your main inventory.'}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+          <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
             <Form {...form}>
               <form id="stock-item-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {!isEditMode && branches.length > 0 && (
