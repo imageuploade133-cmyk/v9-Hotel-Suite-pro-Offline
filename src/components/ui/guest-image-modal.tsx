@@ -47,7 +47,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        closeModal();
       }
       if (!canNavigate) return;
       if (event.key === 'ArrowRight') {
@@ -58,7 +58,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
       }
     };
 
-    if (isOpen) {
+    if (modal.open) {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
@@ -70,7 +70,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
   }, [modal.open, closeModal, canNavigate, totalImages]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (modal.open) {
       setCurrentIndex(initialIndex);
       setIsImageLoaded(false);
       setHasError(false);
@@ -99,7 +99,7 @@ export const GuestImageModal: React.FC<GuestImageModalProps> = ({
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={closeModal}
     >
       <div
         className="relative flex h-full w-full max-w-none flex-col items-center justify-center p-4"
