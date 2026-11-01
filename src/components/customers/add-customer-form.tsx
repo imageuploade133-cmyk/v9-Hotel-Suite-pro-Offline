@@ -192,7 +192,7 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+        <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
             <CustomerFormFields formId={formId} form={form} />
         </ScrollArea>
         <DialogFooter>

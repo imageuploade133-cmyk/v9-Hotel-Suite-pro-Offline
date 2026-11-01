@@ -573,7 +573,7 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
             <DialogTitle>{dialogTitle} Staff Member</DialogTitle>
             <DialogDescription>{dialogDesc}</DialogDescription>
             </DialogHeader>
-            <ScrollArea className="max-h-[65vh] -mx-6 px-6">
+            <ScrollArea className="max-h-[65vh] -mx-6 px-6 flex-1 min-h-0">
                 <AddEditStaffFormFields form={form} isEditMode={isEditMode} />
             </ScrollArea>
             <DialogFooter>

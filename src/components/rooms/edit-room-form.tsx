@@ -178,7 +178,7 @@ export function EditRoomForm({ open, onOpenChange, room, onSuccess }: EditRoomFo
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] -mx-6 px-6"><div className="pr-1">{FormContent}</div></ScrollArea>
+        <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0"><div className="pr-1">{FormContent}</div></ScrollArea>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
           <Button type="submit" form={formId} loading={isLoading} disabled={isLoading || !form.formState.isDirty}>Save Changes</Button>

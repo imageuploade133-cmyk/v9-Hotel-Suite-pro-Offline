@@ -279,7 +279,7 @@ export function AddEditMemberDialog({ open, onOpenChange, onSuccess, member }: {
           <DialogTitle>{isEditMode ? 'Edit Gym Member' : 'Register New Gym Member'}</DialogTitle>
           <DialogDescription>Fill in the details below.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+        <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" id="member-form">
               <FormField

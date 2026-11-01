@@ -276,7 +276,7 @@ export function SignatureRoomManagement() {
             <DialogHeader>
                 <DialogTitle>{editingRoom ? 'Edit' : 'Add'} Signature Room</DialogTitle>
             </DialogHeader>
-            <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+            <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
               <Form {...form}>
                 <SignatureRoomFormFields form={form} />
               </Form>

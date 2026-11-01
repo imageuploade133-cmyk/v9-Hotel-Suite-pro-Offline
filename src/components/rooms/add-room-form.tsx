@@ -184,7 +184,7 @@ export function AddRoomForm({ open, onOpenChange, onSuccess }: AddRoomFormProps)
             Fill in the details below to add a new room to your property.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+        <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
             <div className="pr-1">{FormContent}</div>
         </ScrollArea>
         <DialogFooter>
