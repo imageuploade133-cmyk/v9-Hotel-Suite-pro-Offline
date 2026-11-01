@@ -8,14 +8,20 @@ import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModalHistory } from "@/hooks/use-modal-history"
 
+interface SheetProps extends React.ComponentProps<typeof SheetPrimitive.Root> {
+  /** Disable modal history for navigation drawers that immediately change routes. */
+  disableHistory?: boolean;
+}
+
 const Sheet = ({
   open,
   defaultOpen,
   onOpenChange,
   children,
+  disableHistory = false,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Root>) => {
-  const modal = useModalHistory({ open, defaultOpen, onOpenChange });
+}: SheetProps) => {
+  const modal = useModalHistory({ open, defaultOpen, onOpenChange, enabled: !disableHistory });
 
   return (
     <SheetPrimitive.Root
@@ -58,9 +64,9 @@ const sheetVariants = cva(
         top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
           "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+        left: "inset-y-0 left-0 h-[100dvh] max-h-[100dvh] w-[min(88vw,24rem)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
-          "inset-y-0 right-0 h-full w-3/4  border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+          "inset-y-0 right-0 h-[100dvh] max-h-[100dvh] w-[min(88vw,24rem)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
       },
     },
     defaultVariants: {
@@ -83,7 +89,8 @@ const SheetContent = React.forwardRef<
       ref={ref}
       data-sheet-side={side}
       className={cn(
-        "fixed inset-0 z-50 flex h-[100dvh] w-screen max-h-[100dvh] max-w-none flex-col gap-4 overflow-y-auto overscroll-contain border-0 bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl outline-none sm:p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+        sheetVariants({ side }),
+        "z-50 flex max-h-[100dvh] flex-col overflow-y-auto overscroll-contain bg-background pb-[max(1rem,env(safe-area-inset-bottom))] outline-none",
         className
       )}
       {...props}
