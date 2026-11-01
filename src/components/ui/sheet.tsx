@@ -81,6 +81,7 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <SheetPrimitive.Content
       ref={ref}
+      data-sheet-side={side}
       className={cn(
         "fixed inset-0 z-50 flex h-[100dvh] w-screen max-h-[100dvh] max-w-none flex-col gap-4 overflow-y-auto overscroll-contain border-0 bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl outline-none sm:p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
         className
