@@ -62,7 +62,7 @@
 @layer base {
   html {
     @apply scroll-smooth;
-    font-size: calc(16px * var(--zoom-scale, 1));
+    font-size: 16px;
   }
   * {
     @apply border-border;
