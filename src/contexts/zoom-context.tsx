@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface ZoomContextType {
   zoomLevel: number;
@@ -20,8 +21,10 @@ const STORAGE_KEY = 'app-zoom-level';
 export function ZoomProvider({ children }: { children: React.ReactNode }) {
   const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
+  const isLoginPage = pathname === '/login';
 
-  // Load zoom level from localStorage on mount and setup keyboard shortcuts
+  // Load the saved zoom level and keep keyboard shortcuts in sync with the current page.
   useEffect(() => {
     const savedZoom = localStorage.getItem(STORAGE_KEY);
     if (savedZoom) {
@@ -66,11 +69,25 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [pathname]);
 
   const applyZoom = (zoom: number) => {
     if (typeof document !== 'undefined') {
       const scale = Math.max(zoom / 100, 0.2);
+
+      // On the login page, leave the document and slideshow at their natural size.
+      // The login form reads zoomLevel and applies the scale only to its own content.
+      if (isLoginPage) {
+        document.documentElement.style.setProperty('--zoom-scale', '1');
+        (document.documentElement.style as any).zoom = '1';
+        (document.body.style as any).zoom = '1';
+        document.documentElement.style.transform = '';
+        document.documentElement.style.transformOrigin = '';
+        document.documentElement.style.width = '';
+        document.body.style.width = '';
+        document.body.style.minHeight = '';
+        return;
+      }
 
       // Reset explicit inline style dimensions to allow fluid CSS layout reflow
       document.body.style.width = '';

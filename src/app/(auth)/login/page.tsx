@@ -20,6 +20,7 @@ import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapP
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ZoomControls } from '@/components/ui/zoom-controls';
+import { useZoom } from '@/contexts/zoom-context';
 import { ForgotPasswordDialog } from '@/components/auth/forgot-password-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -157,6 +158,7 @@ export default function LoginPage() {
   const [isForgotPasswordOpen, setForgotPasswordOpen] = React.useState(false);
   const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
   const { settings } = useSettings();
+  const { zoomLevel } = useZoom();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
@@ -318,15 +320,23 @@ export default function LoginPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/35" />
           </div>
-          <div className="relative z-10 flex items-center gap-2 text-lg font-bold">
-            <Building2 className="h-8 w-8" />
-            <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
+          <div
+            className="relative z-10 flex h-full flex-col justify-between"
+            style={{ zoom: Math.max(zoomLevel, 20) / 100 }}
+          >
+            <div className="flex items-center gap-2 text-lg font-bold">
+              <Building2 className="h-8 w-8" />
+              <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
+            </div>
+            <TopCountries />
           </div>
-          <TopCountries />
         </div>
 
-        <div className="flex w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 min-h-[calc(100vh/var(--zoom-scale,1))] self-stretch overflow-y-auto">
-          <div className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-4 sm:space-y-5 py-4">
+        <div className="flex w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 h-full max-h-screen overflow-y-auto">
+          <div
+            className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-4 sm:space-y-5 py-4"
+            style={{ zoom: Math.max(zoomLevel, 20) / 100 }}
+          >
             <div className="flex flex-col items-center text-center">
               <div className="flex items-center gap-3 mb-2 lg:hidden">
                   <Building2 className="h-9 w-9 text-primary" />
