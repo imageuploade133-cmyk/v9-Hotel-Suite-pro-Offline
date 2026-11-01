@@ -320,11 +320,16 @@ export default function LoginPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/35" />
           </div>
-          <div className="relative z-10 flex items-center gap-2 text-lg font-bold">
-            <Building2 className="h-8 w-8" />
-            <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
+          <div
+            className="relative z-10 flex h-full flex-col justify-between"
+            style={{ zoom: Math.max(zoomLevel, 20) / 100 }}
+          >
+            <div className="flex items-center gap-2 text-lg font-bold">
+              <Building2 className="h-8 w-8" />
+              <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
+            </div>
+            <TopCountries />
           </div>
-          <TopCountries />
         </div>
 
         <div className="flex w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 h-full max-h-screen overflow-y-auto">
