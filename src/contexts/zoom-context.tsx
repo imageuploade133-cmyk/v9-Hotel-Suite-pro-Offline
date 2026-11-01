@@ -76,10 +76,10 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
       document.body.style.width = '';
       document.body.style.minHeight = '';
 
-      // Set CSS custom property so calculations like calc(100vh / var(--zoom-scale)) work accurately
+      // Set CSS custom property so calculations like calc(100vh / var(--zoom-scale)) and calc(16px * var(--zoom-scale)) work accurately
       document.documentElement.style.setProperty('--zoom-scale', String(scale));
 
-      // Apply zoom to documentElement for full page browser-native zoom adaptation
+      // Apply zoom to documentElement and body so text, font size, layouts, and cards scale cohesively
       if ('zoom' in document.documentElement.style || (document.documentElement.style as any).zoom !== undefined) {
         (document.documentElement.style as any).zoom = String(scale);
         (document.body.style as any).zoom = String(scale);

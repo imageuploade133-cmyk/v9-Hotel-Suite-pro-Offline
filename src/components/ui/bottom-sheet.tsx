@@ -16,7 +16,7 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onOpenChange, children }: BottomSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-lg h-full max-h-[85vh]">
+      <SheetContent side="bottom" className="inset-0 h-full max-h-screen w-full rounded-none p-4 flex flex-col overflow-y-auto">
         {children}
       </SheetContent>
     </Sheet>
