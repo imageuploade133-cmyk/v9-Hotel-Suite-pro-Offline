@@ -20,7 +20,6 @@ const STORAGE_KEY = 'app-zoom-level';
 
 export function ZoomProvider({ children }: { children: React.ReactNode }) {
   const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
-  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const isLoginPage = pathname === '/login';
 
@@ -34,8 +33,6 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
         applyZoom(zoom);
       }
     }
-    setMounted(true);
-
     // Add keyboard shortcuts for zoom
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + Plus or Ctrl/Cmd + Equals for zoom in
@@ -134,10 +131,8 @@ export function ZoomProvider({ children }: { children: React.ReactNode }) {
     setZoomLevel(DEFAULT_ZOOM);
   };
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Keep the context available during server rendering and hydration.
+  // The default 100% value is safe until the saved preference loads in the effect.
   return (
     <ZoomContext.Provider value={{ zoomLevel, zoomIn, zoomOut, resetZoom }}>
       {children}
