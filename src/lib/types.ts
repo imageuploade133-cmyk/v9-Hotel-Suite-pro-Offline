@@ -39,6 +39,7 @@ export interface UserProfile {
   isActive: boolean;
   phoneNumber?: string | null;
   createdAt?: Timestamp | null;
+  isSuperAdmin?: boolean;
 }
 
 export type BookingType = 'reservation' | 'checkin' | 'reservation-and-pay';
