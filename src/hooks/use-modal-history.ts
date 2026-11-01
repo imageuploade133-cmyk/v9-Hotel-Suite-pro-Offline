@@ -101,7 +101,16 @@ export function useModalHistory({
           const latestStack = Array.isArray(latestState?.[HISTORY_KEY])
             ? latestState[HISTORY_KEY] as string[]
             : [];
-          if (latestStack.includes(token)) window.history.back();
+          const latestTokenIndex = latestStack.lastIndexOf(token);
+          if (latestTokenIndex === latestStack.length - 1) {
+            window.history.back();
+          } else if (latestTokenIndex !== -1) {
+            window.history.replaceState(
+              { ...(latestState && typeof latestState === 'object' ? latestState : {}), [HISTORY_KEY]: latestStack.filter(item => item !== token) },
+              '',
+              window.location.href
+            );
+          }
         }, 0);
       } else {
         // A parent was closed while a nested modal is still open. Remove only
