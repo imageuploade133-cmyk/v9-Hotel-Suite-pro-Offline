@@ -24,6 +24,7 @@ export function useModalHistory({
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const onOpenChangeRef = React.useRef(onOpenChange);
+  const pendingHistoryCleanupRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -36,6 +37,13 @@ export function useModalHistory({
 
   React.useEffect(() => {
     if (!open || typeof window === 'undefined') return;
+
+    // React Strict Mode replays effects in development. Cancel a deferred
+    // cleanup from the replay before creating the real modal history entry.
+    if (pendingHistoryCleanupRef.current) {
+      clearTimeout(pendingHistoryCleanupRef.current);
+      pendingHistoryCleanupRef.current = null;
+    }
 
     const token = `modal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const currentState = window.history.state;
@@ -85,8 +93,16 @@ export function useModalHistory({
       if (tokenIndex === -1) return;
 
       if (tokenIndex === stack.length - 1) {
-        // Consume the history entry created when this modal opened.
-        window.history.back();
+        // Defer one tick so React Strict Mode's setup/cleanup replay can cancel
+        // this navigation before it affects the user's actual history.
+        pendingHistoryCleanupRef.current = setTimeout(() => {
+          pendingHistoryCleanupRef.current = null;
+          const latestState = window.history.state;
+          const latestStack = Array.isArray(latestState?.[HISTORY_KEY])
+            ? latestState[HISTORY_KEY] as string[]
+            : [];
+          if (latestStack.includes(token)) window.history.back();
+        }, 0);
       } else {
         // A parent was closed while a nested modal is still open. Remove only
         // the parent's marker from the current entry without navigating.
