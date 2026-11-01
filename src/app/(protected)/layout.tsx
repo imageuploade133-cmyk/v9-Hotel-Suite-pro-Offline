@@ -745,7 +745,7 @@ export default function ProtectedLayout({
           )}
         >
           <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} disableHistory>
               <SheetTrigger asChild>
                 <Button size="icon" variant="outline" className="sm:hidden">
                   <PanelLeft className="h-5 w-5" />
@@ -764,7 +764,7 @@ export default function ProtectedLayout({
                     <span className="text-lg font-bold text-foreground">v9 Hotel Suite Pro</span>
                   </Link>
                 </SheetHeader>
-                <ScrollArea className="flex-1">
+                <ScrollArea className="min-h-0 flex-1">
                   {/* Branch Selector in Mobile Slide Menu */}
                   {userAccessibleBranches.length > 0 && (
                     <div className="border-b px-4 py-3">
@@ -822,16 +822,16 @@ export default function ProtectedLayout({
                       )}
                     </div>
                   )}
-                  <nav className="grid gap-2 text-lg font-medium p-4">
+                  <nav className="grid gap-1.5 p-3 text-sm font-medium sm:gap-2 sm:p-4 sm:text-base">
                     {navGroups.flatMap(g => g.items).map(item => (
                       <Link
                         key={item.href}
                         href={item.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                        className="flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:py-2"
                       >
                         {typeof item.icon === 'string' ? <NavIcon iconName={item.icon} /> : <item.icon className="h-5 w-5" />}
-                        {item.label}
+                        <span className="min-w-0 flex-1 break-words">{item.label}</span>
                         {item.notificationCount && item.notificationCount > 0 && (
                           <Badge variant={'destructive'} className="ml-auto rounded-full blinking-red-badge">{item.notificationCount}</Badge>
                         )}

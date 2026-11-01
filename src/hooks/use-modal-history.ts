@@ -8,6 +8,7 @@ type ModalHistoryOptions = {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  enabled?: boolean;
 };
 
 /**
@@ -19,6 +20,7 @@ export function useModalHistory({
   open: controlledOpen,
   defaultOpen,
   onOpenChange,
+  enabled = true,
 }: ModalHistoryOptions) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false);
   const isControlled = controlledOpen !== undefined;
@@ -37,7 +39,7 @@ export function useModalHistory({
   }, [isControlled]);
 
   React.useEffect(() => {
-    if (!open || typeof window === 'undefined') return;
+    if (!enabled || !open || typeof window === 'undefined') return;
 
     // React Strict Mode replays effects in development. Cancel a deferred
     // cleanup from the replay before creating the real modal history entry.
@@ -141,7 +143,7 @@ export function useModalHistory({
         );
       }
     };
-  }, [open, handleOpenChange]);
+  }, [enabled, open, handleOpenChange]);
 
   return { open, onOpenChange: handleOpenChange };
 }
