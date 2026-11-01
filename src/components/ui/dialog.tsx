@@ -70,15 +70,15 @@ const DialogContent = React.forwardRef<
           ref={ref}
           className={cn(
             "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-2xl",
-            "max-sm:left-0 max-sm:right-0 max-sm:bottom-0 max-sm:top-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:max-h-[90vh] max-sm:overflow-y-auto max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
+            "max-sm:inset-0 max-sm:h-full max-sm:w-full max-sm:max-w-none max-sm:max-h-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:p-4 max-sm:flex max-sm:flex-col max-sm:overflow-y-auto max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
             className
           )}
           onOpenAutoFocus={(e) => e.preventDefault()}
           {...props}
         >
-          <div className="mx-auto my-1 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
+          <div className="mx-auto my-1 h-1 w-10 rounded-full bg-muted-foreground/20 sm:hidden shrink-0" />
           {children}
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground bg-muted/60">
+          <DialogPrimitive.Close className="absolute right-4 top-4 z-50 rounded-full p-1.5 opacity-75 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground bg-muted/80">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -109,6 +109,7 @@ const DialogFooter = ({
   <div
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "max-sm:sticky max-sm:bottom-0 max-sm:mt-auto max-sm:w-full max-sm:bg-background/95 max-sm:backdrop-blur-sm max-sm:pt-3 max-sm:pb-1 max-sm:border-t max-sm:border-border/60 max-sm:z-10",
       className
     )}
     {...props}
