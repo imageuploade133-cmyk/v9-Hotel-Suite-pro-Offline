@@ -19,6 +19,7 @@ import {
 } from 'firebase/auth';
 import { useFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 type AuthContextType = {
   user: User | null;
@@ -96,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 1. Fetch staff/user accounts from Local Master Server or local cache
       let usersList: any[] = [];
       try {
-        const res = await fetch('/api/lan-sync?collection=users');
-        if (res.ok) {
+        const res = isLocalMasterHost() ? await fetch('/api/lan-sync?collection=users') : null;
+        if (res?.ok) {
           const result = await res.json();
           if (result.data) {
             usersList = Object.values(result.data);
