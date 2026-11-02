@@ -299,60 +299,36 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="relative flex h-screen min-h-screen w-full bg-background overflow-hidden">
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-6 lg:p-8 xl:p-10 text-white lg:flex h-full min-h-full self-stretch shrink-0">
-          <div className="absolute inset-0 h-full w-full">
-            <Image
-              src="/login-bg.png"
-              alt="Hotel Luxury Interior"
-              fill
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-cover object-center w-full h-full"
-              priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/35" />
-          </div>
-          <div className="relative z-10 flex h-full flex-col justify-between">
-            <div className="flex items-center gap-2 text-lg font-bold">
-              <Building2 className="h-8 w-8" />
-              <span className="font-bold text-lg tracking-tight">v9 Hotel Suite Pro</span>
-            </div>
-            <TopCountries />
-          </div>
-        </div>
-
-        <div className="flex w-full items-center justify-center p-4 sm:p-6 lg:w-1/2 lg:p-8 h-full max-h-screen overflow-y-auto">
-          <div className="mx-auto my-auto flex w-full max-w-sm flex-col justify-center space-y-4 sm:space-y-5 py-4">
-            <div className="flex flex-col items-center text-center">
-              <div className="flex items-center gap-3 mb-2 lg:hidden">
-                  <Building2 className="h-9 w-9 text-primary" />
+      <main className="relative min-h-screen w-full overflow-hidden bg-white lg:grid lg:grid-cols-2">
+        <section className="relative flex min-h-screen items-center justify-center overflow-y-auto px-5 py-8 sm:px-8 lg:px-12 xl:px-16">
+          <div className="mx-auto flex w-full max-w-[390px] flex-col justify-center">
+            <div className="mb-7 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
+                <Building2 className="h-5 w-5" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                  Welcome Back
-              </h1>
-              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                Sign in to access your hotel management dashboard.
-              </p>
+              <div className="min-w-0">
+                <p className="text-sm font-extrabold tracking-tight text-slate-900">V9 HOTEL SUITE PRO</p>
+                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Hotel management made simple</p>
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <h1 className="text-[27px] font-bold tracking-tight text-slate-900">Login</h1>
+              <p className="mt-1 text-sm text-slate-500">Login to access your hotel management account.</p>
             </div>
 
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="email"
                   render={({ field }) => (
-                    <FormItem className="space-y-1">
-                      <FormLabel className="text-xs sm:text-sm font-medium">Email</FormLabel>
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-xs font-semibold text-slate-700">Email</FormLabel>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="name@example.com"
-                            className="pl-9 h-10 text-sm"
-                            {...field}
-                            disabled={isLoggingIn}
-                          />
+                          <Input type="email" placeholder="name@example.com" className="h-11 rounded-xl border-slate-200 bg-white pl-10 text-sm shadow-none placeholder:text-slate-400 focus-visible:ring-primary" {...field} disabled={isLoggingIn} />
                         </FormControl>
                       </div>
                       <FormMessage className="text-xs" />
@@ -364,33 +340,15 @@ export default function LoginPage() {
                   control={form.control}
                   name="password"
                   render={({ field }) => (
-                    <FormItem className="space-y-1">
-                      <FormLabel className="text-xs sm:text-sm font-medium">Password</FormLabel>
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-xs font-semibold text-slate-700">Password</FormLabel>
                       <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <FormControl>
-                          <Input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder="Enter your password"
-                            className="pl-9 pr-9 h-10 text-sm"
-                            {...field}
-                            disabled={isLoggingIn}
-                          />
+                          <Input type={showPassword ? 'text' : 'password'} placeholder="Enter your password" className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-11 text-sm shadow-none placeholder:text-slate-400 focus-visible:ring-primary" {...field} disabled={isLoggingIn} />
                         </FormControl>
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                           aria-label={
-                            showPassword ? 'Hide password' : 'Show password'
-                          }
-                          disabled={isLoggingIn}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition-colors hover:text-slate-700" aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={isLoggingIn}>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                       <FormMessage className="text-xs" />
@@ -398,76 +356,78 @@ export default function LoginPage() {
                   )}
                 />
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between gap-3 pt-0.5">
                   <FormField
                     control={form.control}
                     name="rememberMe"
                     render={({ field }) => (
                       <FormItem className="space-y-0">
                         <div className="flex items-center gap-2">
-                           <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              id="remember-me"
-                              disabled={isLoggingIn}
-                              className="size-4 rounded-[4px]"
-                            />
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id="remember-me" disabled={isLoggingIn} className="size-4 rounded-[4px] border-slate-300" />
                           </FormControl>
-                          <FormLabel
-                            htmlFor="remember-me"
-                            className="!mt-0 cursor-pointer text-xs sm:text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            Stay logged in
-                          </FormLabel>
-                           <TooltipProvider>
+                          <FormLabel htmlFor="remember-me" className="!mt-0 cursor-pointer text-xs font-medium leading-none text-slate-700">Stay logged in</FormLabel>
+                          <TooltipProvider>
                             <Tooltip>
-                              <TooltipTrigger asChild>
-                                <HelpCircle className="size-3.5 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs text-xs">
-                                  Check this box to stay logged in on this device.
-                                  Do not use on shared or public computers.
-                                </p>
-                              </TooltipContent>
+                              <TooltipTrigger asChild><HelpCircle className="size-3.5 text-slate-400" /></TooltipTrigger>
+                              <TooltipContent><p className="max-w-xs text-xs">Check this box to stay logged in on this device. Do not use on shared or public computers.</p></TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </div>
                       </FormItem>
                     )}
                   />
-                  <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto p-0 text-xs sm:text-sm font-medium"
-                      onClick={() => setForgotPasswordOpen(true)}
-                      disabled={isLoggingIn}
-                  >
-                      Forgot Password?
-                  </Button>
+                  <Button type="button" variant="link" className="h-auto shrink-0 p-0 text-xs font-semibold text-primary" onClick={() => setForgotPasswordOpen(true)} disabled={isLoggingIn}>Forgot password?</Button>
                 </div>
 
-                <Button type="submit" className="w-full h-10 text-sm font-semibold mt-2" loading={isLoggingIn}>
-                  <LogIn className="mr-2 h-4 w-4" />
-                  <span>Sign In</span>
+                <Button type="submit" className="mt-1 h-11 w-full rounded-xl text-sm font-semibold shadow-sm" loading={isLoggingIn}>
+                  <LogIn className="mr-2 h-4 w-4" /><span>Login</span>
                 </Button>
               </form>
             </Form>
 
-            <div className="flex flex-col gap-2 pt-1">
-                 <Button variant="outline" className="w-full h-9 text-xs sm:text-sm" onClick={handleCopyLink}>
-                    <Copy className="mr-2 h-3.5 w-3.5" />
-                    <span>Copy public website link</span>
-                </Button>
+            <div className="mt-4">
+              <Button variant="outline" className="h-10 w-full rounded-xl border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50" onClick={handleCopyLink}>
+                <Copy className="mr-2 h-3.5 w-3.5" /><span>Copy public website link</span>
+              </Button>
             </div>
 
-            <p className="text-center text-[11px] text-muted-foreground font-semibold pt-1">
-              Powered by ADS Developments Inc.
+            <p className="mt-8 text-center text-[10px] font-medium tracking-wide text-slate-400">
+              © {new Date().getFullYear()} ADS DEVELOPMENT INC.
             </p>
           </div>
-        </div>
-      </div>
+        </section>
+
+        <aside className="relative hidden min-h-screen overflow-hidden bg-[#3268e8] p-8 text-white lg:flex lg:flex-col lg:justify-between xl:p-10">
+          <div className="absolute inset-0">
+            <Image src="/login-bg.png" alt="Luxury hotel interior" fill sizes="50vw" className="object-cover object-center" priority />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#315be9]/90 via-[#286fe9]/75 to-[#123a9b]/90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#102d78]/65 via-transparent to-[#315be9]/20" />
+          </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/15 backdrop-blur"><Building2 className="h-5 w-5 text-white" /></div>
+            <div>
+              <p className="text-sm font-bold tracking-wide text-white">V9 HOTEL SUITE PRO</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/75">Luxury hospitality management</p>
+            </div>
+          </div>
+
+          <div className="relative z-10 mx-auto w-full max-w-xl py-8">
+            <p className="mb-4 text-center text-xs font-bold uppercase tracking-[0.28em] text-white/75">Welcome to smarter hospitality</p>
+            <h2 className="text-center text-4xl font-extrabold leading-[1.08] tracking-tight text-white drop-shadow-sm xl:text-5xl">
+              Everything Your Hotel Needs,<span className="mt-1 block text-white/90">All in One Place.</span>
+            </h2>
+            <p className="mx-auto mt-5 max-w-md text-center text-sm leading-6 text-white/85">
+              Manage reservations, rooms, guests, payments and daily operations with one powerful hotel management platform.
+            </p>
+          </div>
+
+          <div className="relative z-10">
+            <TopCountries />
+            <p className="mt-5 text-center text-[10px] font-medium tracking-wide text-white/65">Built for modern hotels. Designed for effortless operations.</p>
+          </div>
+        </aside>
+      </main>
       <ForgotPasswordDialog open={isForgotPasswordOpen} onOpenChange={setForgotPasswordOpen} />
     </>
   );
