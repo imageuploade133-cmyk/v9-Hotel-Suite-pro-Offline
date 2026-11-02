@@ -53,10 +53,10 @@ function ProfilePage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Shield className="h-6 w-6" />
-                                Full Admin Permissions
+                                {userProfile.isFirebaseOnlyAdmin ? 'Full Admin Permissions' : 'Your Assigned Permissions'}
                             </CardTitle>
                             <CardDescription>
-                                All permissions are enabled because every authenticated Firebase account is treated as a full Admin.
+                                {userProfile.isFirebaseOnlyAdmin ? 'All permissions are enabled for this Firebase-only Admin account.' : 'These are the permissions assigned to your staff account.'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

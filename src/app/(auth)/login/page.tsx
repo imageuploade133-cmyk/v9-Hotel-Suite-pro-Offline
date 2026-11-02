@@ -32,7 +32,7 @@ import Link from 'next/link';
 import { useSettings } from '@/contexts/settings-context';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/user-context';
-import { getLandingPage, PagePermission } from '@/lib/permissions';
+import { getLandingPage } from '@/lib/permissions';
 
 // Schema for form validation using Zod
 const formSchema = z.object({
@@ -166,7 +166,7 @@ export default function LoginPage() {
     },
   });
 
-  const { userProfile, loading: profileLoading, permissions } = useUser();
+  const { loading: profileLoading, permissions } = useUser();
 
   React.useEffect(() => {
     if (user && !profileLoading) {
@@ -174,7 +174,7 @@ export default function LoginPage() {
       const landingPage = getLandingPage(permissions);
       router.replace(landingPage);
     }
-  }, [user, profileLoading, userProfile, permissions, router]);
+  }, [user, profileLoading, permissions, router]);
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoggingIn(true);
