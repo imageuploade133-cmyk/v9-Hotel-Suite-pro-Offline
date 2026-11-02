@@ -40,6 +40,7 @@ export interface UserProfile {
   phoneNumber?: string | null;
   createdAt?: Timestamp | null;
   isSuperAdmin?: boolean;
+  isFirebaseOnlyAdmin?: boolean; // Runtime identity marker; never persisted as a staff permission override
 }
 
 export type BookingType = 'reservation' | 'checkin' | 'reservation-and-pay';
