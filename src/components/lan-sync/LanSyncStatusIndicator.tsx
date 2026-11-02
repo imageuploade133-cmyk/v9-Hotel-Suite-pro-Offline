@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 export function LanSyncStatusIndicator() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -19,6 +20,7 @@ export function LanSyncStatusIndicator() {
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
 
   const checkSyncStatus = async () => {
+    if (!isLocalMasterHost()) return;
     try {
       const res = await fetch('/api/lan-sync');
       if (res.ok) {
@@ -34,6 +36,7 @@ export function LanSyncStatusIndicator() {
   };
 
   const triggerCloudSync = async () => {
+    if (!isLocalMasterHost()) return;
     setIsSyncing(true);
     try {
       await fetch('/api/lan-sync/cloud-sync', { method: 'POST' });
