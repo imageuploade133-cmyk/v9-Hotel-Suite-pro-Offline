@@ -28,13 +28,13 @@ export default function withAuth<P extends object>(
       return null;
     }
 
-    // Only an explicitly assigned profile may grant elevated access.
-    const isSuperAdmin = Boolean(userProfile && (userProfile.isSuperAdmin || userProfile.role === 'Super Admin' || userProfile.role === 'Admin'));
-    const finalPermissions = isSuperAdmin ? Object.values(PagePermission) : (userProfile?.permissions || contextPermissions || []);
+    // Use the centralized permission calculation. Missing profiles resolve to no permissions.
+    // This keeps explicit role-based permissions working without creating an Admin fallback.
+    const finalPermissions = contextPermissions || [];
 
-    const canManageRoomStatus = isSuperAdmin || finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
+    const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
-    let hasRequiredPermission = requiredPermission ? (isSuperAdmin || finalPermissions.includes(requiredPermission)) : true;
+    let hasRequiredPermission = requiredPermission ? finalPermissions.includes(requiredPermission) : true;
 
     // If it's a custom room status page (format: view:custom_status_name) and the user doesn't have the specific permission,
     // check if they have the general `manage:room_status` permission.
