@@ -197,14 +197,14 @@ export function DateRangePicker({
   };
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex min-w-0 max-w-full flex-wrap items-center gap-2', className)}>
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
             variant={'outline'}
             className={cn(
-              'min-w-[280px] justify-between text-left font-normal hover:bg-accent',
+              'w-full min-w-0 max-w-full justify-between text-left font-normal hover:bg-accent sm:min-w-[280px] sm:w-auto',
               !date && 'text-muted-foreground'
             )}
             disabled={disabled}
@@ -217,11 +217,11 @@ export function DateRangePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-auto p-0"
+          className="max-h-[min(85dvh,42rem)] max-w-[calc(100vw-1rem)] overflow-auto p-0"
           align="start"
           sideOffset={4}
         >
-          <div className="flex">
+          <div className="flex max-w-full overflow-x-auto">
             {/* Presets Sidebar */}
             <div className="hidden sm:flex flex-col border-r bg-muted/30">
               <div className="p-3 border-b">
@@ -247,14 +247,14 @@ export function DateRangePicker({
             </div>
 
             {/* Calendar Section */}
-            <div className="flex flex-col">
+            <div className="flex min-w-0 flex-col">
               <Calendar
                 initialFocus
                 mode="range"
                 defaultMonth={tempDateRange?.from || new Date()}
                 selected={tempDateRange}
                 onSelect={handleDateSelect}
-                numberOfMonths={2}
+                numberOfMonths={typeof window !== "undefined" && window.innerWidth < 640 ? 1 : 2}
                 className="[&_.day-range-end]:rounded-r-md [&_.day-range-start]:rounded-l-md"
               />
 
@@ -296,7 +296,7 @@ export function DateRangePicker({
                 )}
 
                 {/* Selected Range Display & Actions */}
-                <div className="p-3 flex items-center justify-between gap-4 bg-background">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-background p-3">
                   <div className="text-sm">
                     {tempDateRange?.from ? (
                       <div className="flex flex-col">
