@@ -12,8 +12,6 @@ import {
 import { MyHistory } from './my-history';
 import type { Booking } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
-import { AiChat } from '../ai/ai-chat';
-import { useFirestore } from '@/firebase';
 
 
 interface MyHistoryDialogProps {
@@ -25,8 +23,8 @@ interface MyHistoryDialogProps {
 export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDialogProps) {
 
   const content = (
-      <div className="flex-1 min-h-0 -mx-6">
-          <ScrollArea className="h-full px-6">
+      <div className="min-h-0 min-w-0 flex-1 -mx-4 overflow-hidden sm:-mx-6">
+          <ScrollArea className="h-full px-4 sm:px-6">
             <MyHistory onViewDetails={onViewDetails} />
           </ScrollArea>
         </div>
@@ -34,8 +32,8 @@ export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDia
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-screen h-screen max-w-none rounded-none border-0 flex flex-col">
-        <DialogHeader>
+      <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-6xl">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>My History</DialogTitle>
           <DialogDescription>
             A record of all the bookings and actions you have personally processed.
