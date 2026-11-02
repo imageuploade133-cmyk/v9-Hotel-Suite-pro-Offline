@@ -8,7 +8,7 @@ import type { UserProfile } from '@/lib/types';
 import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, onSnapshot, doc, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer } from 'firebase/firestore';
 import { sanitizeForUrl } from '@/lib/helpers';
 import { firestoreCache, CacheTTL, CacheKeys } from '@/lib/firestore-cache';
 
@@ -227,59 +227,62 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     const loadProfile = async () => {
       let matchedProfile: UserProfile | null = null;
+      let authoritativeLookupCompleted = false;
 
-      // 1. Check direct Firestore user document first
-      try {
-        const snap = await getDocs(collection(firestore, 'users'));
-        if (snap && snap.docs) {
+      // 1. When internet is available, require a server-confirmed Firestore profile.
+      // A successful server lookup with no matching UID must NOT fall through to stale cache.
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        try {
+          const snap = await getDocsFromServer(collection(firestore, 'users'));
+          authoritativeLookupCompleted = true;
           const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
           firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-          const found = usersList.find(
+          matchedProfile = usersList.find(
             u => u && (u.uid === user.uid || u.id === user.uid)
-          );
-          if (found) matchedProfile = found;
-        }
-      } catch {}
-
-      // 2. Check local firestoreCache next (instant memory / localStorage)
-      if (!matchedProfile) {
-        const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
-        if (cachedUsers && Array.isArray(cachedUsers)) {
-          const foundInCache = cachedUsers.find(
-            u => u && (u.uid === user.uid || u.id === user.uid)
-          );
-          if (foundInCache) {
-            matchedProfile = foundInCache;
-          }
+          ) || null;
+        } catch {
+          // Cloud unavailable: continue to the local Master PC and offline cache.
         }
       }
 
-      // 3. Check local LAN master store
-      if (!matchedProfile && user.email) {
+      // 2. If cloud authority is unavailable, ask the local Master PC first.
+      // A successful LAN response is authoritative for this local network session.
+      if (!authoritativeLookupCompleted) {
+        let lanLookupCompleted = false;
         try {
-          const res = await fetch(`/api/lan-sync?collection=users`);
+          const res = await fetch('/api/lan-sync?collection=users');
           if (res.ok) {
             const result = await res.json();
-            if (result.data) {
+            if (result && result.success === true && result.data && typeof result.data === 'object') {
+              lanLookupCompleted = true;
               const usersList = Object.values(result.data) as UserProfile[];
-              const found = usersList.find(
+              matchedProfile = usersList.find(
                 u => u && (u.uid === user.uid || u.id === user.uid)
-              );
-              if (found) matchedProfile = found;
+              ) || null;
             }
           }
         } catch (e) {
           console.warn('[LAN Sync] Local profile lookup error:', e);
         }
+
+        // 3. Use previously synced staff profiles only when neither cloud nor LAN can answer.
+        // Cached data is never allowed to override a successful authoritative "not assigned" result.
+        if (!lanLookupCompleted) {
+          const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
+          if (cachedUsers && Array.isArray(cachedUsers)) {
+            matchedProfile = cachedUsers.find(
+              u => u && (u.uid === user.uid || u.id === user.uid)
+            ) || null;
+          }
+        }
       }
 
-      // Firebase accounts without a hotel profile remain unassigned and receive no permissions.
+      // Firebase accounts without a matching staff profile remain unassigned.
       if (!isCancelled) {
         setUserProfile(matchedProfile);
         setLoading(false);
       }
     };
-
     loadProfile();
 
     // Ensure loading never hangs longer than 800ms when offline or switching Wi-Fi
