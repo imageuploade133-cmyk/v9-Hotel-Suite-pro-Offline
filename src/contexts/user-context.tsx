@@ -5,7 +5,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { useAuth } from '@/components/auth/auth-provider';
 import type { User } from 'firebase/auth';
 import type { UserProfile } from '@/lib/types';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
+import { PERMISSION_GROUPS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, onSnapshot, doc, getDocs } from 'firebase/firestore';
@@ -273,22 +273,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      // 4. For user with firebase account only (no firestore permission and role), that person is administrator full access
-      if (!matchedProfile) {
-        matchedProfile = {
-          uid: user.uid,
-          id: user.uid,
-          email: user.email || '',
-          name: user.displayName || user.email?.split('@')[0] || 'Administrator',
-          role: 'Admin',
-          isSuperAdmin: true,
-          permissions: ALL_PERMISSIONS,
-          branchId: 'default',
-          branchName: 'Main Branch',
-        } as unknown as UserProfile;
-      }
-
-      if (!isCancelled && matchedProfile) {
+      // Firebase accounts without a hotel profile remain unassigned and receive no permissions.
+      if (!isCancelled) {
         setUserProfile(matchedProfile);
         setLoading(false);
       }
@@ -327,9 +313,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   // Use actual user permissions from their role/profile
   // Automatically resolve permissions for Admins and defined Roles
   const permissions = useMemo(() => {
-    // If no user profile exists in Firestore, grant ALL_PERMISSIONS (Firebase Account Only = Full Administrator Access)
+    // Missing profiles are unassigned accounts: never grant permissions implicitly.
     if (!userProfile) {
-      return ALL_PERMISSIONS;
+      return [];
     }
 
     // 1. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
