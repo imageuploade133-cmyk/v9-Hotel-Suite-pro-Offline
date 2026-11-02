@@ -1,8 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { lanStore } from '@/lib/lan-sync/lan-store';
+
+
+function isLocalMasterRequest(req: NextRequest): boolean {
+  const hostname = req.nextUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.endsWith('.local') ||
+    !hostname.includes('.')
+  ) return true;
+
+  const ipv4 = hostname.match(/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/);
+  if (!ipv4) return false;
+  const first = Number(ipv4[1]);
+  const second = Number(ipv4[2]);
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+}
 
 export async function GET(req: NextRequest) {
+  if (!isLocalMasterRequest(req)) {
+    return NextResponse.json({ success: false, error: 'LAN sync is available only on the local Master PC.' }, { status: 404 });
+  }
   try {
+    const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const { searchParams } = new URL(req.url);
     const collectionName = searchParams.get('collection');
 
@@ -28,7 +49,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalMasterRequest(req)) {
+    return NextResponse.json({ success: false, error: 'LAN sync is available only on the local Master PC.' }, { status: 404 });
+  }
   try {
+    const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const body = await req.json();
     const { collectionName, docId, action, data } = body;
 
