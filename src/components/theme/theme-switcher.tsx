@@ -41,7 +41,7 @@ export function ThemeSwitcher() {
       </CardHeader>
       <CardContent>
         <RadioGroup
-          value={theme}
+          value={theme === 'dark' ? 'dark' : 'light'}
           onValueChange={setTheme}
           className="grid grid-cols-1 gap-4 sm:grid-cols-3"
         >
@@ -99,30 +99,6 @@ export function ThemeSwitcher() {
             </div>
           </Label>
 
-          <Label
-            htmlFor="system"
-            className={cn(
-              'relative flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground',
-              theme === 'system' && 'border-primary'
-            )}
-          >
-            <RadioGroupItem value="system" id="system" className="sr-only" />
-            <span className="mb-2 w-full text-center font-semibold">
-              System
-            </span>
-            <div className="w-full rounded-md bg-gradient-to-r from-white to-slate-900 p-2 shadow-sm">
-              <div className="space-y-2 rounded-sm bg-white/50 p-2 backdrop-blur-sm">
-                <div className="space-y-2 rounded-md bg-white/70 p-2 shadow-sm">
-                  <div className="h-2 w-4/5 rounded-lg bg-slate-400" />
-                  <div className="h-2 w-full rounded-lg bg-slate-400" />
-                </div>
-                <div className="flex items-center space-x-2 rounded-md bg-white/70 p-2 shadow-sm">
-                  <div className="h-4 w-4 rounded-full bg-slate-400" />
-                  <div className="h-2 w-2/3 rounded-lg bg-slate-400" />
-                </div>
-              </div>
-            </div>
-          </Label>
         </RadioGroup>
       </CardContent>
     </Card>
