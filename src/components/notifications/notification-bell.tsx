@@ -91,7 +91,7 @@ export function NotificationBell() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="relative h-10 w-10" title="Notifications">
+          <Button variant="outline" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10" title="Notifications">
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
               <Badge
