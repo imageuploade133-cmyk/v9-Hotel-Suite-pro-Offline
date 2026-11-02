@@ -294,6 +294,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      // While online, do not authorize from a cached snapshot before the server confirms it.
+      // Offline sessions may still use the previously synced profile for local operation.
+      if (docSnap.metadata.fromCache && (typeof navigator === 'undefined' || navigator.onLine)) {
+        return;
+      }
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
         // The UID-keyed document is authoritative only when its stored identity agrees.
