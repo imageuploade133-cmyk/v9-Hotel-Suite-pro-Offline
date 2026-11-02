@@ -352,7 +352,17 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Every authenticated Firebase user receives the complete permission set.
   // Firestore roles and per-user permission assignments do not restrict Admin access.
-  const permissions = user ? ALL_PERMISSIONS : [];
+  const permissions = useMemo(
+    () => user
+      ? Array.from(new Set([
+          ...ALL_PERMISSIONS,
+          ...dynamicPermissionGroups.flatMap(group =>
+            (group.permissions || []).map((permission: any) => permission.id)
+          ),
+        ]))
+      : [],
+    [user, dynamicPermissionGroups]
+  );
 
 
   const value = useMemo(
