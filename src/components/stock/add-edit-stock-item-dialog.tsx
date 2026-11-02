@@ -413,7 +413,7 @@ export function AddEditStockItemDialog({
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-2xl">
-          <DialogHeader>
+          <DialogHeader className="shrink-0">
             <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Stock Item</DialogTitle>
             <DialogDescription>
               {isEditMode ? `Update the details for ${item?.name}.` : 'Add a new item to your main inventory.'}
