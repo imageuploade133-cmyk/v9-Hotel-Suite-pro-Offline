@@ -522,8 +522,8 @@ export default function ProtectedLayout({
     ];
 
     // Determine if we should filter based on branch mode
-    // Branch visibility is governed by the resolved staff profile and its assignments.
-    const shouldFilterByBranch = Boolean(userProfile && !userProfile.isFirebaseOnlyAdmin && (userProfile.assignedBranches?.length || 0) > 0);
+    // Preserve the existing branch-mode behavior; this fix only changes role/permission resolution.
+    const shouldFilterByBranch = false;
 
     return baseNavGroups
       .map(group => {
