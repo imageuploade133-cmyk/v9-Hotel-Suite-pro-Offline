@@ -11,7 +11,8 @@ const ScrollArea = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <ScrollAreaPrimitive.Root
     ref={ref}
-    className={cn("relative overflow-hidden", className)}
+    data-dialog-scroll-area=""
+    className={cn("relative min-h-0 min-w-0 overflow-hidden", className)}
     {...props}
   >
     <ScrollAreaPrimitive.Viewport className="h-full w-full max-h-[inherit] min-h-0 flex-1 rounded-[inherit] overscroll-contain">
