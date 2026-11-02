@@ -64,6 +64,39 @@ const toStaffProfile = (user: User, profile: Partial<UserProfile>): UserProfile 
   isFirebaseOnlyAdmin: false,
 });
 
+const accountTypeCacheKey = (uid: string) => `app_account_type_${uid}`;
+
+const getCachedAccountType = (uid: string): 'staff' | 'firebase-only-admin' | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = localStorage.getItem(accountTypeCacheKey(uid));
+    return value === 'staff' || value === 'firebase-only-admin' ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const setCachedAccountType = (uid: string, value: 'staff' | 'firebase-only-admin') => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(accountTypeCacheKey(uid), value);
+  } catch {
+    // Browser storage may be unavailable; online resolution remains authoritative.
+  }
+};
+
+const toUnverifiedProfile = (user: User): UserProfile => ({
+  id: user.uid,
+  uid: user.uid,
+  name: user.displayName || user.email?.split('@')[0] || 'User',
+  email: user.email || '',
+  role: 'Access not verified',
+  permissions: [],
+  isActive: true,
+  isSuperAdmin: false,
+  isFirebaseOnlyAdmin: false,
+});
+
 const readCachedStaffUsers = (): UserProfile[] => {
   const cached = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
   if (Array.isArray(cached) && cached.length > 0) return cached;
@@ -280,7 +313,13 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     // before treating this authenticated identity as a Firebase-only Admin.
     if (!firestore) {
       const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid);
-      setUserProfile(cachedStaff ? toStaffProfile(user, cachedStaff) : toFirebaseAdminProfile(user));
+      const accountType = getCachedAccountType(user.uid);
+      if (cachedStaff) {
+        setCachedAccountType(user.uid, 'staff');
+        setUserProfile(toStaffProfile(user, cachedStaff));
+      } else {
+        setUserProfile(accountType === 'firebase-only-admin' ? toFirebaseAdminProfile(user) : toUnverifiedProfile(user));
+      }
       setLoading(false);
       return;
     }
@@ -303,6 +342,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
           firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
           matchedProfile = findStaffProfile(usersList, user.uid);
+          setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
         } catch {
           // Cloud is unreachable: use the Master PC roster, then the device cache.
         }
@@ -360,10 +400,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
         if (!profileData.uid || profileData.uid === user.uid) {
+          setCachedAccountType(user.uid, 'staff');
           setUserProfile(toStaffProfile(user, profileData));
         } else {
           // A document with a mismatched UID is not this user's staff assignment.
-          setUserProfile(toFirebaseAdminProfile(user));
+          setUserProfile(toUnverifiedProfile(user));
         }
         setLoading(false);
       } else {
