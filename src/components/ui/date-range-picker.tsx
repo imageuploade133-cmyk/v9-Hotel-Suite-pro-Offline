@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Input } from './input';
 import { Label } from './label';
 import { ScrollArea } from './scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './dialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   date: DateRange | undefined;
@@ -179,6 +181,25 @@ export function DateRangePicker({
     setStartTime('00:00');
     setEndTime('23:59');
   };
+
+  const button = (
+    <Button
+      id="date"
+      type="button"
+      variant="outline"
+      className={cn(
+        'w-full min-w-0 max-w-full justify-between text-left font-normal hover:bg-accent sm:min-w-[280px] sm:w-auto',
+        !date && 'text-muted-foreground'
+      )}
+      disabled={disabled}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{formatDisplayDate()}</span>
+      </span>
+      <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground opacity-50" />
+    </Button>
+  );
 
   const formatDisplayDate = () => {
     if (!date?.from) return 'Pick a date range';
