@@ -28,8 +28,8 @@ export default function withAuth<P extends object>(
       return null;
     }
 
-    // If user has no profile in Firestore (Firebase account only), they are administrator full access
-    const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
+    // Only an explicitly assigned profile may grant elevated access.
+    const isSuperAdmin = Boolean(userProfile && (userProfile.isSuperAdmin || userProfile.role === 'Super Admin' || userProfile.role === 'Admin'));
     const finalPermissions = isSuperAdmin ? Object.values(PagePermission) : (userProfile?.permissions || contextPermissions || []);
 
     const canManageRoomStatus = isSuperAdmin || finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
