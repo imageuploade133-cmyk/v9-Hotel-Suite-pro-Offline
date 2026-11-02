@@ -10,6 +10,7 @@ import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, e
 import { useSettings } from '@/contexts/settings-context';
 import { useUser } from '@/contexts/user-context';
 import { useBranch } from '@/contexts/branch-context';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface UseDashboardDataProps {
     dateRange?: { from?: Date; to?: Date };
@@ -55,8 +56,10 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
             { name: getCollectionPath('stockReturns'), setter: (docs: StockReturn[]) => setData(prev => prev ? { ...prev, stockReturns: docs } : { bookings: [], rooms: [], orders: [], stockItems: [], expenses: [], payments: [], sales: [], stockReturns: docs, bills: [] }) },
         ];
 
-        // Immediately populate from Local Master LAN Store (/api/lan-sync) for 100% offline support
-        collections.forEach(async ({ name, setter }) => {
+        // The JSON LAN store exists only on a local Master PC. Hosted deployments
+        // use their live Firestore subscriptions below and must not call this API.
+        if (isLocalMasterHost()) {
+          collections.forEach(async ({ name, setter }) => {
             try {
                 const res = await fetch(`/api/lan-sync?collection=${encodeURIComponent(name)}`);
                 if (res.ok) {
@@ -73,7 +76,8 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
                     }
                 }
             } catch {}
-        });
+          });
+        }
 
         // Subscribe to bills collection group
         try {
