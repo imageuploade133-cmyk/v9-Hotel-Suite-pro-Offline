@@ -255,6 +255,10 @@ export function CameraCapture({ onCapture, open, onOpenChange }: CameraCapturePr
                   <Check className="mr-2 h-4 w-4" /> Confirm Photo
                 </Button>
               </div>
+            ) : error ? (
+              <Button type="button" onClick={() => { stopCamera(); void startCamera(); }} disabled={isStarting}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Restart Camera
+              </Button>
             ) : stream ? (
               <Button type="button" onClick={handleCapture}>
                 <Video className="mr-2 h-4 w-4" /> Capture
