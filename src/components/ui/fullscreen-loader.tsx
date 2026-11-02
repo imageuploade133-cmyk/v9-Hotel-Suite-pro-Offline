@@ -20,7 +20,7 @@ export function FullscreenLoader({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-[9999] flex flex-col items-center justify-center',
+        'fixed inset-0 z-[1000] flex flex-col items-center justify-center',
         'bg-background/60 backdrop-blur-md select-none transition-all duration-300',
         className
       )}

@@ -75,6 +75,8 @@ import {
   List,
   Calculator,
   MoreHorizontal,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { useUser } from '@/contexts/user-context';
@@ -116,6 +118,7 @@ import { useBranch } from '@/contexts/branch-context';
 import { FinancialProvider } from '@/contexts/financial-context';
 import { Building, Check } from 'lucide-react';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
+import { useTheme } from 'next-themes';
 
 
 const NavIcon = ({ iconName }: { iconName: string }) => {
@@ -578,6 +581,10 @@ export default function ProtectedLayout({
     }
   }, [user, authLoading, router]);
 
+  const { theme, setTheme } = useTheme();
+  const [themeMounted, setThemeMounted] = React.useState(false);
+  React.useEffect(() => setThemeMounted(true), []);
+
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
@@ -927,6 +934,11 @@ export default function ProtectedLayout({
                     {isSoundMuted ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
                     {isSoundMuted ? 'Unmute Sounds' : 'Mute Sounds'}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} disabled={!themeMounted}>
+                    {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                    {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <DropdownMenu>
@@ -978,7 +990,7 @@ export default function ProtectedLayout({
               </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <main className="min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto p-3 sm:p-6 lg:p-8">
             <FinancialProvider>
               {children}
             </FinancialProvider>

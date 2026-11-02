@@ -245,178 +245,237 @@ export function ImageUploadFiles({ onFilesChange, maxImages = 5, className, disa
   );
 }
 
-// Simplified Camera Capture Component
+// Camera permission is requested directly inside the user's click handler.
+// This preserves the browser's permission prompt and avoids delayed effect-based requests.
 interface SimpleCameraCaptureProps {
   onCapture: (file: File) => void;
   onError: (error: string) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 function SimpleCameraCapture({ onCapture, onError, onCancel }: SimpleCameraCaptureProps) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const fallbackInputRef = React.useRef<HTMLInputElement>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
   const [stream, setStream] = React.useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [hasStarted, setHasStarted] = React.useState(false);
+  const [cameraError, setCameraError] = React.useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  const stopCamera = React.useCallback(() => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    setStream(null);
+  }, []);
 
   const startCamera = React.useCallback(async () => {
+    setHasStarted(true);
+    setCameraError(null);
     setIsLoading(true);
+
+    if (!window.isSecureContext) {
+      const message = 'Camera access requires a secure connection (HTTPS). Open this app using its HTTPS address, then try again.';
+      setCameraError(message);
+      onError(message);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = 'This browser does not support direct camera access. Use the device camera option below instead.';
+      setCameraError(message);
+      onError(message);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment', // Use back camera on mobile
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+      // Ask for the rear camera first. If the device cannot satisfy ideal
+      // resolution/facing constraints, retry with a browser-selected camera.
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (firstError) {
+        const name = firstError instanceof Error ? firstError.name : '';
+        if (name !== 'OverconstrainedError' && name !== 'ConstraintNotSatisfiedError') {
+          throw firstError;
         }
-      });
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      }
+
+      stopCamera();
+      streamRef.current = mediaStream;
       setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+      setCameraError(null);
+    } catch (error) {
+      console.error('Camera access failed:', error);
+      const name = error instanceof Error ? error.name : '';
+      let message = 'The camera could not be opened. Check that no other app is using it, then try again.';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+        message = 'Camera permission is blocked. Allow Camera access for this website in your browser or device settings, then tap Try Again. You can also use the device camera option below.';
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        message = 'No camera was found on this device. You can still choose a photo using the device camera option.';
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        message = 'The camera is busy or unavailable. Close other apps using the camera and try again.';
+      } else if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+        message = 'The requested camera is not available. Try the device camera option instead.';
       }
-      setHasStarted(true);
-    } catch (err) {
-      console.error("Error accessing camera: ", err);
-      let message = 'Could not access the camera. Please ensure you have given permission in your browser settings.';
-      if (err instanceof Error) {
-        if (err.name === 'NotAllowedError') {
-          message = 'Camera access was denied. Please enable it in your browser settings.';
-        } else if (err.name === 'NotFoundError') {
-          message = 'No camera found on this device.';
-        }
-      }
+      setCameraError(message);
       onError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [onError]);
-
-  const stopCamera = React.useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    setStream(null);
-  }, [stream]);
+  }, [onError, stopCamera]);
 
   React.useEffect(() => {
-    // Only start camera when user explicitly wants to use it
-    // This prevents auto-clicking issues
-    if (!hasStarted) {
+    if (!stream || !videoRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = stream;
+    void video.play().catch(error => {
+      console.warn('Camera preview could not autoplay:', error);
+    });
+    return () => {
+      stream.getTracks().forEach(track => track.stop());
+      if (video.srcObject === stream) video.srcObject = null;
+    };
+  }, [stream]);
+
+  React.useEffect(() => () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const handleCapture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      const message = 'The camera is still starting. Please wait a moment and try again.';
+      setCameraError(message);
       return;
     }
 
-    startCamera();
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      const message = 'Could not process the camera image. Please try again.';
+      setCameraError(message);
+      onError(message);
+      return;
+    }
 
-    return () => {
-      stopCamera();
-    };
-  }, [hasStarted]);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setCapturedImage(canvas.toDataURL('image/jpeg', 0.88));
+    stopCamera();
+  };
 
-  const handleCapture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-
-      // Set canvas dimensions to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        setCapturedImage(dataUrl);
-        stopCamera();
-      }
+  const handleConfirm = async () => {
+    if (!capturedImage) return;
+    setIsProcessing(true);
+    try {
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
+      onCapture(new File([blob], `guest-camera-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+    } catch {
+      const message = 'Failed to process the captured photo. Please retake it.';
+      setCameraError(message);
+      onError(message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleConfirm = () => {
-    if (capturedImage) {
-      fetch(capturedImage)
-        .then(res => res.blob())
-        .then(blob => {
-          const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-          onCapture(file);
-        })
-        .catch(() => onError('Failed to process captured image'));
-    }
+  const handleFallbackFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) onCapture(file);
+    event.target.value = '';
   };
 
-  const handleRetake = () => {
-    setCapturedImage(null);
-    setHasStarted(true);
+  const handleCancel = () => {
+    stopCamera();
+    onCancel?.();
   };
-
-  // If camera hasn't started yet, show a start button
-  if (!hasStarted) {
-    return (
-      <div className="space-y-4">
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <Camera className="h-16 w-16 mx-auto text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Camera ready to start</p>
-          </div>
-        </div>
-        <div className="flex justify-center gap-2">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={() => setHasStarted(true)}>
-            <Camera className="mr-2 h-4 w-4" />
-            Start Camera
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted">
-        {capturedImage ? (
-          <img src={capturedImage} alt="Captured" className="h-full w-full object-cover" />
-        ) : (
+      <input
+        ref={fallbackInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFallbackFile}
+        aria-label="Take a photo with this device"
+      />
+
+      {!hasStarted && (
+        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border bg-muted">
+          <div className="space-y-3 text-center">
+            <Camera className="mx-auto h-16 w-16 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Camera ready to start</p>
+          </div>
+        </div>
+      )}
+
+      {hasStarted && (
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted">
+          {capturedImage ? (
+            <img src={capturedImage} alt="Captured guest" className="h-full w-full object-contain" />
+          ) : (
+            <>
+              {isLoading && <div className="absolute inset-0 z-10 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
+              {stream && <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />}
+              {!stream && !isLoading && <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-muted-foreground">Camera preview is unavailable. Use one of the options below.</div>}
+            </>
+          )}
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
+      )}
+
+      {cameraError && (
+        <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {cameraError}
+        </div>
+      )}
+
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        {onCancel && <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>}
+        {!hasStarted && (
+          <Button type="button" onClick={() => void startCamera()} className="w-full sm:w-auto">
+            <Camera className="mr-2 h-4 w-4" /> Allow Camera & Start
+          </Button>
+        )}
+        {hasStarted && !capturedImage && (
           <>
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+            <Button type="button" variant="outline" onClick={() => fallbackInputRef.current?.click()}>
+              <Camera className="mr-2 h-4 w-4" /> Use Device Camera
+            </Button>
+            {cameraError ? (
+              <Button type="button" onClick={() => void startCamera()} disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Try Again
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleCapture} disabled={isLoading || !stream}>
+                <Camera className="mr-2 h-4 w-4" /> Capture Photo
+              </Button>
             )}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="h-full w-full object-cover"
-              style={{ display: isLoading ? 'none' : 'block' }}
-            />
           </>
         )}
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-      </div>
-
-      <div className="flex justify-center gap-2">
-        {capturedImage ? (
+        {capturedImage && (
           <>
-            <Button variant="outline" onClick={handleRetake}>
-              Retake
-            </Button>
-            <Button onClick={handleConfirm}>
-              Use Photo
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCapture}
-              disabled={isLoading || !stream}
-              className="flex-1"
-            >
-              <Camera className="mr-2 h-4 w-4" />
-              Capture Photo
+            <Button type="button" variant="outline" onClick={() => { setCapturedImage(null); void startCamera(); }}>Retake</Button>
+            <Button type="button" onClick={() => void handleConfirm()} disabled={isProcessing}>
+              {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Use Photo
             </Button>
           </>
         )}
