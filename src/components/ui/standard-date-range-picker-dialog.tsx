@@ -14,11 +14,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 
@@ -189,49 +184,122 @@ export function StandardDateRangePickerDialog({
   );
 
   return (
-    <div className={cn('relative w-full', className)}>
+    <div className={cn('relative w-full min-w-0', className)}>
       <Button
         type="button"
         variant="outline"
         disabled={disabled}
         onClick={() => setIsOpen(true)}
         className={cn(
-          'w-full justify-start text-left font-normal h-11 px-3.5 rounded-xl border-slate-300 dark:border-slate-700 hover:border-primary transition-all',
+          'h-11 w-full min-w-0 justify-start rounded-xl border-slate-300 px-3.5 text-left font-normal transition-all hover:border-primary dark:border-slate-700',
           !date?.from && 'text-muted-foreground'
         )}
       >
-        <CalendarIcon className="mr-2.5 h-4 w-4 text-primary shrink-0" />
-        <span className="truncate flex-1 font-medium text-sm">{formattedLabel}</span>
+        <CalendarIcon className="mr-2.5 h-4 w-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{formattedLabel}</span>
         {nightsCount > 0 && (
-          <Badge variant="secondary" className="ml-2 text-[11px] font-semibold shrink-0">
+          <Badge variant="secondary" className="ml-2 shrink-0 text-[11px] font-semibold">
             {nightsCount}N
           </Badge>
         )}
       </Button>
 
-      {/* Responsive Modal Rendering: Bottom Sheet Drawer on Mobile, Popover/Dialog on Desktop */}
-      {isMobile ? (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogContent className="p-4 max-w-lg rounded-t-2xl">
-            <DialogHeader className="pb-2">
-              <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                <CalendarIconLarge className="h-5 w-5 text-primary" />
-                Select Check-in & Check-out Dates
-              </DialogTitle>
-            </DialogHeader>
-            {renderCalendarContent()}
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <span className="hidden" />
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-4 shadow-xl border rounded-2xl" align="start">
-            {renderCalendarContent()}
-          </PopoverContent>
-        </Popover>
-      )}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="min-h-0 overflow-hidden p-0 sm:max-h-[min(90dvh,54rem)] sm:max-w-4xl">
+          <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 text-left sm:px-6">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold sm:text-lg">
+              <CalendarIconLarge className="h-5 w-5 shrink-0 text-primary" />
+              Select Check-in & Check-out Dates
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Choose your arrival and departure dates. Unavailable dates are disabled.
+            </p>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+            <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/40 p-3 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center sm:p-4">
+              <div className="min-w-0">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Check-in</span>
+                <p className="truncate text-sm font-bold text-foreground">
+                  {tempRange?.from ? format(tempRange.from, 'EEE, MMM dd, yyyy') : 'Select arrival date'}
+                </p>
+              </div>
+              <ArrowRight className="hidden h-4 w-4 text-muted-foreground sm:block" />
+              <div className="min-w-0">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Check-out</span>
+                <p className="truncate text-sm font-bold text-foreground">
+                  {tempRange?.to ? format(tempRange.to, 'EEE, MMM dd, yyyy') : 'Select departure date'}
+                </p>
+              </div>
+              {nightsCount > 0 && (
+                <Badge className="w-fit px-3 py-1 text-xs font-semibold">
+                  {nightsCount} {nightsCount === 1 ? 'Night' : 'Nights'}
+                </Badge>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quick stay</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 5, 7, 14].map((nights) => (
+                  <Button
+                    key={nights}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-full px-3 text-xs"
+                    onClick={() => handleQuickPreset(nights)}
+                  >
+                    {nights} {nights === 1 ? 'Night' : 'Nights'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-center overflow-x-auto rounded-xl border bg-background p-1 shadow-sm sm:p-3">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={tempRange?.from || today}
+                selected={tempRange}
+                onSelect={setTempRange}
+                numberOfMonths={isMobile ? 1 : 2}
+                disabled={(day) =>
+                  isBefore(day, today) ||
+                  bookedDays.some((bookedDay) => isSameDay(day, bookedDay))
+                }
+                className="max-w-full rounded-md"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="shrink-0 border-t px-4 py-3 sm:px-6">
+            <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="w-full text-muted-foreground sm:w-auto"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                Clear Dates
+              </Button>
+              <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleApply} disabled={!tempRange?.from || !tempRange?.to} className="w-full gap-1.5 sm:w-auto">
+                  <Check className="h-4 w-4" />
+                  Apply Stay Dates
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
