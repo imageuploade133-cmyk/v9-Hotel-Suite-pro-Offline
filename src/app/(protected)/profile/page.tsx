@@ -53,10 +53,10 @@ function ProfilePage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Shield className="h-6 w-6" />
-                                Assigned Permissions
+                                Full Admin Permissions
                             </CardTitle>
                             <CardDescription>
-                                These are the permissions currently assigned to your staff profile.
+                                All permissions are enabled because every authenticated Firebase account is treated as a full Admin.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
