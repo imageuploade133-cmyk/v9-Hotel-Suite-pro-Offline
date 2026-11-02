@@ -32,9 +32,9 @@ export function ZoomControls() {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="h-9 w-[3.25rem] justify-center gap-1 px-1 sm:w-auto sm:gap-2 sm:px-3"
               >
-                <span className="text-xs font-medium min-w-[2.5rem] text-right">
+                <span className="min-w-0 text-[11px] font-medium text-center sm:min-w-[2.5rem] sm:text-xs sm:text-right">
                   {zoomLevel}%
                 </span>
               </Button>
