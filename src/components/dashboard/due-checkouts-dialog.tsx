@@ -242,8 +242,8 @@ export function DueCheckoutsDialog({ isOpen, onClose, onCheckedOut }: DueCheckou
   return (
     <>
         <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-            <DialogHeader>
+        <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-5xl">
+            <DialogHeader className="shrink-0 pr-8">
             <DialogTitle className="flex items-center gap-2 text-2xl">
                 <AlarmClockOff className="h-7 w-7 text-yellow-500" />
                 Overdue Checkouts
@@ -252,8 +252,8 @@ export function DueCheckoutsDialog({ isOpen, onClose, onCheckedOut }: DueCheckou
                 The following guests are past their scheduled checkout time of {checkoutTime}.
             </DialogDescription>
             </DialogHeader>
-            <ScrollArea className="flex-1 -mx-6">
-                <div className="px-6">
+            <ScrollArea className="min-h-0 min-w-0 flex-1 -mx-4 sm:-mx-6">
+                <div className="min-w-0 px-4 sm:px-6">
                     {isLoading ? (
                         <LoadingSkeleton />
                     ) : bookings.length === 0 ? (
@@ -268,16 +268,16 @@ export function DueCheckoutsDialog({ isOpen, onClose, onCheckedOut }: DueCheckou
                             {bookings.map(booking => {
                                 const checkoutDate = getSafeDate(booking.checkOut);
                                 return (
-                                <div key={booking.id} className="flex items-center gap-4 p-4 border rounded-lg">
+                                <div key={booking.id} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border p-3 sm:flex-nowrap sm:gap-4 sm:p-4">
                                     <Avatar className="h-12 w-12">
                                         <AvatarImage src={booking.guestPhotoURL} />
                                         <AvatarFallback>{getInitials(booking.guestName)}</AvatarFallback>
                                     </Avatar>
-                                    <div className="flex-1">
+                                    <div className="min-w-0 flex-1">
                                         <p className="font-semibold">{booking.guestName}</p>
                                         <p className="text-sm text-muted-foreground">Room {booking.roomNumber}</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="min-w-0 text-left sm:text-right">
                                         <div className="flex items-center gap-2 text-destructive">
                                             <LogOut className="h-4 w-4" />
                                             <p className="font-semibold">
@@ -302,7 +302,7 @@ export function DueCheckoutsDialog({ isOpen, onClose, onCheckedOut }: DueCheckou
                     )}
                 </div>
             </ScrollArea>
-             <DialogFooter className="pt-4 border-t sm:justify-between">
+             <DialogFooter className="shrink-0 border-t pt-3 sm:justify-between">
                 <Button variant="outline" onClick={onClose}>
                     <X className="mr-2 h-4 w-4" />
                     Close
