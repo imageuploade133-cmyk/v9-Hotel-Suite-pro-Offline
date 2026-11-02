@@ -111,14 +111,14 @@ export function AddEditSupplierDialog({ isOpen, onClose, supplier, onSuccess }: 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="min-h-0 overflow-hidden sm:max-w-lg">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Supplier</DialogTitle>
           <DialogDescription>{isEditMode ? 'Update the' : 'Create a new'} supplier for your inventory.</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form id="supplier-form" onSubmit={form.handleSubmit(onSubmit)}>
-            <ScrollArea className="max-h-[65vh] -mx-6 px-6 flex-1 min-h-0">
+        <ScrollArea className="min-h-0 max-h-none flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+          <Form {...form}>
+            <form id="supplier-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-4">
                 <FormField
                   control={form.control}
@@ -221,10 +221,10 @@ export function AddEditSupplierDialog({ isOpen, onClose, supplier, onSuccess }: 
                   )}
                 />
               </div>
-            </ScrollArea>
-          </form>
-        </Form>
-        <DialogFooter>
+            </form>
+          </Form>
+        </ScrollArea>
+        <DialogFooter className="shrink-0">
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
           <Button type="submit" form="supplier-form" loading={isSaving}>
             {isEditMode ? 'Save Changes' : 'Add Supplier'}
