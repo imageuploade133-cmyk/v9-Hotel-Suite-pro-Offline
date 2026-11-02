@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// This route reads/writes the local filesystem-backed LAN database.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 
 function isLocalMasterRequest(req: NextRequest): boolean {
   const hostname = req.nextUrl.hostname.toLowerCase();
