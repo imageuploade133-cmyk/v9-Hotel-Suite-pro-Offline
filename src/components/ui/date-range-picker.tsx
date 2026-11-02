@@ -34,15 +34,6 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const isMobile = useIsMobile();
-  const [numberOfMonths, setNumberOfMonths] = React.useState(1);
-
-  React.useEffect(() => {
-    const media = window.matchMedia('(min-width: 640px)');
-    const update = () => setNumberOfMonths(media.matches ? 2 : 1);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
   const [startTime, setStartTime] = React.useState('00:00');
   const [endTime, setEndTime] = React.useState('23:59');
   const [tempDateRange, setTempDateRange] = React.useState<DateRange | undefined>(date);
