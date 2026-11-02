@@ -3,7 +3,7 @@
 import { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Auth } from 'firebase/auth';
-import { Firestore, collection, onSnapshot, Query, DocumentData, CollectionReference, getDocs, DocumentReference, doc, queryEqual, Unsubscribe } from 'firebase/firestore';
+import { Firestore, collection, onSnapshot, Query, DocumentData, CollectionReference, getDocs, getDoc, DocumentReference, queryEqual, Unsubscribe } from 'firebase/firestore';
 import { FirebaseClientProvider } from './client-provider';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
@@ -270,7 +270,7 @@ export function useDoc<T>(docRef: DocumentReference | null, options?: UseDocOpti
     if (!realtime) {
       const fetchData = async () => {
         try {
-          const docSnap = await getDocs(doc(memoizedDocRef.parent, memoizedDocRef.id));
+          const docSnap = await getDoc(memoizedDocRef);
 
           if (mountedRef.current) {
             if (docSnap.exists()) {
@@ -343,7 +343,7 @@ export function useDoc<T>(docRef: DocumentReference | null, options?: UseDocOpti
 
     setIsLoading(true);
     try {
-      const docSnap = await getDocs(doc(memoizedDocRef.parent, memoizedDocRef.id));
+      const docSnap = await getDoc(memoizedDocRef);
 
       if (mountedRef.current) {
         if (docSnap.exists()) {
