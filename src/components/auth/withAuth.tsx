@@ -11,6 +11,16 @@ import { PagePermission, getLandingPage } from '@/lib/permissions';
 import { usePathname, useRouter } from 'next/navigation';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
+function PermissionRedirect({ path }: { path: string }) {
+  const router = useRouter();
+
+  React.useEffect(() => {
+    router.replace(path);
+  }, [path, router]);
+
+  return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
+}
+
 export default function withAuth<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   requiredPermission?: PagePermission | string
@@ -18,7 +28,6 @@ export default function withAuth<P extends object>(
   const WithAuthComponent: React.FC<P> = (props) => {
     const { user, loading: authLoading } = useAuth();
     const { userProfile, loading: profileLoading, permissions: contextPermissions } = useUser();
-    const router = useRouter();
     const pathname = usePathname();
 
     if (authLoading || profileLoading) {
@@ -50,15 +59,9 @@ export default function withAuth<P extends object>(
 
     const landingPage = getLandingPage(finalPermissions);
 
-    React.useEffect(() => {
-      if (!authLoading && !profileLoading && user && !hasRequiredPermission && landingPage !== pathname) {
-        router.replace(landingPage);
-      }
-    }, [authLoading, profileLoading, user, hasRequiredPermission, landingPage, pathname, router]);
-
     if (!hasRequiredPermission) {
       if (landingPage !== pathname) {
-        return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
+        return <PermissionRedirect path={landingPage} />;
       }
       return (
         <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
