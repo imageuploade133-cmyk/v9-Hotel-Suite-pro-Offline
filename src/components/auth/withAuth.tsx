@@ -7,9 +7,19 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser } from '@/contexts/user-context';
-import { PagePermission } from '@/lib/permissions';
-import { useRouter } from 'next/navigation';
+import { PagePermission, getLandingPage } from '@/lib/permissions';
+import { usePathname, useRouter } from 'next/navigation';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
+
+function PermissionRedirect({ path }: { path: string }) {
+  const router = useRouter();
+
+  React.useEffect(() => {
+    router.replace(path);
+  }, [path, router]);
+
+  return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
+}
 
 export default function withAuth<P extends object>(
   WrappedComponent: React.ComponentType<P>,
@@ -18,7 +28,7 @@ export default function withAuth<P extends object>(
   const WithAuthComponent: React.FC<P> = (props) => {
     const { user, loading: authLoading } = useAuth();
     const { userProfile, loading: profileLoading, permissions: contextPermissions } = useUser();
-    const router = useRouter();
+    const pathname = usePathname();
 
     if (authLoading || profileLoading) {
       return <FullscreenLoader message="Please wait..." subtext="Verifying permissions..." />;
@@ -47,7 +57,12 @@ export default function withAuth<P extends object>(
       hasRequiredPermission = canManageRoomStatus;
     }
 
+    const landingPage = getLandingPage(finalPermissions);
+
     if (!hasRequiredPermission) {
+      if (landingPage !== pathname) {
+        return <PermissionRedirect path={landingPage} />;
+      }
       return (
         <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
           <Card className="w-full max-w-md text-center">
