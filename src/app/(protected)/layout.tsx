@@ -356,11 +356,10 @@ export default function ProtectedLayout({
     });
   };
 
-  // Use actual user permissions from user-context (which defaults to full Administrator permissions)
+  // Use the centralized permission calculation. Unassigned Firebase accounts receive no permissions.
   const { permissions: contextPermissions } = useUser();
-  const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
-  const finalPermissions = (userProfile?.permissions && userProfile.permissions.length > 0) ? userProfile.permissions : contextPermissions;
-  const canManageRoomStatus = isSuperAdmin || finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
+  const finalPermissions = contextPermissions || [];
+  const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
   const navGroups = React.useMemo(() => {
     const allStatuses = { ...individualRoomsByStatus };
@@ -611,6 +610,29 @@ export default function ProtectedLayout({
 
   if (!user) {
     return null;
+  }
+
+  // Firebase authentication is not a hotel staff assignment.
+  // Block the entire protected workspace until a matching staff profile is found.
+  if (!userProfile) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-muted/40 p-4">
+        <div className="w-full max-w-md rounded-xl border bg-card p-6 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <Shield className="h-6 w-6" />
+          </div>
+          <h1 className="text-xl font-semibold">Staff Profile Not Assigned</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your Firebase account is authenticated, but it does not have a matching hotel staff profile.
+            Access to the hotel workspace is blocked until an administrator assigns your staff profile and permissions.
+          </p>
+          <Button className="mt-6 w-full" variant="outline" onClick={() => logout()}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

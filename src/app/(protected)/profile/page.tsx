@@ -16,7 +16,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Check, Shield } from 'lucide-react';
 
 function ProfilePage() {
-    const { userProfile, loading: isUserLoading, dynamicPermissionGroups } = useUser();
+    const { userProfile, loading: isUserLoading, dynamicPermissionGroups, permissions } = useUser();
 
     if (isUserLoading || !userProfile) {
         return (
@@ -56,19 +56,20 @@ function ProfilePage() {
                                 Assigned Permissions
                             </CardTitle>
                             <CardDescription>
-                                As an authenticated user, you have access to all features.
+                                These are the permissions currently assigned to your staff profile.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <Accordion type="multiple" className="w-full" defaultValue={dynamicPermissionGroups.map(g => g.id)}>
                                 {dynamicPermissionGroups.map((group) => {
-                                    if (group.permissions.length === 0) return null;
+                                    const assignedPermissions = group.permissions.filter((permission: any) => permissions.includes(permission.id));
+                                    if (assignedPermissions.length === 0) return null;
                                     return (
                                         <AccordionItem value={group.id} key={group.id}>
                                             <AccordionTrigger>{group.name}</AccordionTrigger>
                                             <AccordionContent>
                                                 <div className="space-y-2 pl-4">
-                                                    {group.permissions.map((permission: any) => (
+                                                    {assignedPermissions.map((permission: any) => (
                                                         <div key={permission.id} className="flex items-center gap-3 text-sm">
                                                             <Check className="h-4 w-4 text-green-500" />
                                                             <span>{permission.description}</span>
