@@ -274,17 +274,17 @@ Please confirm payment in the dashboard.
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-3xl">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-            <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
+            <ScrollArea className="min-h-0 min-w-0 max-h-none flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
                 <div className="pr-1">{FormContent}</div>
             </ScrollArea>
         </Form>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button type="button" variant="ghost" onClick={handleClose} disabled={isSaving}>Cancel</Button>
           <Button type="submit" form={formId} loading={isSaving} onClick={form.handleSubmit(onSubmit)}>
             {isEditMode ? 'Save Changes' : (form.getValues('bookingType') === 'checkin' ? 'Confirm Check-in' : 'Create Booking')}
