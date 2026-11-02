@@ -34,20 +34,57 @@ const UserContext = createContext<UserContextValue>({
 
 export const useUser = () => useContext(UserContext);
 
-// Firebase Authentication is the sole account requirement for full Admin access.
-// A Firestore staff document is optional and is used only to enrich the displayed profile.
-const toFirebaseAdminProfile = (user: User, profile?: Partial<UserProfile> | null): UserProfile => ({
-  ...(profile || {}),
-  id: profile?.id || user.uid,
+// Firebase-only accounts receive full Admin access. A matching Firestore staff
+// record always takes precedence and retains only its explicitly assigned access.
+const toFirebaseAdminProfile = (user: User): UserProfile => ({
+  id: user.uid,
   uid: user.uid,
-  name: profile?.name || user.displayName || user.email?.split('@')[0] || 'Admin',
-  email: user.email || profile?.email || '',
+  name: user.displayName || user.email?.split('@')[0] || 'Admin',
+  email: user.email || '',
   role: 'Admin',
   permissions: ALL_PERMISSIONS,
   isActive: true,
   isSuperAdmin: true,
+  isFirebaseOnlyAdmin: true,
   assignedBranches: [],
 });
+
+const toStaffProfile = (user: User, profile: Partial<UserProfile>): UserProfile => ({
+  ...profile,
+  id: profile.id || user.uid,
+  uid: user.uid,
+  name: profile.name || user.displayName || user.email?.split('@')[0] || 'Staff',
+  email: profile.email || user.email || '',
+  role: profile.role || 'Staff',
+  permissions: Array.isArray(profile.permissions)
+    ? profile.permissions.filter((permission): permission is string => typeof permission === 'string')
+    : [],
+  isActive: profile.isActive !== false,
+  isSuperAdmin: profile.isSuperAdmin === true,
+  isFirebaseOnlyAdmin: false,
+});
+
+const readCachedStaffUsers = (): UserProfile[] => {
+  const cached = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
+  if (Array.isArray(cached) && cached.length > 0) return cached;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const localUsers = JSON.parse(localStorage.getItem('app_cached_staff_users') || '[]');
+      if (Array.isArray(localUsers)) return localUsers as UserProfile[];
+    } catch {
+      // Ignore malformed local cache and continue with an empty roster.
+    }
+  }
+  return Array.isArray(cached) ? cached : [];
+};
+
+const findStaffProfile = (users: unknown, uid: string): UserProfile | null => {
+  if (!Array.isArray(users)) return null;
+  return (users as UserProfile[]).find(profile =>
+    profile && (profile.uid === uid || profile.id === uid)
+  ) || null;
+};
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
@@ -235,135 +272,126 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // Firebase-authenticated users are full Admins even when Firestore is unavailable.
+    let isCancelled = false;
+    setUserProfile(null);
+    setLoading(true);
+
+    // If Firestore has not initialized, use the device's last synced staff roster
+    // before treating this authenticated identity as a Firebase-only Admin.
     if (!firestore) {
-      setUserProfile(toFirebaseAdminProfile(user));
+      const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid);
+      setUserProfile(cachedStaff ? toStaffProfile(user, cachedStaff) : toFirebaseAdminProfile(user));
       setLoading(false);
       return;
     }
 
-    let isCancelled = false;
-
-    // Switch identity immediately; do not wait for an optional Firestore staff record.
-    setUserProfile(toFirebaseAdminProfile(user));
-    setLoading(true);
-
     const loadProfile = async () => {
       let matchedProfile: UserProfile | null = null;
-      let authoritativeLookupCompleted = false;
+      let cloudLookupCompleted = false;
 
-      // 1. When internet is available, require a server-confirmed Firestore profile.
-      // A successful server lookup with no matching UID must NOT fall through to stale cache.
+      // 1. Prefer a server-confirmed Firestore roster while online.
+      // A successful lookup is authoritative: no stale local profile can replace it.
       if (typeof navigator === 'undefined' || navigator.onLine) {
         try {
-          const snap = await getDocsFromServer(collection(firestore, 'users'));
-          authoritativeLookupCompleted = true;
+          const snap = await Promise.race([
+            getDocsFromServer(collection(firestore, 'users')),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Firestore staff lookup timed out')), 3500)
+            ),
+          ]);
+          cloudLookupCompleted = true;
           const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
           firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-          matchedProfile = usersList.find(
-            u => u && (u.uid === user.uid || u.id === user.uid)
-          ) || null;
+          matchedProfile = findStaffProfile(usersList, user.uid);
         } catch {
-          // Cloud unavailable: continue to the local Master PC and offline cache.
+          // Cloud is unreachable: use the Master PC roster, then the device cache.
         }
       }
 
-      // 2. If cloud authority is unavailable, ask the local Master PC first.
-      // A successful LAN response is authoritative for this local network session.
-      if (!authoritativeLookupCompleted) {
-        let lanLookupCompleted = false;
+      // 2. When cloud authority is unavailable, prefer the local Master PC roster.
+      if (!cloudLookupCompleted) {
+        let lanRosterAvailable = false;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1800);
+
         try {
-          const res = await fetch('/api/lan-sync?collection=users');
-          if (res.ok) {
-            const result = await res.json();
-            if (result && result.success === true && result.data && typeof result.data === 'object') {
-              lanLookupCompleted = true;
+          const response = await fetch('/api/lan-sync?collection=users', { signal: controller.signal });
+          if (response.ok) {
+            const result = await response.json();
+            if (result?.success === true && result.data && typeof result.data === 'object') {
               const usersList = Object.values(result.data) as UserProfile[];
-              // Keep the offline staff cache aligned with the latest authoritative LAN roster.
-              firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-              matchedProfile = usersList.find(
-                u => u && (u.uid === user.uid || u.id === user.uid)
-              ) || null;
+              // An empty LAN response may mean the roster has not synced yet.
+              // Keep the previous device roster available as an offline fallback.
+              if (usersList.length > 0) {
+                lanRosterAvailable = true;
+                firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
+                matchedProfile = findStaffProfile(usersList, user.uid);
+              }
             }
           }
-        } catch (e) {
-          console.warn('[LAN Sync] Local profile lookup error:', e);
+        } catch {
+          // LAN unavailable: fall through to the last successfully synced roster.
+        } finally {
+          clearTimeout(timeoutId);
         }
 
-        // 3. Use previously synced staff profiles only when neither cloud nor LAN can answer.
-        // Cached data is never allowed to override a successful authoritative "not assigned" result.
-        if (!lanLookupCompleted) {
-          const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
-          if (cachedUsers && Array.isArray(cachedUsers)) {
-            matchedProfile = cachedUsers.find(
-              u => u && (u.uid === user.uid || u.id === user.uid)
-            ) || null;
-          }
+        if (!lanRosterAvailable) {
+          matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid);
         }
       }
 
-      // Firebase accounts without a matching staff profile remain unassigned.
       if (!isCancelled) {
-        setUserProfile(toFirebaseAdminProfile(user, matchedProfile));
+        // A real staff profile keeps its role and exact permissions.
+        // Only identities with no matching staff record receive Firebase-only Admin access.
+        setUserProfile(matchedProfile ? toStaffProfile(user, matchedProfile) : toFirebaseAdminProfile(user));
         setLoading(false);
       }
     };
-    loadProfile();
 
-    // Ensure loading never hangs longer than 800ms when offline or switching Wi-Fi
-    const fallbackTimer = setTimeout(() => {
-      if (!isCancelled) {
-        setLoading(false);
-      }
-    }, 800);
+    void loadProfile();
 
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-      // While online, do not authorize from a cached snapshot before the server confirms it.
-      // Offline sessions may still use the previously synced profile for local operation.
+      // Do not accept a cached snapshot while online before server confirmation.
       if (docSnap.metadata.fromCache && (typeof navigator === 'undefined' || navigator.onLine)) {
         return;
       }
+
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
-        // The UID-keyed document is authoritative only when its stored identity agrees.
-        if (profileData.uid && profileData.uid !== user.uid) {
-          // The authenticated Firebase identity remains Admin even if the optional
-          // staff document is absent or contains a different UID.
-          setUserProfile(toFirebaseAdminProfile(user));
+        if (!profileData.uid || profileData.uid === user.uid) {
+          setUserProfile(toStaffProfile(user, profileData));
         } else {
-          setUserProfile(toFirebaseAdminProfile(user, profileData));
+          // A document with a mismatched UID is not this user's staff assignment.
+          setUserProfile(toFirebaseAdminProfile(user));
         }
         setLoading(false);
       } else {
-        loadProfile();
+        void loadProfile();
       }
-    }, (error) => {
-      console.warn("Firestore profile snapshot error, checking local LAN store profile:", error);
-      loadProfile();
+    }, () => {
+      void loadProfile();
     });
 
     return () => {
       isCancelled = true;
-      clearTimeout(fallbackTimer);
       unsubscribe();
     };
   }, [user, authLoading, firestore, refreshTrigger]);
 
-  // Every authenticated Firebase user receives the complete permission set.
-  // Firestore roles and per-user permission assignments do not restrict Admin access.
-  const permissions = useMemo(
-    () => user
-      ? Array.from(new Set([
-          ...ALL_PERMISSIONS,
-          ...dynamicPermissionGroups.flatMap(group =>
-            (group.permissions || []).map((permission: any) => permission.id)
-          ),
-        ]))
-      : [],
-    [user, dynamicPermissionGroups]
-  );
+  // Firebase-only accounts get full access; staff accounts get only their Firestore assignment.
+  const permissions = useMemo(() => {
+    if (!user || !userProfile || userProfile.isActive === false) return [];
 
+    const dynamicPermissions = dynamicPermissionGroups.flatMap(group =>
+      (group.permissions || []).map((permission: any) => permission.id)
+    );
+    const assignedPermissions = userProfile.isFirebaseOnlyAdmin
+      ? [...ALL_PERMISSIONS, ...dynamicPermissions]
+      : (Array.isArray(userProfile.permissions) ? userProfile.permissions : []);
+
+    return Array.from(new Set(assignedPermissions.filter(permission => typeof permission === 'string')));
+  }, [user, userProfile, dynamicPermissionGroups]);
 
   const value = useMemo(
     () => ({
