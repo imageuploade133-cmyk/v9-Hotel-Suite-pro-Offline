@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 
 function isLocalMasterRequest(req: NextRequest): boolean {
-  const hostname = req.nextUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+  const hostname = req.nextUrl.hostname.toLowerCase();
   if (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
