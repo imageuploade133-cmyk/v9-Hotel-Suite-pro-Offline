@@ -222,7 +222,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     let isCancelled = false;
 
-    // Set loading while user profile is resolved to prevent granting unauthorized access
+    // Clear the previous account's profile immediately when the authenticated identity changes.
+    // Never keep a prior administrator profile active while resolving another user's assignment.
+    setUserProfile(null);
     setLoading(true);
 
     const loadProfile = async () => {
