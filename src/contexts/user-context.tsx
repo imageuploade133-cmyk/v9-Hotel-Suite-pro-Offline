@@ -34,6 +34,21 @@ const UserContext = createContext<UserContextValue>({
 
 export const useUser = () => useContext(UserContext);
 
+// Firebase Authentication is the sole account requirement for full Admin access.
+// A Firestore staff document is optional and is used only to enrich the displayed profile.
+const toFirebaseAdminProfile = (user: User, profile?: Partial<UserProfile> | null): UserProfile => ({
+  ...(profile || {}),
+  id: profile?.id || user.uid,
+  uid: user.uid,
+  name: profile?.name || user.displayName || user.email?.split('@')[0] || 'Admin',
+  email: user.email || profile?.email || '',
+  role: 'Admin',
+  permissions: ALL_PERMISSIONS,
+  isActive: true,
+  isSuperAdmin: true,
+  assignedBranches: [],
+});
+
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -214,17 +229,23 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    if (!user || !firestore) {
+    if (!user) {
       setUserProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    // Firebase-authenticated users are full Admins even when Firestore is unavailable.
+    if (!firestore) {
+      setUserProfile(toFirebaseAdminProfile(user));
       setLoading(false);
       return;
     }
 
     let isCancelled = false;
 
-    // Clear the previous account's profile immediately when the authenticated identity changes.
-    // Never keep a prior administrator profile active while resolving another user's assignment.
-    setUserProfile(null);
+    // Switch identity immediately; do not wait for an optional Firestore staff record.
+    setUserProfile(toFirebaseAdminProfile(user));
     setLoading(true);
 
     const loadProfile = async () => {
@@ -283,7 +304,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Firebase accounts without a matching staff profile remain unassigned.
       if (!isCancelled) {
-        setUserProfile(matchedProfile);
+        setUserProfile(toFirebaseAdminProfile(user, matchedProfile));
         setLoading(false);
       }
     };
@@ -307,9 +328,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
         // The UID-keyed document is authoritative only when its stored identity agrees.
         if (profileData.uid && profileData.uid !== user.uid) {
-          setUserProfile(null);
+          // The authenticated Firebase identity remains Admin even if the optional
+          // staff document is absent or contains a different UID.
+          setUserProfile(toFirebaseAdminProfile(user));
         } else {
-          setUserProfile(profileData);
+          setUserProfile(toFirebaseAdminProfile(user, profileData));
         }
         setLoading(false);
       } else {
@@ -327,36 +350,10 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [user, authLoading, firestore, refreshTrigger]);
 
-  // Use actual user permissions from their role/profile
-  // Automatically resolve permissions for Admins and defined Roles
-  const permissions = useMemo(() => {
-    // Missing profiles are unassigned accounts: never grant permissions implicitly.
-    if (!userProfile) {
-      return [];
-    }
+  // Every authenticated Firebase user receives the complete permission set.
+  // Firestore roles and per-user permission assignments do not restrict Admin access.
+  const permissions = user ? ALL_PERMISSIONS : [];
 
-    // 1. If user is Admin, Super Admin, or has isSuperAdmin flag, grant ALL_PERMISSIONS
-    const roleLower = (userProfile.role || '').toLowerCase();
-    if (userProfile.isSuperAdmin || roleLower === 'admin' || roleLower === 'super admin' || roleLower.includes('super admin')) {
-      return ALL_PERMISSIONS;
-    }
-
-    // 2. If explicit permissions array is set on the user's Firestore profile, strictly use it
-    if (Array.isArray(userProfile.permissions) && userProfile.permissions.length > 0) {
-      return userProfile.permissions;
-    }
-
-    // 3. Look up permissions matching the user's assigned role name from system roles
-    const matchingRole = DEFAULT_SYSTEM_ROLES.find(
-      r => r.name.toLowerCase() === roleLower || r.id.toLowerCase() === roleLower
-    );
-    if (matchingRole && matchingRole.permissions && matchingRole.permissions.length > 0) {
-      return matchingRole.permissions;
-    }
-
-    // 4. If user profile has no assigned permissions/role, do NOT grant arbitrary permissions
-    return userProfile.permissions || [];
-  }, [userProfile]);
 
   const value = useMemo(
     () => ({
