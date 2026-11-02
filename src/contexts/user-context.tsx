@@ -381,9 +381,18 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (!isCancelled) {
-        // A real staff profile keeps its role and exact permissions.
-        // Only identities with no matching staff record receive Firebase-only Admin access.
-        setUserProfile(matchedProfile ? toStaffProfile(user, matchedProfile) : toFirebaseAdminProfile(user));
+        // A real staff profile keeps its assigned role and permissions. Grant Admin
+        // only after a successful cloud lookup proves there is no staff record, or
+        // when this device previously verified this account as Firebase-only.
+        if (matchedProfile) {
+          setCachedAccountType(user.uid, 'staff');
+          setUserProfile(toStaffProfile(user, matchedProfile));
+        } else if (cloudLookupCompleted || getCachedAccountType(user.uid) === 'firebase-only-admin') {
+          if (cloudLookupCompleted) setCachedAccountType(user.uid, 'firebase-only-admin');
+          setUserProfile(toFirebaseAdminProfile(user));
+        } else {
+          setUserProfile(toUnverifiedProfile(user));
+        }
         setLoading(false);
       }
     };
