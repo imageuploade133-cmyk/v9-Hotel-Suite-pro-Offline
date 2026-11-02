@@ -412,14 +412,14 @@ export function AddEditStockItemDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Stock Item</DialogTitle>
             <DialogDescription>
               {isEditMode ? `Update the details for ${item?.name}.` : 'Add a new item to your main inventory.'}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] -mx-6 px-6 flex-1 min-h-0">
+          <ScrollArea className="min-h-0 max-h-none flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Form {...form}>
               <form id="stock-item-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {!isEditMode && branches.length > 0 && (
@@ -522,7 +522,7 @@ export function AddEditStockItemDialog({
               </form>
             </Form>
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
