@@ -18,7 +18,8 @@ export default function RootPage() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        // Redirect user to their appropriate landing page based on permissions
+        // Permissions are resolved from the matching Firestore staff profile,
+        // or full Admin access for a Firebase-only account.
         const landingPage = getLandingPage(permissions);
         router.replace(landingPage);
       } else {
