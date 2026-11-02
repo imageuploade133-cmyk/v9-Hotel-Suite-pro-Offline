@@ -175,3 +175,26 @@
     row-gap: 0.75rem;
   }
 }
+
+/*
+ * Desktop dialogs that contain an internal Radix ScrollArea need a definite
+ * height. max-height alone is not a definite flex height, so the viewport
+ * can expand with its content instead of becoming scrollable. Keep the
+ * dialog header/footer fixed and let the marked ScrollArea consume the
+ * remaining space. Mobile keeps its existing full-screen/bottom-sheet flow.
+ */
+@media (min-width: 640px) {
+  [data-dialog-content]:has([data-dialog-scroll-area]) {
+    height: min(90dvh, 52rem);
+    max-height: min(90dvh, 52rem);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-dialog-content] [data-dialog-scroll-area] {
+    flex: 1 1 0%;
+    min-height: 0;
+    min-width: 0;
+    max-height: 100%;
+  }
+}
