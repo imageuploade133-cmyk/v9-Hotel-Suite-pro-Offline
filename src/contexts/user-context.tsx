@@ -258,6 +258,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             if (result && result.success === true && result.data && typeof result.data === 'object') {
               lanLookupCompleted = true;
               const usersList = Object.values(result.data) as UserProfile[];
+              // Keep the offline staff cache aligned with the latest authoritative LAN roster.
+              firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
               matchedProfile = usersList.find(
                 u => u && (u.uid === user.uid || u.id === user.uid)
               ) || null;
