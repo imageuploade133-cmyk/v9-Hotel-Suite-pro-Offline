@@ -133,3 +133,34 @@
     display: none !important;
   }
 }
+
+/* Keep wide page controls reachable without forcing the whole application wider. */
+@layer utilities {
+  .page-horizontal-scroll {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .page-responsive-actions {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .page-responsive-actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  @media (max-width: 639px) {
+    .page-horizontal-scroll {
+      padding-bottom: 0.25rem;
+    }
+  }
+}
