@@ -8,7 +8,7 @@ import { ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser } from '@/contexts/user-context';
 import { PagePermission, getLandingPage } from '@/lib/permissions';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 export default function withAuth<P extends object>(
@@ -19,6 +19,7 @@ export default function withAuth<P extends object>(
     const { user, loading: authLoading } = useAuth();
     const { userProfile, loading: profileLoading, permissions: contextPermissions } = useUser();
     const router = useRouter();
+    const pathname = usePathname();
 
     if (authLoading || profileLoading) {
       return <FullscreenLoader message="Please wait..." subtext="Verifying permissions..." />;
@@ -50,7 +51,7 @@ export default function withAuth<P extends object>(
     if (!hasRequiredPermission) {
       // Send users directly to the first page their resolved role can access.
       const landingPage = getLandingPage(finalPermissions);
-      if (landingPage !== window.location.pathname) {
+      if (landingPage !== pathname) {
         router.replace(landingPage);
         return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
       }
