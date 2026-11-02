@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { format, setHours, setMinutes, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { Calendar as CalendarIcon, X, Clock, ChevronDown } from 'lucide-react';
+import { Calendar as CalendarIcon, X, ChevronDown } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
