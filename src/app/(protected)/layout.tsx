@@ -74,6 +74,7 @@ import {
   Layers,
   List,
   Calculator,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { useUser } from '@/contexts/user-context';
@@ -744,7 +745,7 @@ export default function ProtectedLayout({
             isCollapsed ? 'sm:pl-20' : 'sm:pl-64'
           )}
         >
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
+          <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-background px-2 sm:h-16 sm:gap-4 sm:px-6">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} disableHistory>
               <SheetTrigger asChild>
                 <Button size="icon" variant="outline" className="sm:hidden">
@@ -856,7 +857,7 @@ export default function ProtectedLayout({
               <span className="sr-only">Toggle Sidebar</span>
             </Button>
 
-            <div className="flex w-full justify-end items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
+            <div className="hidden w-full items-center justify-end gap-4 sm:flex md:ml-auto md:gap-2 lg:gap-4">
               {/* Active branch indicator in header */}
               {(isBranchMode || isGlobalMode) && currentBranch && (
                 <div className="hidden sm:flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
@@ -886,12 +887,12 @@ export default function ProtectedLayout({
               </DropdownMenu>
             </div>
 
-            <div className="relative ml-auto flex items-center gap-2">
+            <div className="relative ml-auto flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
                <LanSyncStatusIndicator />
                <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => setIsSoundMuted(!isSoundMuted)}>
+                        <Button variant="outline" size="icon" className="hidden sm:inline-flex" onClick={() => setIsSoundMuted(!isSoundMuted)}>
                             {isSoundMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                             <span className="sr-only">{isSoundMuted ? 'Unmute Sounds' : 'Mute Sounds'}</span>
                         </Button>
@@ -905,11 +906,36 @@ export default function ProtectedLayout({
               <NotificationBell />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 sm:hidden" aria-label="More header actions">
+                    <MoreHorizontal className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <Link href="/website" target="_blank">
+                      <LinkIcon className="mr-2 h-4 w-4" />
+                      Open Website
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyLink}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy Website URL
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setIsSoundMuted(!isSoundMuted)}>
+                    {isSoundMuted ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
+                    {isSoundMuted ? 'Unmute Sounds' : 'Mute Sounds'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-10 w-10 rounded-full"
+                    className="relative h-9 w-9 rounded-full sm:h-10 sm:w-10"
                   >
-                    <Avatar className="h-10 w-10 border-2">
+                    <Avatar className="h-8 w-8 border-2 sm:h-10 sm:w-10">
                       <AvatarImage
                         src={user.photoURL ?? ''}
                         alt={user.email ?? ''}
