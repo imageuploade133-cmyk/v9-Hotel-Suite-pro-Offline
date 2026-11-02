@@ -43,7 +43,7 @@ export function ThemeSwitcher() {
         <RadioGroup
           value={theme === 'dark' ? 'dark' : 'light'}
           onValueChange={setTheme}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
           <Label
             htmlFor="light"
