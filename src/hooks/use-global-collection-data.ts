@@ -96,7 +96,7 @@ export function useGlobalCollectionData<T extends Record<string, any> = any>(
                 if (key.startsWith('root-')) dataMap.delete(key);
               }
               snapshot.forEach(d => {
-                dataMap.set(`root-${d.id}`, { id: d.id, ...d.data() } as T);
+                dataMap.set(`root-${d.id}`, { id: d.id, ...d.data() } as unknown as T);
               });
               flush();
             },
@@ -146,7 +146,7 @@ export function useGlobalCollectionData<T extends Record<string, any> = any>(
                     if (key.startsWith(prefix) && key.split('-').length === 2) dataMap.delete(key);
                   }
                   snapshot.forEach(d => {
-                    const docData = { id: d.id, ...d.data() } as T;
+                    const docData = { id: d.id, ...d.data() } as unknown as T;
                     if (!docData.branchId) (docData as any).branchId = branch.id;
                     dataMap.set(`${branch.id}-${d.id}`, docData);
                   });
@@ -179,7 +179,7 @@ export function useGlobalCollectionData<T extends Record<string, any> = any>(
                         if (key.startsWith(posPrefix)) dataMap.delete(key);
                       }
                       snapshot.forEach(d => {
-                        const docData = { id: d.id, ...d.data() } as T;
+                        const docData = { id: d.id, ...d.data() } as unknown as T;
                         if (!docData.branchId) (docData as any).branchId = branch.id;
                         if (!(docData as any).posId) (docData as any).posId = pos.id;
                         dataMap.set(`${branch.id}-${pos.id}-${d.id}`, docData);
