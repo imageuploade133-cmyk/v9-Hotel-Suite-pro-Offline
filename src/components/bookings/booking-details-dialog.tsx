@@ -132,7 +132,7 @@ export function BookingDetailsDialog({ open, onOpenChange, ...props }: BookingDe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="min-h-0 overflow-hidden sm:max-w-3xl">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>Booking Details</DialogTitle>
           <DialogDescription>
