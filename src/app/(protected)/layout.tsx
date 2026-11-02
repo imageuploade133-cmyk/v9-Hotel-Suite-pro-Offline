@@ -522,8 +522,8 @@ export default function ProtectedLayout({
     ];
 
     // Determine if we should filter based on branch mode
-    // All users are now admin, so no branch filtering needed
-    const shouldFilterByBranch = false;
+    // Branch visibility is governed by the resolved staff profile and its assignments.
+    const shouldFilterByBranch = Boolean(userProfile && !userProfile.isFirebaseOnlyAdmin && (userProfile.assignedBranches?.length || 0) > 0);
 
     return baseNavGroups
       .map(group => {
@@ -612,8 +612,8 @@ export default function ProtectedLayout({
     return null;
   }
 
-  // Any authenticated Firebase account may enter the workspace as full Admin.
-  // The staff profile is optional and is used only for profile display/enrichment.
+  // Access and sidebar permissions come from the resolved identity: Firebase-only
+  // accounts are Admin; matching Firestore staff profiles retain assigned access.
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
