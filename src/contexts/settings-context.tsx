@@ -8,6 +8,7 @@ import { firestore as publicFirestore } from '@/firebase/server-init';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { firestoreCache, CacheTTL, CacheKeys } from '@/lib/firestore-cache';
 import { useBranch } from './branch-context';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface ShiftSettings {
     startTime: string;
@@ -123,7 +124,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...settings };
 
         // Priority 2: Query Local Master LAN Store (/api/lan-sync?collection=settings)
-        try {
+        if (isLocalMasterHost()) try {
           const lanRes = await fetchWithTimeout(fetch(`/api/lan-sync?collection=settings`), 1000);
           if (lanRes && lanRes.ok) {
             const lanResult = await lanRes.json();

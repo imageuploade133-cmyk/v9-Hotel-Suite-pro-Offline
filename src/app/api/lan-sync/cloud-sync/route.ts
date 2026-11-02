@@ -6,7 +6,7 @@ import { doc, setDoc, updateDoc, deleteDoc, DocumentData } from 'firebase/firest
 function isLocalMasterRequest(req: NextRequest): boolean {
   const hostname = req.nextUrl.hostname.toLowerCase();
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname.endsWith('.local') || !hostname.includes('.')) return true;
-  const ipv4 = hostname.match(/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/);
+  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!ipv4) return false;
   const first = Number(ipv4[1]);
   const second = Number(ipv4[2]);

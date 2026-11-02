@@ -11,7 +11,7 @@ function isLocalMasterRequest(req: NextRequest): boolean {
     !hostname.includes('.')
   ) return true;
 
-  const ipv4 = hostname.match(/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/);
+  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!ipv4) return false;
   const first = Number(ipv4[1]);
   const second = Number(ipv4[2]);

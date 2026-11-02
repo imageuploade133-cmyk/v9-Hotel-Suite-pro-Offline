@@ -5,6 +5,7 @@ import { FirebaseApp } from 'firebase/app';
 import { Auth } from 'firebase/auth';
 import { Firestore, collection, onSnapshot, Query, DocumentData, CollectionReference, getDocs, DocumentReference, doc, queryEqual, Unsubscribe } from 'firebase/firestore';
 import { FirebaseClientProvider } from './client-provider';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 export const useFirebase = () => {
     const context = useContext(FirebaseClientProvider.Context);
@@ -56,6 +57,7 @@ export interface UseDocResult<T> {
 }
 
 async function fetchLanCollectionData<T>(pathStr: string): Promise<T[]> {
+  if (!isLocalMasterHost()) return [];
   try {
     const res = await fetch(`/api/lan-sync?collection=${encodeURIComponent(pathStr)}`);
     if (res.ok) {
