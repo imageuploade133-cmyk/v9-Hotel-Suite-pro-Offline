@@ -235,7 +235,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
           firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
           const found = usersList.find(
-            u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
+            u => u && (u.uid === user.uid || u.id === user.uid)
           );
           if (found) matchedProfile = found;
         }
@@ -246,7 +246,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         const cachedUsers = firestoreCache.get<UserProfile[]>(CacheKeys.collection('users'));
         if (cachedUsers && Array.isArray(cachedUsers)) {
           const foundInCache = cachedUsers.find(
-            u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
+            u => u && (u.uid === user.uid || u.id === user.uid)
           );
           if (foundInCache) {
             matchedProfile = foundInCache;
@@ -263,7 +263,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             if (result.data) {
               const usersList = Object.values(result.data) as UserProfile[];
               const found = usersList.find(
-                u => u && (u.email?.toLowerCase() === user.email?.toLowerCase() || u.uid === user.uid || u.id === user.uid)
+                u => u && (u.uid === user.uid || u.id === user.uid)
               );
               if (found) matchedProfile = found;
             }
@@ -293,7 +293,12 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
-        setUserProfile(profileData);
+        // The UID-keyed document is authoritative only when its stored identity agrees.
+        if (profileData.uid && profileData.uid !== user.uid) {
+          setUserProfile(null);
+        } else {
+          setUserProfile(profileData);
+        }
         setLoading(false);
       } else {
         loadProfile();
