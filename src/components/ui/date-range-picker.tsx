@@ -206,7 +206,7 @@ export function DateRangePicker({
   };
 
   return (
-    <div className={cn('flex min-w-0 max-w-full flex-wrap items-center gap-2', className)}>
+    <div className={cn('page-responsive-actions flex min-w-0 max-w-full flex-wrap items-center gap-2', className)}>
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
