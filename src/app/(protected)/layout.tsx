@@ -356,11 +356,10 @@ export default function ProtectedLayout({
     });
   };
 
-  // Use actual user permissions from user-context (which defaults to full Administrator permissions)
+  // Use the centralized permission calculation. Unassigned Firebase accounts receive no permissions.
   const { permissions: contextPermissions } = useUser();
-  const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
-  const finalPermissions = (userProfile?.permissions && userProfile.permissions.length > 0) ? userProfile.permissions : contextPermissions;
-  const canManageRoomStatus = isSuperAdmin || finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
+  const finalPermissions = contextPermissions || [];
+  const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
   const navGroups = React.useMemo(() => {
     const allStatuses = { ...individualRoomsByStatus };
