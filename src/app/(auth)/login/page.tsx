@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth } from '@/components/auth/auth-provider';
-import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2, MessageCircle } from 'lucide-react';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ForgotPasswordDialog } from '@/components/auth/forgot-password-dialog';
@@ -153,6 +153,7 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
   const [isSeeding, setIsSeeding] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  const [loginMethod, setLoginMethod] = React.useState<'password' | 'email-otp' | 'whatsapp'>('password');
   const [isForgotPasswordOpen, setForgotPasswordOpen] = React.useState(false);
   const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
   const { settings } = useSettings();
@@ -317,6 +318,33 @@ export default function LoginPage() {
               <p className="mt-1 text-sm text-slate-500">Login to access your hotel management account.</p>
             </div>
 
+            <div className="mb-5 grid grid-cols-3 rounded-xl border border-slate-200 bg-slate-100/80 p-1" role="tablist" aria-label="Choose login method">
+              {([
+                { id: 'password', label: 'Password' },
+                { id: 'email-otp', label: 'Email OTP' },
+                { id: 'whatsapp', label: 'WhatsApp' },
+              ] as const).map((method) => (
+                <button
+                  key={method.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={loginMethod === method.id}
+                  aria-controls={`login-panel-${method.id}`}
+                  onClick={() => setLoginMethod(method.id)}
+                  className={cn(
+                    "min-h-9 rounded-lg px-2 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                    loginMethod === method.id
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
+                  )}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </div>
+
+            {loginMethod === 'password' && (
+            <div id="login-panel-password" role="tabpanel" className="animate-in fade-in-50 duration-200">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -385,6 +413,48 @@ export default function LoginPage() {
                 </Button>
               </form>
             </Form>
+            </div>
+            )}
+
+            {loginMethod === 'email-otp' && (
+              <div id="login-panel-email-otp" role="tabpanel" className="space-y-4 animate-in fade-in-50 duration-200">
+                <div className="space-y-1.5">
+                  <label htmlFor="email-otp-address" className="text-xs font-semibold text-slate-700">Email address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input id="email-otp-address" type="email" autoComplete="email" placeholder="name@example.com" className="h-11 rounded-xl border-slate-200 pl-10 text-sm placeholder:text-slate-400 focus-visible:ring-primary" disabled />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="email-otp-code" className="text-xs font-semibold text-slate-700">One-time password</label>
+                  <Input id="email-otp-code" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter the 6-digit code" maxLength={6} className="h-11 rounded-xl border-slate-200 text-sm tracking-[0.25em] placeholder:tracking-normal focus-visible:ring-primary" disabled />
+                </div>
+                <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" disabled>
+                  Send email code <span className="ml-2 text-[10px] font-medium opacity-75">Coming soon</span>
+                </Button>
+                <p className="text-center text-xs leading-5 text-slate-500">Email one-time-code sign-in will be available in a future update. Your current password login remains available.</p>
+              </div>
+            )}
+
+            {loginMethod === 'whatsapp' && (
+              <div id="login-panel-whatsapp" role="tabpanel" className="space-y-4 animate-in fade-in-50 duration-200">
+                <div className="space-y-1.5">
+                  <label htmlFor="whatsapp-phone" className="text-xs font-semibold text-slate-700">WhatsApp phone number</label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input id="whatsapp-phone" type="tel" autoComplete="tel" placeholder="+234 801 234 5678" className="h-11 rounded-xl border-slate-200 pl-10 text-sm placeholder:text-slate-400 focus-visible:ring-primary" disabled />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="whatsapp-otp-code" className="text-xs font-semibold text-slate-700">Verification code</label>
+                  <Input id="whatsapp-otp-code" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter the 6-digit code" maxLength={6} className="h-11 rounded-xl border-slate-200 text-sm tracking-[0.25em] placeholder:tracking-normal focus-visible:ring-primary" disabled />
+                </div>
+                <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" disabled>
+                  Send WhatsApp code <span className="ml-2 text-[10px] font-medium opacity-75">Coming soon</span>
+                </Button>
+                <p className="text-center text-xs leading-5 text-slate-500">WhatsApp verification sign-in will be available in a future update. Your current password login remains available.</p>
+              </div>
+            )}
 
             <div className="mt-4">
               <Button variant="outline" className="h-10 w-full rounded-xl border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50" onClick={handleCopyLink}>
