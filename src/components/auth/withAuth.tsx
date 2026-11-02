@@ -48,11 +48,16 @@ export default function withAuth<P extends object>(
       hasRequiredPermission = canManageRoomStatus;
     }
 
-    if (!hasRequiredPermission) {
-      // Send users directly to the first page their resolved role can access.
-      const landingPage = getLandingPage(finalPermissions);
-      if (landingPage !== pathname) {
+    const landingPage = getLandingPage(finalPermissions);
+
+    React.useEffect(() => {
+      if (!authLoading && !profileLoading && user && !hasRequiredPermission && landingPage !== pathname) {
         router.replace(landingPage);
+      }
+    }, [authLoading, profileLoading, user, hasRequiredPermission, landingPage, pathname, router]);
+
+    if (!hasRequiredPermission) {
+      if (landingPage !== pathname) {
         return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
       }
       return (
