@@ -333,8 +333,8 @@ export function DraftDocketReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="receipt-dialog-fullscreen">
-        <DialogHeader>
+      <DialogContent className="receipt-dialog-fullscreen receipt-reference-dialog">
+        <DialogHeader className="receipt-reference-header">
           <DialogTitle className="flex items-center gap-2">
             {dialogTitle}
             {isUpdate && isPrinted && (
@@ -349,13 +349,13 @@ export function DraftDocketReceiptDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="terminal">Terminal Docket</TabsTrigger>
-            <TabsTrigger value="invoice">Professional Docket</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="receipt-reference-tabs">
+          <TabsList className="receipt-reference-tab-list">
+            <TabsTrigger value="terminal" className="receipt-reference-tab">Terminal Docket</TabsTrigger>
+            <TabsTrigger value="invoice" className="receipt-reference-tab">Professional Docket</TabsTrigger>
           </TabsList>
-          <div className="max-h-[60vh] overflow-y-auto mt-4 p-1 rounded-lg border">
-            <TabsContent value="terminal">
+          <div className="receipt-reference-main">
+            <TabsContent value="terminal" className="receipt-reference-tab-panel">
               <div id="draft-docket-terminal-print" ref={terminalRef} className="print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
                 <div className="text-center space-y-1 mb-4">
                   {posLogoUrl && (
@@ -420,8 +420,8 @@ export function DraftDocketReceiptDialog({
                 </div>
               </div>
             </TabsContent>
-            <TabsContent value="invoice">
-              <div ref={invoiceRef} className="print-content p-8 bg-white text-black text-sm">
+            <TabsContent value="invoice" className="receipt-reference-tab-panel">
+              <div ref={invoiceRef} data-invoice-paper className="print-content p-8 bg-white text-black text-sm">
                 <h2 className="font-bold text-2xl text-center mb-4 text-red-600">
                   {isUpdate ? 'UPDATE ORDER' : 'NOT PAID DRAFT Bill'}
                 </h2>
@@ -480,34 +480,36 @@ export function DraftDocketReceiptDialog({
           </div>
         </Tabs>
 
-        <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose} disabled={isPrintingRef.current}>
+        <DialogFooter className="receipt-reference-footer">
+          <Button variant="outline" className="receipt-reference-close modal-footer-close" onClick={onClose} disabled={isPrintingRef.current}>
             <X className="mr-2 h-4 w-4" /> Close
           </Button>
-          {isUpdate ? (
-            <Button variant="secondary" onClick={onClose} disabled={isPrintingRef.current}>
-              Done
-            </Button>
-          ) : (
-          <Button onClick={handlePrint} disabled={isPrintingRef.current || isPrinted}>
-            {isPrintingRef.current ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                Printing...
-              </>
-            ) : isPrinted ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Printed
-              </>
+          <div className="receipt-reference-actions">
+            {isUpdate ? (
+              <Button variant="secondary" onClick={onClose} disabled={isPrintingRef.current}>
+                Done
+              </Button>
             ) : (
-              <>
-                <Printer className="mr-2 h-4 w-4" />
-                Print Draft Docket
-              </>
+              <Button className="receipt-reference-print" onClick={handlePrint} disabled={isPrintingRef.current || isPrinted}>
+                {isPrintingRef.current ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Printing...
+                  </>
+                ) : isPrinted ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Printed
+                  </>
+                ) : (
+                  <>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Draft Docket
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
-          )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
