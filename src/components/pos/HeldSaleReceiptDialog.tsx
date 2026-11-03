@@ -97,7 +97,7 @@ export function HeldSaleReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Running Table Docket</DialogTitle>
           <DialogDescription>A draft receipt for the running table "{heldSale.name}".</DialogDescription>
