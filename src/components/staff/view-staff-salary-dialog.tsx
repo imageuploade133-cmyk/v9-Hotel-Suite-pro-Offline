@@ -315,7 +315,7 @@ export function ViewStaffSalaryDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="min-h-0 overflow-hidden sm:h-[min(90dvh,52rem)] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:overflow-hidden">
+      <DialogContent className="min-h-0 overflow-hidden sm:h-[min(94dvh,60rem)] sm:max-h-[min(94dvh,60rem)] sm:max-w-6xl sm:overflow-hidden">
         <DialogHeader className="shrink-0 px-4 pt-5 pb-3 text-left sm:px-6 sm:pt-6 sm:pb-2">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Wallet className="h-5 w-5 shrink-0 text-primary sm:h-6 sm:w-6" />
