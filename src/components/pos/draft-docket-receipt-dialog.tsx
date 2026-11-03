@@ -333,7 +333,7 @@ export function DraftDocketReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {dialogTitle}

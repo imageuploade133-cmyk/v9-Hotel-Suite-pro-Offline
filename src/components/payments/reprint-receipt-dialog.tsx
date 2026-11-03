@@ -112,7 +112,7 @@ export function ReprintReceiptDialog({ isOpen, onClose, payment, allUsers }: Rep
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Reprint Receipt</DialogTitle>
           <DialogDescription>

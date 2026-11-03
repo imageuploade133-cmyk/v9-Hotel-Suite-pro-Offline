@@ -115,7 +115,7 @@ export function CreditPaymentReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Credit Payment Receipt</DialogTitle>
           <DialogDescription>A receipt for the credit repayment transaction.</DialogDescription>

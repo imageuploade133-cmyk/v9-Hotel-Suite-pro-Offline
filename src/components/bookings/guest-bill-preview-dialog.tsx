@@ -42,7 +42,7 @@ export function GuestBillPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-4">
+      <DialogContent className="receipt-dialog-fullscreen flex flex-col p-0">
         <DialogHeader className="p-2">
           <DialogTitle>Guest Bill Live Preview</DialogTitle>
           <DialogDescription>
