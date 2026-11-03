@@ -214,6 +214,9 @@
   min-width: 0 !important;
   min-height: 0 !important;
   box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
   margin: 0 !important;
   transform: none !important;
   animation: none !important;
