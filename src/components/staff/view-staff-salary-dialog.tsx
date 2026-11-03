@@ -315,8 +315,8 @@ export function ViewStaffSalaryDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
+      <DialogContent className="flex h-[min(90dvh,900px)] max-h-[90dvh] min-h-0 flex-col overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-6 w-6 text-primary" />
             Staff Salary Details
@@ -327,13 +327,13 @@ export function ViewStaffSalaryDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="px-6 pb-6 space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
         ) : salaryDetails ? (
           <>
-            <div className="px-6 pb-4">
+            <div className="shrink-0 px-6 pb-4">
               <div className="flex items-center gap-4 p-4 rounded-lg border bg-card">
                 <Avatar className="h-16 w-16">
                   <AvatarImage src={staff.photoURL} alt={staff.name} />
@@ -367,8 +367,8 @@ export function ViewStaffSalaryDialog({
               </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 px-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <TabsList className="grid w-full shrink-0 grid-cols-3 px-6">
                 <TabsTrigger value="overview">
                   <Wallet className="h-4 w-4 mr-2" />
                   Overview
@@ -383,7 +383,7 @@ export function ViewStaffSalaryDialog({
                 </TabsTrigger>
               </TabsList>
 
-              <ScrollArea className="max-h-[50vh]">
+              <ScrollArea className="min-h-0 flex-1">
                 <div className="px-6 pb-6 pt-4">
                   <TabsContent value="overview" className="mt-0 space-y-4">
                     <Card>
@@ -595,14 +595,14 @@ export function ViewStaffSalaryDialog({
               </ScrollArea>
             </Tabs>
 
-            <div className="px-6 pb-6 pt-2">
+            <div className="shrink-0 px-6 pb-6 pt-2">
               <Button variant="outline" onClick={onClose} className="w-full">
                 Close
               </Button>
             </div>
           </>
         ) : (
-          <div className="px-6 pb-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
             <EmptyState
               icon={AlertCircle}
               title={indexUrl ? "Database Index Required" : "Unable to Load Details"}
