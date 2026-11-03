@@ -259,3 +259,35 @@
 [data-dialog-content].receipt-dialog-fullscreen [data-receipt-paper] {
   flex: 0 0 auto !important;
 }
+ 
+/* The tabbed preview is the flexible middle section; the action bar sits flush at the bottom. */
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) > div[class*="max-h-"][class*="overflow-y-auto"] {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 1.5rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+[data-dialog-content].receipt-dialog-fullscreen > div:has(> button) {
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 1rem 2rem max(.5rem, env(safe-area-inset-bottom)) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background)) !important;
+}
+
