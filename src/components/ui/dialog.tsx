@@ -54,7 +54,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, style, ...props }, ref) => {
-    const isReceiptFullscreen = className?.split(/\\s+/).some(
+    const isReceiptFullscreen = className?.split(/\s+/).some(
       (name) => name === "receipt-dialog-fullscreen" || name === "receipt-reference-dialog"
     );
 
