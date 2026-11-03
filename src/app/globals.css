@@ -559,7 +559,9 @@
 }
 [data-dialog-content].receipt-reference-dialog [data-invoice-paper] {
   width: 100% !important;
-  min-height: 0 !important;
+  max-width: none !important;
+  min-height: max(680px, calc(100dvh - 14rem)) !important;
+  box-sizing: border-box !important;
   margin-inline: auto !important;
   overflow: visible !important;
   border: 1px solid #e5e7eb !important;
