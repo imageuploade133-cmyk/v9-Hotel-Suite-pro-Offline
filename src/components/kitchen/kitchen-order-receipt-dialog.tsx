@@ -104,7 +104,7 @@ export function KitchenOrderReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Kitchen Order #{order.orderNumber}</DialogTitle>
           <DialogDescription>
