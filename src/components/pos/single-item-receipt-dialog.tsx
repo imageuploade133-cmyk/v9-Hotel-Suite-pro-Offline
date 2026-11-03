@@ -243,7 +243,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!isPrinted) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Item Draft Docket</DialogTitle>
           <DialogDescription>
