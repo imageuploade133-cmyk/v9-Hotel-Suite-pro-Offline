@@ -628,3 +628,21 @@
     padding-inline: .9rem !important;
   }
 }
+
+
+/* Consistent outlined Close actions inside modal footers. */
+@layer components {
+  .modal-footer-close {
+    min-height: 2.25rem;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: .5rem !important;
+    background: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    box-shadow: 0 1px 2px rgb(15 23 42 / .06);
+  }
+  .modal-footer-close:hover:not(:disabled) {
+    border-color: hsl(var(--primary) / .45) !important;
+    background: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+}
