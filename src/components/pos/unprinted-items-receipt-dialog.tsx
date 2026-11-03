@@ -252,7 +252,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Print Unprinted Items</DialogTitle>
           <DialogDescription>
