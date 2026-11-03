@@ -53,8 +53,35 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
-    const id = React.useId();
+>(({ className, children, style, ...props }, ref) => {
+    const isReceiptFullscreen = className?.split(/\\s+/).some(
+      (name) => name === "receipt-dialog-fullscreen" || name === "receipt-reference-dialog"
+    );
+
+    // Responsive sm:* dialog utilities normally center and constrain desktop dialogs.
+    // Receipt dialogs must instead stay anchored to the browser viewport at every zoom.
+    const receiptViewportStyle: React.CSSProperties | undefined = isReceiptFullscreen
+      ? {
+          position: "fixed",
+          inset: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          width: "100vw",
+          height: "100dvh",
+          minWidth: 0,
+          minHeight: 0,
+          maxWidth: "none",
+          maxHeight: "none",
+          margin: 0,
+          boxSizing: "border-box",
+          transform: "none",
+          translate: "none",
+          animation: "none",
+        }
+      : undefined;
+
     return (
       <DialogPortal>
         <DialogOverlay />
@@ -67,6 +94,7 @@ const DialogContent = React.forwardRef<
             className
           )}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          style={{ ...style, ...receiptViewportStyle }}
           {...props}
         >
           <div className="mx-auto my-1 h-1 w-10 rounded-full bg-muted-foreground/20 sm:hidden shrink-0" />
