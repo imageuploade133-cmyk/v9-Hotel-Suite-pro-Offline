@@ -73,7 +73,7 @@ export function ExpenseReceiptDialog({ isOpen, onClose, expense }: ExpenseReceip
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Expense Receipt</DialogTitle>
           <DialogDescription>
