@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '../ui/separator';
 import type { Booking } from '@/lib/types';
 import { format } from 'date-fns';
-import { Printer, X, Download } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
 import { getSafeDate } from '@/lib/helpers';
@@ -214,8 +214,7 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
           </div>
           <div className="receipt-footer-actions">
             <div className="relative w-20 sm:w-24">
-            <div className="relative w-24">
-                <Label htmlFor="print-copies" className="mb-1 block text-xs">Copies</Label>
+              <Label htmlFor="print-copies" className="mb-1 block text-xs">Copies</Label>
                 <Input
                     id="print-copies"
                     type="number"
