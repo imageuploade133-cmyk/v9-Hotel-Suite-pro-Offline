@@ -255,8 +255,8 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking }: UnpaidInvoiceD
           </Button>
           <div className="receipt-reference-actions">
             <div className="flex flex-col items-start">
-              <Label htmlFor="print-copies" className="mb-1 text-[11px] font-medium leading-none text-gray-500">
-                Copies
+              <Label htmlFor="print-copies" className="mb-1 inline-flex items-center gap-1 text-[11px] font-medium leading-none text-gray-600">
+                <Copy className="h-3 w-3" /> Copies
               </Label>
               <Input
                 id="print-copies"
