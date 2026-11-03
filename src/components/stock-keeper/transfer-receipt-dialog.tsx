@@ -87,7 +87,7 @@ export function TransferReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Stock Transfer Receipt</DialogTitle>
           <DialogDescription>
