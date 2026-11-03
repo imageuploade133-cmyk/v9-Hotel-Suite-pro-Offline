@@ -400,8 +400,10 @@
   outline: none;
 }
 [data-dialog-content].receipt-dialog-fullscreen .receipt-invoice-paper {
-  width: min(100%, 980px);
-  min-height: min(100%, 680px);
+  width: 100%;
+  max-width: none;
+  min-height: max(680px, calc(100dvh - 14rem));
+  box-sizing: border-box;
   margin-inline: auto;
   border: 1px solid #e5e7eb;
   border-radius: .75rem;
@@ -557,7 +559,9 @@
 }
 [data-dialog-content].receipt-reference-dialog [data-invoice-paper] {
   width: 100% !important;
-  min-height: 0 !important;
+  max-width: none !important;
+  min-height: max(680px, calc(100dvh - 14rem)) !important;
+  box-sizing: border-box !important;
   margin-inline: auto !important;
   overflow: visible !important;
   border: 1px solid #e5e7eb !important;
@@ -648,34 +652,4 @@
 }
 
 
-/*
- * Browser zoom-out compensation for full-screen receipt/invoice previews.
- * Scale only the on-screen tab panel (outside the referenced paper elements),
- * so the existing print/export content and paper dimensions remain unchanged.
- * The preview area remains scrollable when the larger on-screen view needs it.
- */
-@media screen and (min-width: 1600px) {
-  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
-    zoom: 1.1;
-  }
-}
-@media screen and (min-width: 1920px) {
-  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
-    zoom: 1.2;
-  }
-}
-@media screen and (min-width: 2240px) {
-  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
-    zoom: 1.3;
-  }
-}
-@media screen and (min-width: 2560px) {
-  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
-    zoom: 1.4;
-  }
-}
-@media screen and (min-width: 2880px) {
-  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
-    zoom: 1.5;
-  }
-}
+
