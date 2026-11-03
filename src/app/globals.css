@@ -207,30 +207,55 @@
 [data-dialog-content].receipt-dialog-fullscreen {
   position: fixed !important;
   inset: 0 !important;
-  width: auto !important;
-  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
   max-width: none !important;
   max-height: none !important;
   min-width: 0 !important;
   min-height: 0 !important;
   box-sizing: border-box !important;
   margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
   transform: none !important;
   animation: none !important;
+  border: 0 !important;
   border-radius: 0 !important;
-  border-width: 0 !important;
-  padding-top: max(1rem, env(safe-area-inset-top)) !important;
-  padding-right: max(1rem, env(safe-area-inset-right)) !important;
-  padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
-  padding-left: max(1rem, env(safe-area-inset-left)) !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow: hidden !important;
   overscroll-behavior: contain;
 }
 
-@media (min-width: 640px) {
-  [data-dialog-content].receipt-dialog-fullscreen {
-    gap: 1rem !important;
-    padding: 1.5rem !important;
-  }
+/* Let receipt preview panels consume the available dialog space. */
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) {
+  display: flex !important;
+  flex: 1 1 0% !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  gap: 0 !important;
+}
+
+[data-dialog-content].receipt-dialog-fullscreen > div[class*="overflow-y-auto"],
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) div[class*="max-h-"][class*="overflow-y-auto"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  overflow: auto !important;
+}
+
+/* Keep the receipt paper itself at its intended print dimensions. */
+[data-dialog-content].receipt-dialog-fullscreen [data-receipt-paper] {
+  flex: 0 0 auto !important;
 }
