@@ -340,3 +340,135 @@
     min-height: 2.75rem;
   }
 }
+
+ 
+/* Purpose-built layout for the unpaid reservation invoice dialog. */
+[data-dialog-content].receipt-dialog-fullscreen:has(.receipt-dialog-tabs) {
+  gap: 0 !important;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-header {
+  flex: 0 0 auto;
+  padding: 1rem clamp(1rem, 2.2vw, 2rem) !important;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  text-align: left;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #f4d28a;
+  border-radius: 9999px;
+  background: #fff8e8;
+  color: #9a5b08;
+  padding: .2rem .6rem;
+  font-size: .68rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: .035em;
+  white-space: nowrap;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-tabs {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-tab-list {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 3.25rem;
+  padding: .35rem clamp(1rem, 2.2vw, 2rem);
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 0;
+  background: hsl(var(--muted) / .35);
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-preview {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(.75rem, 2vw, 1.75rem);
+  background: hsl(var(--muted) / .22);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-preview [role="tabpanel"] {
+  margin: 0;
+  outline: none;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-invoice-paper {
+  width: min(100%, 980px);
+  min-height: min(100%, 680px);
+  margin-inline: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: .75rem;
+  background: #fff;
+  box-shadow: 0 12px 36px rgb(15 23 42 / .08);
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-footer {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+  margin: 0 !important;
+  padding: .75rem clamp(1rem, 2.2vw, 2rem) max(.65rem, env(safe-area-inset-bottom)) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background)) !important;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-footer-status,
+[data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: .65rem;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+[data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions > * {
+  flex: 0 0 auto;
+}
+@media (max-width: 639px) {
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-header {
+    padding: .8rem 1rem !important;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-tab-list {
+    min-height: 2.8rem;
+    padding-inline: .75rem;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-preview {
+    padding: .65rem;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-invoice-paper {
+    border-radius: .5rem;
+    padding: 1rem !important;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-dialog-footer {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: .65rem !important;
+    padding: .65rem .75rem max(.5rem, env(safe-area-inset-bottom)) !important;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-footer-status {
+    justify-content: flex-start;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, .7fr) auto minmax(6rem, 1fr);
+    align-items: center;
+    gap: .5rem;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions .relative {
+    width: 100%;
+  }
+  [data-dialog-content].receipt-dialog-fullscreen .receipt-footer-actions button {
+    min-width: 0;
+    padding-inline: .7rem;
+  }
+}
