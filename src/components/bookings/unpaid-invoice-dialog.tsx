@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '../ui/separator';
 import type { Booking } from '@/lib/types';
 import { format } from 'date-fns';
-import { Printer, X, Download } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
 import { getSafeDate } from '@/lib/helpers';
