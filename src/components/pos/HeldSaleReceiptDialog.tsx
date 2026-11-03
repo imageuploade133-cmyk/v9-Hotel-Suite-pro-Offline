@@ -192,7 +192,7 @@ export function HeldSaleReceiptDialog({
           </div>
         </Tabs>
         <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="outline" className="modal-footer-close" onClick={onClose}>
             <X className="mr-2 h-4 w-4" /> Close
           </Button>
           <Button onClick={handlePrint} disabled={isPrinted || allItemsPrinted}>

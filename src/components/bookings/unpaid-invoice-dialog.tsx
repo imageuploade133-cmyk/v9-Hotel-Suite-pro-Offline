@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import type { Booking } from '@/lib/types';
 import { format } from 'date-fns';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Copy } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -250,13 +250,13 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking }: UnpaidInvoiceD
         </Tabs>
 
         <DialogFooter className="receipt-reference-footer">
-          <Button variant="ghost" onClick={onClose} className="receipt-reference-close">
+          <Button variant="outline" onClick={onClose} className="receipt-reference-close modal-footer-close">
             <X className="mr-2 h-4 w-4" /> Close
           </Button>
           <div className="receipt-reference-actions">
             <div className="flex flex-col items-start">
-              <Label htmlFor="print-copies" className="mb-1 text-[11px] font-medium leading-none text-gray-500">
-                Copies
+              <Label htmlFor="print-copies" className="mb-1 inline-flex items-center gap-1 text-[11px] font-medium leading-none text-gray-600">
+                <Copy className="h-3 w-3" /> Copies
               </Label>
               <Input
                 id="print-copies"
@@ -264,7 +264,7 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking }: UnpaidInvoiceD
                 min="1"
                 value={printCopies}
                 onChange={(e) => setPrintCopies(Math.max(1, Number(e.target.value) || 1))}
-                className="h-10 w-20 rounded-md border-0 bg-slate-100 px-3 text-sm font-medium text-gray-800 focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-10 w-20 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
             <Button

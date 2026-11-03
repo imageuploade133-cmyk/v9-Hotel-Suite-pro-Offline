@@ -224,7 +224,7 @@ export function CreditPaymentReceiptDialog({
         </Tabs>
 
         <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose}><X className="mr-2 h-4 w-4" />Close</Button>
+          <Button variant="outline" className="modal-footer-close" onClick={onClose}><X className="mr-2 h-4 w-4" />Close</Button>
            <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button>
