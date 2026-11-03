@@ -183,7 +183,7 @@ export function TransferReceiptDialog({
         </Tabs>
 
         <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button>
+          <Button variant="outline" className="modal-footer-close" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button>
             <div className="flex items-center gap-2">
                 <Button onClick={handlePrint}>
                     <Printer className="mr-2 h-4 w-4" /> Print
