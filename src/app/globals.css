@@ -200,9 +200,11 @@
 }
 
 /*
- * Receipt dialogs use a dedicated full-viewport shell. This selector is
- * intentionally opt-in so reservation, staff, and other application dialogs
- * keep their established desktop sizing and mobile behaviour.
+ * Receipt and invoice dialogs only.
+ * The dialog shell is a true viewport-sized flex column. Header, tabs and
+ * actions keep their natural height; the preview is the only flexible,
+ * independently scrollable region. This avoids 60vh caps and bottom clipping
+ * when browser zoom changes the CSS viewport.
  */
 [data-dialog-content].receipt-dialog-fullscreen {
   position: fixed !important;
@@ -210,26 +212,46 @@
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
+  justify-content: flex-start !important;
   width: 100vw !important;
+  max-width: 100vw !important;
   height: 100vh !important;
   height: 100dvh !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
   min-width: 0 !important;
   min-height: 0 !important;
   box-sizing: border-box !important;
   margin: 0 !important;
   padding: 0 !important;
   gap: 0 !important;
-  transform: none !important;
-  animation: none !important;
+  overflow: hidden !important;
   border: 0 !important;
   border-radius: 0 !important;
-  overflow: hidden !important;
-  overscroll-behavior: contain;
+  transform: none !important;
+  animation: none !important;
+  overscroll-behavior: none !important;
 }
 
-/* Let receipt preview panels consume the available dialog space. */
+/* Remove the mobile drag-handle spacer: these dialogs are full-screen. */
+[data-dialog-content].receipt-dialog-fullscreen > div:first-child:has(+ *) {
+  margin: 0 !important;
+}
+[data-dialog-content].receipt-dialog-fullscreen > div:first-child.h-1 {
+  display: none !important;
+}
+
+/* Keep the title area compact, aligned and visible at every zoom level. */
+[data-dialog-content].receipt-dialog-fullscreen > [class*="DialogHeader"],
+[data-dialog-content].receipt-dialog-fullscreen > div:has(> [data-slot="dialog-title"]) {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 1rem clamp(1rem, 2vw, 2rem) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+/* Tabbed invoice/receipt dialogs: tabs stay fixed, preview takes all remaining height. */
 [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) {
   display: flex !important;
   flex: 1 1 0% !important;
@@ -237,57 +259,84 @@
   min-width: 0 !important;
   min-height: 0 !important;
   width: 100% !important;
-  height: 100% !important;
-  gap: 0 !important;
-}
-
-[data-dialog-content].receipt-dialog-fullscreen > div[class*="overflow-y-auto"],
-[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) div[class*="max-h-"][class*="overflow-y-auto"] {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-height: none !important;
+  height: auto !important;
   margin: 0 !important;
   padding: 0 !important;
-  border-radius: 0 !important;
-  overflow: auto !important;
+  gap: 0 !important;
+  overflow: hidden !important;
 }
 
-/* Keep the receipt paper itself at its intended print dimensions. */
-[data-dialog-content].receipt-dialog-fullscreen [data-receipt-paper] {
+[data-dialog-content].receipt-dialog-fullscreen [role="tablist"] {
   flex: 0 0 auto !important;
-}
- 
-/* The tabbed preview is the flexible middle section; the action bar sits flush at the bottom. */
-[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) {
-  flex: 1 1 0% !important;
-  min-height: 0 !important;
-  min-width: 0 !important;
   width: 100% !important;
   margin: 0 !important;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
-[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) > div[class*="max-h-"][class*="overflow-y-auto"] {
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) > div[class*="overflow-y-auto"],
+[data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) > div[class*="max-h-"] {
+  display: block !important;
   flex: 1 1 0% !important;
+  min-width: 0 !important;
   min-height: 0 !important;
+  width: 100% !important;
+  height: auto !important;
   max-height: none !important;
-  height: 100% !important;
   margin: 0 !important;
-  padding: 1.5rem !important;
+  padding: clamp(.75rem, 1.5vw, 1.5rem) !important;
   border: 0 !important;
   border-radius: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
-[data-dialog-content].receipt-dialog-fullscreen > div:has(> button) {
+/* Non-tabbed invoice previews (for example, downloadable A4 invoices). */
+[data-dialog-content].receipt-dialog-fullscreen > div.flex-1[class*="overflow-y-auto"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Keep the document/thermal paper at its intended proportions while its
+   surrounding preview area expands and scrolls. */
+[data-dialog-content].receipt-dialog-fullscreen [data-receipt-paper],
+[data-dialog-content].receipt-dialog-fullscreen [data-invoice-paper] {
   flex: 0 0 auto !important;
+}
+
+/* Action footer remains visible at the viewport bottom without a trailing gap. */
+[data-dialog-content].receipt-dialog-fullscreen > [class*="DialogFooter"],
+[data-dialog-content].receipt-dialog-fullscreen > div:has(> button) {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: space-between !important;
   align-self: stretch !important;
   width: 100% !important;
   max-width: none !important;
+  min-width: 0 !important;
   margin: 0 !important;
-  padding: 1rem 2rem max(.5rem, env(safe-area-inset-bottom)) !important;
+  padding: .75rem clamp(1rem, 2vw, 2rem) max(.5rem, env(safe-area-inset-bottom)) !important;
+  gap: .75rem !important;
   border-top: 1px solid hsl(var(--border)) !important;
   background: hsl(var(--background)) !important;
 }
 
+/* Small screens: preserve usable controls and let only the preview scroll. */
+@media (max-width: 639px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has(> button) {
+    flex-wrap: wrap !important;
+    row-gap: .5rem !important;
+  }
+
+  [data-dialog-content].receipt-dialog-fullscreen [role="tablist"] {
+    min-height: 2.75rem;
+  }
+}
