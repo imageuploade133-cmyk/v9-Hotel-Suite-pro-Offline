@@ -646,3 +646,36 @@
     color: hsl(var(--foreground)) !important;
   }
 }
+
+
+/*
+ * Browser zoom-out compensation for full-screen receipt/invoice previews.
+ * Scale only the on-screen tab panel (outside the referenced paper elements),
+ * so the existing print/export content and paper dimensions remain unchanged.
+ * The preview area remains scrollable when the larger on-screen view needs it.
+ */
+@media screen and (min-width: 1600px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
+    zoom: 1.1;
+  }
+}
+@media screen and (min-width: 1920px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
+    zoom: 1.2;
+  }
+}
+@media screen and (min-width: 2240px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
+    zoom: 1.3;
+  }
+}
+@media screen and (min-width: 2560px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
+    zoom: 1.4;
+  }
+}
+@media screen and (min-width: 2880px) {
+  [data-dialog-content].receipt-dialog-fullscreen > div:has([role="tablist"]) [role="tabpanel"] {
+    zoom: 1.5;
+  }
+}
