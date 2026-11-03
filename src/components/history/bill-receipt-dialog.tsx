@@ -87,7 +87,7 @@ export function BillReceiptDialog({ isOpen, onClose, bill }: BillReceiptDialogPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Service Bill Receipt</DialogTitle>
           <DialogDescription>
