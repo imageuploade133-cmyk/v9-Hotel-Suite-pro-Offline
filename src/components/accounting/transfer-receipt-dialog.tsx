@@ -76,7 +76,7 @@ export function TransferReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Transfer Receipt</DialogTitle>
           <DialogDescription>

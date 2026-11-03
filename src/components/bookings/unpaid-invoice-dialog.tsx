@@ -148,7 +148,7 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Unpaid Reservation Invoice</DialogTitle>
           <DialogDescription>

@@ -351,7 +351,7 @@ export function HeldSaleReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isUpdateDocket ? 'Update Docket' : 'Running Table Docket'}

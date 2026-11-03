@@ -241,7 +241,7 @@ export function StockSaleReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Sale Receipt #{sale.saleId}</DialogTitle>
           <DialogDescription>

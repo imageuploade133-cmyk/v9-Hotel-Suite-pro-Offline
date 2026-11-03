@@ -96,7 +96,7 @@ export function RewardReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Reward/Bonus Receipt</DialogTitle>
           <DialogDescription>

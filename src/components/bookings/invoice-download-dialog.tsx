@@ -87,7 +87,7 @@ export function InvoiceDownloadDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0 receipt-dialog-fullscreen">
         <DialogHeader className="px-6 py-4 border-b shrink-0 bg-background z-10">
           <DialogTitle>Invoice Preview</DialogTitle>
           <DialogDescription>

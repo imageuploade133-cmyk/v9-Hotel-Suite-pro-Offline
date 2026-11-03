@@ -65,7 +65,7 @@ export function RefundReceiptDialog({ isOpen, onClose, refund, sale }: RefundRec
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Refund Receipt #{refund.refundId}</DialogTitle>
           <DialogDescription>A receipt for the refund transaction.</DialogDescription>
