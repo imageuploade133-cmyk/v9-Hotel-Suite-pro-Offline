@@ -149,21 +149,32 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
-        <DialogHeader>
-          <DialogTitle>Unpaid Reservation Invoice</DialogTitle>
-          <DialogDescription>
-            This is an invoice for an unpaid reservation. Payment is due upon check-in.
-          </DialogDescription>
+        <DialogHeader className="receipt-dialog-header">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pr-8">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-base font-semibold sm:text-lg">Unpaid Reservation Invoice</DialogTitle>
+                <span className="receipt-status-badge" role="status">Pending</span>
+              </div>
+              <DialogDescription className="mt-1">
+                Booking #{booking.id} · Payment is due upon check-in
+              </DialogDescription>
+            </div>
+            <div className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block">
+              <span className="block font-medium text-foreground">{booking.guestName}</span>
+              <span>Invoice date: {format(new Date(), 'PP')}</span>
+            </div>
+          </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="receipt-dialog-tabs">
+          <TabsList className="receipt-dialog-tab-list grid w-full grid-cols-2">
             <TabsTrigger value="invoice">Professional Invoice</TabsTrigger>
             <TabsTrigger value="terminal">Terminal Receipt</TabsTrigger>
           </TabsList>
-          <div className="max-h-[60vh] overflow-y-auto mt-4 p-1 rounded-lg border">
+          <div className="receipt-dialog-preview">
             <TabsContent value="invoice">
-               <div ref={invoiceRef} className="p-8 bg-white text-black text-sm rounded-lg">
+               <div ref={invoiceRef} className="receipt-invoice-paper p-5 text-sm text-black sm:p-8">
                 <InvoiceContent booking={booking} totalCharges={totalCharges} settings={settings} formatCurrency={formatCurrency} logoSize={logoSize} />
               </div>
             </TabsContent>
@@ -196,9 +207,13 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
           </div>
         </Tabs>
 
-        <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button>
-          <div className="flex items-center gap-2">
+        <DialogFooter className="receipt-dialog-footer">
+          <div className="receipt-footer-status">
+            <span className="receipt-status-badge" role="status">Pending</span>
+            <span className="text-xs text-muted-foreground">Payment due upon check-in</span>
+          </div>
+          <div className="receipt-footer-actions">
+            <div className="relative w-20 sm:w-24">
             <div className="relative w-24">
                 <Label htmlFor="print-copies" className="absolute -top-5 text-xs">Copies</Label>
                 <Input
@@ -210,7 +225,10 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
                     className="h-9"
                 />
             </div>
-            <Button onClick={() => handlePrint(printCopies)} disabled={printCopies < 1}>
+            <Button variant="outline" onClick={onClose} className="receipt-footer-close">
+              <X className="mr-2 h-4 w-4" /> Close
+            </Button>
+            <Button onClick={() => handlePrint(printCopies)} disabled={printCopies < 1} className="receipt-footer-print">
                 <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
           </div>
