@@ -16,7 +16,6 @@ import { format } from 'date-fns';
 import { Printer, X } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
-import { getSafeDate } from '@/lib/helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import Image from 'next/image';
 import { Label } from '../ui/label';
@@ -126,7 +125,7 @@ const InvoiceContent = ({
   </section>
 );
 
-export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturned }: UnpaidInvoiceDialogProps) {
+export function UnpaidInvoiceDialog({ isOpen, onClose, booking }: UnpaidInvoiceDialogProps) {
   const invoiceRef = React.useRef<HTMLDivElement>(null);
   const terminalRef = React.useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = React.useState('invoice');
