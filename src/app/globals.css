@@ -653,3 +653,38 @@
 
 
 
+
+
+/*
+ * Invoice and receipt dialogs follow the New Reservation modal proportions:
+ * full-screen on small screens, centered and capped at the same desktop
+ * width/height on larger screens. Existing preview, print and action regions
+ * remain independently scrollable inside the dialog.
+ */
+@media (min-width: 640px) {
+  [data-dialog-content].receipt-dialog-fullscreen,
+  [data-dialog-content].receipt-reference-dialog {
+    position: fixed !important;
+    inset: auto !important;
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 50% !important;
+    width: calc(100vw - 2rem) !important;
+    max-width: 48rem !important;
+    height: min(90dvh, 52rem) !important;
+    max-height: min(90dvh, 52rem) !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / .1), 0 8px 10px -6px rgb(0 0 0 / .1) !important;
+    transform: translate(-50%, -50%) !important;
+    animation: none !important;
+  }
+
+  [data-dialog-content].receipt-dialog-fullscreen > div:first-child.h-1 {
+    display: none !important;
+  }
+}
