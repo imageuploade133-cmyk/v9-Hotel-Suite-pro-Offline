@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '../ui/separator';
 import type { Payment, UserProfile } from '@/lib/types';
 import { format } from 'date-fns';
-import { Printer, X, Download, User } from 'lucide-react';
+import { Printer, X, Download, User, Copy } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
@@ -256,17 +256,17 @@ export function ReprintReceiptDialog({ isOpen, onClose, payment, allUsers }: Rep
         </Tabs>
 
         <DialogFooter className="sm:justify-between flex-row pt-4">
-          <Button variant="ghost" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button>
+          <Button variant="outline" className="modal-footer-close" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button>
           <div className="flex items-center gap-2">
             <div className="relative w-24">
-              <Label htmlFor="print-copies" className="absolute -top-5 text-xs">Copies</Label>
+              <Label htmlFor="print-copies" className="absolute -top-5 left-0 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"><Copy className="h-3 w-3" /> Copies</Label>
               <Input
                 id="print-copies"
                 type="number"
                 min="1"
                 value={printCopies}
                 onChange={(e) => setPrintCopies(Number(e.target.value))}
-                className="h-9"
+                className="h-9 border border-input bg-background shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
             <Button onClick={() => handlePrint(printCopies)} disabled={printCopies < 1 || !isDataReady}>
