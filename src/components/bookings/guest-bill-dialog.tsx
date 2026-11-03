@@ -489,7 +489,7 @@ export function GuestBillDialog({
     <>
       <style>{printStyles}</style>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="w-full max-w-4xl h-full max-h-full flex flex-col sm:max-h-[90vh] sm:h-auto p-0 printable-area">
+        <DialogContent className="receipt-dialog-fullscreen w-full h-full flex flex-col p-0 printable-area">
           {itemToReturn ? renderReturnUI() : (
             isLoading ? (
                 <div className="flex-1 p-6 space-y-4 overflow-hidden">
