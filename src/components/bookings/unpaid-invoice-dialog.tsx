@@ -215,7 +215,7 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
           <div className="receipt-footer-actions">
             <div className="relative w-20 sm:w-24">
             <div className="relative w-24">
-                <Label htmlFor="print-copies" className="absolute -top-5 text-xs">Copies</Label>
+                <Label htmlFor="print-copies" className="mb-1 block text-xs">Copies</Label>
                 <Input
                     id="print-copies"
                     type="number"
