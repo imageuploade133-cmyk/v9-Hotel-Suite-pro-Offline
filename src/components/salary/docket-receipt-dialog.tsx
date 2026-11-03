@@ -68,7 +68,7 @@ export function DocketReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle>Deduction/Advance Receipt</DialogTitle>
           <DialogDescription>
