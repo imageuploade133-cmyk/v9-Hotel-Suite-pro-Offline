@@ -315,10 +315,10 @@ export function ViewStaffSalaryDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="flex h-[min(90dvh,900px)] max-h-[90dvh] min-h-0 flex-col overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-primary" />
+      <DialogContent className="flex h-dvh max-h-dvh min-h-0 w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 pb-[env(safe-area-inset-bottom)] sm:h-[min(94dvh,64rem)] sm:max-h-[94dvh] sm:w-[calc(100%-2rem)] sm:max-w-4xl sm:rounded-xl sm:border sm:pb-0">
+        <DialogHeader className="shrink-0 px-4 pt-5 pb-3 text-left sm:px-6 sm:pt-6 sm:pb-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Wallet className="h-5 w-5 shrink-0 text-primary sm:h-6 sm:w-6" />
             Staff Salary Details
           </DialogTitle>
           <DialogDescription>
@@ -327,21 +327,21 @@ export function ViewStaffSalaryDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-6 sm:px-6">
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
         ) : salaryDetails ? (
           <>
-            <div className="shrink-0 px-6 pb-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg border bg-card">
-                <Avatar className="h-16 w-16">
+            <div className="shrink-0 px-4 pb-3 sm:px-6 sm:pb-4">
+              <div className="flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3 sm:gap-4 sm:p-4">
+                <Avatar className="h-12 w-12 shrink-0 sm:h-16 sm:w-16">
                   <AvatarImage src={staff.photoURL} alt={staff.name} />
                   <AvatarFallback className="text-lg">{getInitials(staff.name)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold">{staff.name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-base font-semibold sm:text-xl">{staff.name}</h3>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:text-sm">
                     <Briefcase className="h-4 w-4" />
                     <span>{staff.role}</span>
                     {staff.shift && (
@@ -352,7 +352,7 @@ export function ViewStaffSalaryDialog({
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1 text-sm">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
                     <Calendar className="h-4 w-4 text-primary" />
                     <span className="text-muted-foreground">Employed for:</span>
                     <span className="font-medium text-primary">{salaryDetails.employmentDuration.text}</span>
@@ -360,7 +360,7 @@ export function ViewStaffSalaryDialog({
                 </div>
                 <Badge
                   variant={salaryDetails.isPaid ? 'success' : 'secondary'}
-                  className="text-sm px-3 py-1"
+                  className="shrink-0 px-2 py-0.5 text-xs sm:px-3 sm:py-1 sm:text-sm"
                 >
                   {salaryDetails.isPaid ? 'Paid' : 'Pending'}
                 </Badge>
@@ -368,23 +368,23 @@ export function ViewStaffSalaryDialog({
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <TabsList className="grid w-full shrink-0 grid-cols-3 px-6">
-                <TabsTrigger value="overview">
-                  <Wallet className="h-4 w-4 mr-2" />
+              <TabsList className="grid w-full shrink-0 grid-cols-3 px-3 sm:px-6">
+                <TabsTrigger value="overview" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
+                  <Wallet className="mr-1 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
                   Overview
                 </TabsTrigger>
-                <TabsTrigger value="dockets">
-                  <FileMinus className="h-4 w-4 mr-2" />
+                <TabsTrigger value="dockets" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
+                  <FileMinus className="mr-1 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
                   Dockets ({dockets.length})
                 </TabsTrigger>
-                <TabsTrigger value="rewards">
-                  <FilePlus className="h-4 w-4 mr-2" />
+                <TabsTrigger value="rewards" className="min-w-0 px-1.5 text-xs sm:px-4 sm:text-sm">
+                  <FilePlus className="mr-1 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
                   Rewards ({rewards.length})
                 </TabsTrigger>
               </TabsList>
 
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="px-6 pb-6 pt-4">
+              <ScrollArea className="min-h-0 min-w-0 flex-1">
+                <div className="px-4 pb-6 pt-3 sm:px-6 sm:pt-4">
                   <TabsContent value="overview" className="mt-0 space-y-4">
                     <Card>
                       <CardHeader className="pb-3">
@@ -595,14 +595,14 @@ export function ViewStaffSalaryDialog({
               </ScrollArea>
             </Tabs>
 
-            <div className="shrink-0 px-6 pb-6 pt-2">
-              <Button variant="outline" onClick={onClose} className="w-full">
+            <div className="shrink-0 border-t bg-background/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:border-0 sm:px-6 sm:pb-6 sm:pt-2">
+              <Button variant="outline" onClick={onClose} className="h-11 w-full">
                 Close
               </Button>
             </div>
           </>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
             <EmptyState
               icon={AlertCircle}
               title={indexUrl ? "Database Index Required" : "Unable to Load Details"}
