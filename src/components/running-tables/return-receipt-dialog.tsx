@@ -125,7 +125,7 @@ export function ReturnReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!isPrintingRef.current) onClose(); }}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Undo2 className="h-5 w-5 text-orange-500" />
