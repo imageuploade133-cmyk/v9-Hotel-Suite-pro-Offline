@@ -11,14 +11,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Separator } from '../ui/separator';
 import type { Booking } from '@/lib/types';
 import { format } from 'date-fns';
 import { Printer, X } from 'lucide-react';
 import { Logo } from '../logo';
 import { useSettings } from '@/contexts/settings-context';
 import { getSafeDate } from '@/lib/helpers';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import Image from 'next/image';
 import { Label } from '../ui/label';
@@ -44,61 +42,88 @@ const InvoiceContent = ({
   formatCurrency: (amount: number) => string;
   logoSize: number;
 }) => (
-    <>
-      <header className="flex justify-between items-start mb-8">
-        <div>
+  <section
+    data-invoice-paper
+    className="w-full max-w-7xl relative border border-gray-200 rounded-2xl p-6 sm:p-8 md:p-10 shadow-sm bg-white"
+  >
+    <div className="flex justify-between items-start gap-6">
+      <div className="w-16 h-16 shrink-0 bg-neutral-950 rounded-sm flex items-center justify-center p-1.5 border border-neutral-700 shadow-inner">
+        <div className="w-full h-full border border-amber-400/80 rounded-full flex items-center justify-center p-1">
           {settings?.businessLogoUrl ? (
-            <img src={settings.businessLogoUrl} alt={settings.businessName || 'logo'} style={{ height: `${logoSize}px` }} />
+            <img
+              src={settings.businessLogoUrl}
+              alt={settings.businessName || 'Business logo'}
+              style={{ width: Math.min(logoSize, 48), height: Math.min(logoSize, 48), objectFit: 'contain' }}
+            />
           ) : (
-            <Logo className="h-10 w-10 text-slate-800" />
+            <Logo className="h-8 w-8 text-amber-400" />
           )}
         </div>
-        <div className="text-right">
-          <h1 className="font-bold text-xl text-slate-800">{settings?.businessName || 'Hotel Suite Pro'}</h1>
-          <p className="text-slate-500 text-xs">{settings?.businessAddress}</p>
-          <p className="text-slate-500 text-xs">{settings?.businessPhone}</p>
-        </div>
-      </header>
-      <Separator className="my-4" />
-      <div className="flex justify-between items-center mb-8">
-        <div className="text-left">
-          <h2 className="font-bold text-2xl uppercase text-slate-800">Reservation Invoice</h2>
-          <p className="text-slate-500">Booking ID: {booking.id}</p>
-          <p className="text-slate-500">Date: {format(new Date(), 'PP')}</p>
-        </div>
-        <div className="text-right">
-          <h3 className="font-semibold text-slate-600 mb-1">Bill To:</h3>
-          <p className="font-bold text-slate-800">{booking.guestName}</p>
-          <p className="text-slate-600">{booking.guestEmail}</p>
-        </div>
       </div>
-      <table className="w-full text-left">
-        <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
-          <tr>
-            <th className="p-3">Description</th>
-            <th className="p-3 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-slate-100">
-            <td className="p-3">Room Charge: {booking.roomNumber}</td>
-            <td className="p-3 text-right">{formatCurrency(booking.totalAmount || 0)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div className="flex justify-end mt-8">
-        <div className="w-full max-w-xs space-y-3 text-slate-700">
-          <div className="flex justify-between font-bold text-lg text-red-600 border-t-2 border-dashed border-red-300 pt-3">
+      <div className="min-w-0 text-right">
+        <h2 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">
+          {settings?.businessName || 'Hotel Suite Pro'}
+        </h2>
+        {settings?.businessRegistrationNumber && (
+          <p className="text-xs text-gray-500 mt-1">{settings.businessRegistrationNumber}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-medium">
+          {settings?.businessAddress || ''}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5 font-medium">{settings?.businessPhone || ''}</p>
+      </div>
+    </div>
+
+    <div className="mt-8 flex flex-col sm:flex-row justify-between items-start gap-6">
+      <div>
+        <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900 uppercase">
+          Reservation Invoice
+        </h3>
+        <p className="text-sm text-gray-500 mt-2">
+          Booking ID: <span className="font-medium text-gray-700 break-all">{booking.id}</span>
+        </p>
+        <p className="text-sm text-gray-500 mt-1">
+          Date: <span className="font-medium text-gray-700">{format(new Date(), 'PP')}</span>
+        </p>
+      </div>
+      <div className="text-left sm:text-right sm:pr-6">
+        <span className="text-xs font-bold text-gray-800 uppercase block tracking-wider">Bill To:</span>
+        <span className="text-base font-bold text-gray-900 block mt-0.5">{booking.guestName}</span>
+        {booking.guestEmail && (
+          <span className="text-sm text-gray-600 block mt-0.5 break-all">{booking.guestEmail}</span>
+        )}
+        {booking.guestPhoneNumber && (
+          <span className="text-sm text-gray-600 block mt-0.5">{booking.guestPhoneNumber}</span>
+        )}
+      </div>
+    </div>
+
+    <div className="mt-8">
+      <div className="bg-slate-100/90 py-2.5 px-4 rounded-sm flex justify-between items-center text-xs font-bold tracking-wider text-slate-700 uppercase">
+        <span>Description</span>
+        <span>Amount</span>
+      </div>
+      <div className="py-4 px-4 flex justify-between items-center gap-4 text-sm font-medium text-gray-800 border-b border-gray-100">
+        <span>Room Charge: {booking.roomNumber}</span>
+        <span className="font-semibold whitespace-nowrap">{formatCurrency(totalCharges)}</span>
+      </div>
+      <div className="mt-14 flex justify-end">
+        <div className="w-full max-w-xs pt-3 border-t border-dashed border-red-300">
+          <div className="flex justify-between items-center gap-4 text-red-600 font-bold text-base sm:text-lg">
             <span>Amount Due</span>
-            <span>{formatCurrency(totalCharges)}</span>
+            <span className="whitespace-nowrap">{formatCurrency(totalCharges)}</span>
           </div>
         </div>
       </div>
-      <div className="mt-12 text-center text-xs text-slate-500">
-        <p>{settings?.unpaidInvoiceFooterLine1 || 'Thank you for choosing us! Payment is due upon check-in.'}</p>
-        <p>{settings?.unpaidInvoiceFooterLine2 || 'This is a computer-generated document.'}</p>
+    </div>
+
+    {(settings?.unpaidInvoiceFooterLine1 || settings?.unpaidInvoiceFooterLine2) && (
+      <div className="mt-10 text-center text-xs text-gray-500">
+        {settings?.unpaidInvoiceFooterLine1 && <p>{settings.unpaidInvoiceFooterLine1}</p>}
+        {settings?.unpaidInvoiceFooterLine2 && <p>{settings.unpaidInvoiceFooterLine2}</p>}
       </div>
-    </>
+    )}
+  </section>
 );
 
 export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturned }: UnpaidInvoiceDialogProps) {
@@ -148,41 +173,59 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl receipt-dialog-fullscreen">
-        <DialogHeader className="receipt-dialog-header">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pr-8">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle className="text-base font-semibold sm:text-lg">Unpaid Reservation Invoice</DialogTitle>
-                <span className="receipt-status-badge" role="status">Pending</span>
-              </div>
-              <DialogDescription className="mt-1">
-                Booking #{booking.id} · Payment is due upon check-in
-              </DialogDescription>
-            </div>
-            <div className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block">
-              <span className="block font-medium text-foreground">{booking.guestName}</span>
-              <span>Invoice date: {format(new Date(), 'PP')}</span>
-            </div>
+      <DialogContent className="receipt-dialog-fullscreen receipt-reference-dialog">
+        <DialogHeader className="receipt-reference-header">
+          <div className="min-w-0">
+            <DialogTitle className="text-xl font-bold tracking-tight text-gray-900">
+              Unpaid Reservation Invoice
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-sm text-gray-500">
+              This is an invoice for an unpaid reservation. Payment is due upon check-in.
+            </DialogDescription>
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="receipt-dialog-tabs">
-          <TabsList className="receipt-dialog-tab-list grid w-full grid-cols-2">
-            <TabsTrigger value="invoice">Professional Invoice</TabsTrigger>
-            <TabsTrigger value="terminal">Terminal Receipt</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="receipt-reference-tabs">
+          <TabsList className="receipt-reference-tab-list">
+            <TabsTrigger value="invoice" className="receipt-reference-tab">
+              Professional Invoice
+            </TabsTrigger>
+            <TabsTrigger value="terminal" className="receipt-reference-tab">
+              Terminal Receipt
+            </TabsTrigger>
           </TabsList>
-          <div className="receipt-dialog-preview">
-            <TabsContent value="invoice">
-               <div ref={invoiceRef} className="receipt-invoice-paper p-5 text-sm text-black sm:p-8">
-                <InvoiceContent booking={booking} totalCharges={totalCharges} settings={settings} formatCurrency={formatCurrency} logoSize={logoSize} />
+
+          <div className="receipt-reference-main">
+            <TabsContent value="invoice" className="receipt-reference-tab-panel">
+              <div ref={invoiceRef} className="w-full flex justify-center">
+                <InvoiceContent
+                  booking={booking}
+                  totalCharges={totalCharges}
+                  settings={settings}
+                  formatCurrency={formatCurrency}
+                  logoSize={logoSize}
+                />
               </div>
             </TabsContent>
-             <TabsContent value="terminal">
-              <div ref={terminalRef} className="p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+
+            <TabsContent value="terminal" className="receipt-reference-tab-panel">
+              <div
+                ref={terminalRef}
+                className="w-full max-w-sm mx-auto rounded-xl border border-gray-200 bg-white p-5 text-black text-sm shadow-sm"
+              >
                 <div className="text-center space-y-1 mb-4">
-                  {settings?.businessLogoUrl && <Image src={settings.businessLogoUrl} alt={settings.businessName || 'logo'} width={logoSize} height={logoSize} className="object-contain mx-auto" />}
+                  {settings?.businessLogoUrl && (
+                    <Image
+                      src={settings.businessLogoUrl}
+                      alt={settings.businessName || 'logo'}
+                      width={logoSize}
+                      height={logoSize}
+                      className="object-contain mx-auto"
+                    />
+                  )}
                   <h1 className="font-bold text-lg">{settings?.businessName || 'Hotel Suite Pro'}</h1>
+                  {settings?.businessAddress && <p className="text-xs">{settings.businessAddress}</p>}
+                  {settings?.businessPhone && <p className="text-xs">{settings.businessPhone}</p>}
                 </div>
                 <div className="text-center text-xs mb-4">
                   <p>Date: {format(new Date(), 'MM/dd/yyyy HH:mm:ss')}</p>
@@ -190,13 +233,13 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
                 </div>
                 <p className="font-bold uppercase text-center mb-2">Unpaid Reservation</p>
                 <div className="space-y-1 border-t border-dashed border-black pt-2">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-3">
                     <span>Room Charge: {booking.roomNumber}</span>
                     <span>{formatCurrency(totalCharges)}</span>
                   </div>
                 </div>
-                <div className="flex justify-between font-bold text-base border-t border-dashed border-black pt-2 mt-2">
-                  <span>TOTAL DUE:</span>
+                <div className="flex justify-between gap-3 font-bold text-base border-t border-dashed border-black pt-2 mt-2">
+                  <span>Total Due:</span>
                   <span>{formatCurrency(totalCharges)}</span>
                 </div>
                 <div className="text-center font-bold my-4 text-red-600">
@@ -207,28 +250,30 @@ export function UnpaidInvoiceDialog({ isOpen, onClose, booking, onBillItemReturn
           </div>
         </Tabs>
 
-        <DialogFooter className="receipt-dialog-footer">
-          <div className="receipt-footer-status">
-            <span className="receipt-status-badge" role="status">Pending</span>
-            <span className="text-xs text-muted-foreground">Payment due upon check-in</span>
-          </div>
-          <div className="receipt-footer-actions">
-            <div className="relative w-20 sm:w-24">
-              <Label htmlFor="print-copies" className="mb-1 block text-xs">Copies</Label>
-                <Input
-                    id="print-copies"
-                    type="number"
-                    min="1"
-                    value={printCopies}
-                    onChange={(e) => setPrintCopies(Number(e.target.value))}
-                    className="h-9"
-                />
+        <DialogFooter className="receipt-reference-footer">
+          <Button variant="ghost" onClick={onClose} className="receipt-reference-close">
+            <X className="mr-2 h-4 w-4" /> Close
+          </Button>
+          <div className="receipt-reference-actions">
+            <div className="flex flex-col items-start">
+              <Label htmlFor="print-copies" className="mb-1 text-[11px] font-medium leading-none text-gray-500">
+                Copies
+              </Label>
+              <Input
+                id="print-copies"
+                type="number"
+                min="1"
+                value={printCopies}
+                onChange={(e) => setPrintCopies(Math.max(1, Number(e.target.value) || 1))}
+                className="h-10 w-20 rounded-md border-0 bg-slate-100 px-3 text-sm font-medium text-gray-800 focus-visible:ring-2 focus-visible:ring-blue-500"
+              />
             </div>
-            <Button variant="outline" onClick={onClose} className="receipt-footer-close">
-              <X className="mr-2 h-4 w-4" /> Close
-            </Button>
-            <Button onClick={() => handlePrint(printCopies)} disabled={printCopies < 1} className="receipt-footer-print">
-                <Printer className="mr-2 h-4 w-4" /> Print
+            <Button
+              onClick={() => handlePrint(printCopies)}
+              disabled={printCopies < 1}
+              className="receipt-reference-print mt-3.5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            >
+              <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
           </div>
         </DialogFooter>
