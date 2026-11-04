@@ -24,7 +24,7 @@ export function RecentTransactionsDialog({ isOpen, onOpenChange }: RecentTransac
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col min-h-0 sm:max-w-6xl sm:h-[88vh] sm:max-h-[56rem] p-4 sm:p-6 overflow-hidden">
+      <DialogContent className="flex flex-col min-h-0 sm:w-[96vw] sm:max-w-7xl 2xl:max-w-[90rem] sm:h-[94vh] sm:max-h-[96dvh] p-4 sm:p-6 overflow-hidden">
         <DialogHeader className="shrink-0 pb-2">
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5 text-primary" />
