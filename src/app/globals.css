@@ -688,3 +688,31 @@
     display: none !important;
   }
 }
+
+
+/* POS Item Draft Docket: larger desktop canvas with even outer and inner spacing.
+   Mobile intentionally keeps the existing full-screen layout unchanged. */
+@media (min-width: 1024px) {
+  [data-dialog-content].pos-draft-docket-dialog {
+    width: calc(100vw - 3rem) !important;
+    max-width: 72rem !important;
+    height: calc(100dvh - 2.5rem) !important;
+    max-height: calc(100dvh - 2.5rem) !important;
+  }
+
+  [data-dialog-content].pos-draft-docket-dialog > .receipt-reference-header {
+    padding: 1.25rem 1.75rem !important;
+  }
+
+  [data-dialog-content].pos-draft-docket-dialog .receipt-reference-tab-list {
+    padding-inline: 1.5rem !important;
+  }
+
+  [data-dialog-content].pos-draft-docket-dialog .receipt-reference-main {
+    padding: 1.25rem 1.5rem !important;
+  }
+
+  [data-dialog-content].pos-draft-docket-dialog .receipt-reference-footer {
+    padding: 1rem 1.75rem max(1rem, env(safe-area-inset-bottom)) !important;
+  }
+}

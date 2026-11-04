@@ -333,7 +333,7 @@ export function DraftDocketReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="receipt-dialog-fullscreen receipt-reference-dialog">
+      <DialogContent className="receipt-dialog-fullscreen receipt-reference-dialog pos-draft-docket-dialog">
         <DialogHeader className="receipt-reference-header">
           <DialogTitle className="flex items-center gap-2">
             {dialogTitle}
