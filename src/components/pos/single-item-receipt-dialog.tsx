@@ -74,8 +74,9 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
 
   const currency = settings?.currency || 'USD';
 
-  // Get effective POS settings based on current context (Global vs Branch)
-  const effectivePosSettings = getEffectivePosSettings();
+  // Get effective POS settings based on current context (Global vs Branch vs Hotel POS)
+  const isHotelContext = !!(sale?.roomNumber || (sale as any)?.context === 'hotel');
+  const effectivePosSettings = getEffectivePosSettings(isHotelContext ? 'hotel' : 'pos');
 
   // Use branch-specific information if available, otherwise fall back to global settings
   const branchLogoUrl = currentBranch?.logoUrl;
