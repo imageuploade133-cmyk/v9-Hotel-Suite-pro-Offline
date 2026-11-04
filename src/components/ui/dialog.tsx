@@ -59,28 +59,9 @@ const DialogContent = React.forwardRef<
     );
 
     // Responsive sm:* dialog utilities normally center and constrain desktop dialogs.
-    // Receipt dialogs must instead stay anchored to the browser viewport at every zoom.
-    const receiptViewportStyle: React.CSSProperties | undefined = isReceiptFullscreen
-      ? {
-          position: "fixed",
-          inset: 0,
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          width: "100vw",
-          height: "100dvh",
-          minWidth: 0,
-          minHeight: 0,
-          maxWidth: "none",
-          maxHeight: "none",
-          margin: 0,
-          boxSizing: "border-box",
-          transform: "none",
-          translate: "none",
-          animation: "none",
-        }
-      : undefined;
+    // On mobile, receipt dialogs follow the same inset: 0 stretch as standard dialogs
+    // (e.g. New Reservation modal) so they stay true 100% full screen even when zoomed out.
+    const receiptViewportStyle: React.CSSProperties | undefined = undefined;
 
     return (
       <DialogPortal>
