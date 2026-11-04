@@ -673,10 +673,10 @@
     right: auto !important;
     bottom: auto !important;
     left: 50% !important;
-    width: calc(100vw - 2rem) !important;
-    max-width: 48rem !important;
-    height: min(90dvh, 52rem) !important;
-    max-height: min(90dvh, 52rem) !important;
+    width: min(calc(100vw - 2rem), 62rem) !important;
+    max-width: min(calc(100vw - 2rem), 62rem) !important;
+    height: min(92dvh, calc(100vh - 2rem), 56rem) !important;
+    max-height: min(92dvh, calc(100vh - 2rem), 56rem) !important;
     min-width: 0 !important;
     min-height: 0 !important;
     margin: 0 !important;
@@ -685,10 +685,21 @@
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / .1), 0 8px 10px -6px rgb(0 0 0 / .1) !important;
     transform: translate(-50%, -50%) !important;
     animation: none !important;
+    overscroll-behavior: contain !important;
   }
 
   [data-dialog-content].receipt-dialog-fullscreen > div:first-child.h-1 {
     display: none !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-dialog-content].receipt-dialog-fullscreen,
+  [data-dialog-content].receipt-reference-dialog {
+    width: min(calc(100vw - 3rem), 68rem) !important;
+    max-width: min(calc(100vw - 3rem), 68rem) !important;
+    height: min(94dvh, calc(100vh - 2.5rem), 60rem) !important;
+    max-height: min(94dvh, calc(100vh - 2.5rem), 60rem) !important;
   }
 }
 
