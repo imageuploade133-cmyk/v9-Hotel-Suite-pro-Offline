@@ -108,7 +108,7 @@ export const getStockCategoryColumns = ({
   },
 ];
 
-export const renderSubComponent = ({ row }: { row: any }) => {
+const CategorySubRow = ({ row }: { row: any }) => {
     const { settings } = useSettings();
     const currency = settings?.currency || 'USD';
     const globalStockImageUrl = settings?.globalStockImageUrl;
@@ -144,3 +144,5 @@ export const renderSubComponent = ({ row }: { row: any }) => {
         </div>
     );
 };
+
+export const renderSubComponent = ({ row }: { row: any }) => <CategorySubRow row={row} />;

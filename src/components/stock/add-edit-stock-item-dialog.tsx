@@ -398,6 +398,35 @@ export function AddEditStockItemDialog({
             });
             await batch.commit();
             toast({ variant: 'success', title: 'Item Added to Stock', description: `${data.name} has been added.` });
+
+            // Sync to Master PC for immediate offline multi-user visibility
+            try {
+              fetch('/api/lan-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  collectionName: 'stock',
+                  docId: newItemRef.id,
+                  action: 'set',
+                  data: { ...newItemData, id: newItemRef.id },
+                }),
+              }).catch(() => {});
+            } catch {}
+        }
+
+        if (isEditMode && item) {
+          try {
+            fetch('/api/lan-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                collectionName: 'stock',
+                docId: item.id,
+                action: 'update',
+                data: { ...itemData, id: item.id },
+              }),
+            }).catch(() => {});
+          } catch {}
         }
 
         onSuccess();

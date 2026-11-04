@@ -163,7 +163,48 @@ export function useCollection<T>(
       }
     });
 
-    // Set up real-time subscription
+    // Subscribe to Master Server Server-Sent Events (SSE) for instant cross-device Wi-Fi updates
+    let unsubscribeSse: (() => void) | null = null;
+    try {
+      const { lanSseClient } = require('@/lib/lan-sync/sse-client');
+      const targetCol = pathStr.split('/').pop() || pathStr;
+
+      unsubscribeSse = lanSseClient.subscribe((event: any) => {
+        if (!mountedRef.current || !event.collectionName) return;
+        const eventCol = event.collectionName.split('/').pop() || event.collectionName;
+
+        if (eventCol === targetCol || eventCol === pathStr) {
+          setData((prev) => {
+            const currentList = prev ? [...prev] : [];
+            const docId = event.docId;
+
+            if (event.action === 'delete') {
+              const filtered = currentList.filter((item: any) => item.id !== docId);
+              onDataRef.current?.(filtered);
+              return filtered;
+            }
+
+            const itemIndex = currentList.findIndex((item: any) => item.id === docId);
+            const newItem = { id: docId, ...(event.data || {}) } as T;
+
+            let updatedList: T[];
+            if (itemIndex >= 0) {
+              updatedList = [...currentList];
+              updatedList[itemIndex] = { ...currentList[itemIndex], ...newItem };
+            } else {
+              updatedList = [newItem, ...currentList];
+            }
+
+            onDataRef.current?.(updatedList);
+            return updatedList;
+          });
+        }
+      });
+    } catch (e) {
+      // SSE subscription is optional
+    }
+
+    // Set up real-time subscription with Firebase (when internet/cloud is available)
     const unsubscribe = onSnapshot(memoizedQuery,
       (snapshot) => {
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
@@ -185,7 +226,10 @@ export function useCollection<T>(
       }
     );
 
-    unsubscribeRef.current = unsubscribe;
+    unsubscribeRef.current = () => {
+      unsubscribe();
+      if (unsubscribeSse) unsubscribeSse();
+    };
 
     return () => {
       if (unsubscribeRef.current) {
@@ -300,6 +344,28 @@ export function useDoc<T>(docRef: DocumentReference | null, options?: UseDocOpti
       return;
     }
 
+    // Subscribe to Master Server Server-Sent Events (SSE) for instant single document updates
+    let unsubscribeSse: (() => void) | null = null;
+    try {
+      const { lanSseClient } = require('@/lib/lan-sync/sse-client');
+      const docPath = memoizedDocRef.path;
+      const targetDocId = memoizedDocRef.id;
+
+      unsubscribeSse = lanSseClient.subscribe((event: any) => {
+        if (!mountedRef.current) return;
+        if (event.docId === targetDocId) {
+          if (event.action === 'delete') {
+            setData(null);
+            onDataRef.current?.(null);
+          } else if (event.data) {
+            const updated = { id: targetDocId, ...event.data } as T;
+            setData(updated);
+            onDataRef.current?.(updated);
+          }
+        }
+      });
+    } catch (e) {}
+
     // Set up real-time subscription
     const unsubscribe = onSnapshot(memoizedDocRef,
       (doc) => {
@@ -326,7 +392,10 @@ export function useDoc<T>(docRef: DocumentReference | null, options?: UseDocOpti
       }
     );
 
-    unsubscribeRef.current = unsubscribe;
+    unsubscribeRef.current = () => {
+      unsubscribe();
+      if (unsubscribeSse) unsubscribeSse();
+    };
 
     return () => {
       if (unsubscribeRef.current) {

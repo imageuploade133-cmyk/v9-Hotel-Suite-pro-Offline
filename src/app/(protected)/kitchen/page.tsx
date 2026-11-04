@@ -73,6 +73,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { pushLanMutation } from '@/lib/lan-sync/sync-helper';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -343,6 +344,13 @@ function KitchenPanelPage() {
 
     try {
       await batch.commit();
+
+      pushLanMutation('orders', order.id, 'update', {
+        status: newStatus,
+        completedAt: newStatus === 'Completed' ? new Date().toISOString() : undefined,
+        preparingAt: newStatus === 'Preparing' ? new Date().toISOString() : undefined,
+      });
+
       toast({
         variant: 'success',
         title: `Order ${newStatus}`,

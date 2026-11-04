@@ -94,7 +94,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const performOfflineAuth = async () => {
       console.warn('[Offline Auth] Network offline or cloud unreachable. Verifying credentials against local Master PC store...');
 
-      // 1. Fetch staff/user accounts from Local Master Server or local cache
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // 1. First attempt centralized Master Server offline login endpoint
+      try {
+        const offRes = await fetch('/api/auth/offline-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedEmail, password: pass }),
+        });
+        if (offRes.ok) {
+          const offData = await offRes.json();
+          if (offData.success && offData.user) {
+            const u = offData.user;
+            const offlineUser = {
+              uid: u.uid || `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              email: u.email || email,
+              displayName: u.name || email.split('@')[0],
+              photoURL: u.photoURL || null,
+              emailVerified: true,
+            } as User;
+
+            setUser(offlineUser);
+            return { user: offlineUser };
+          }
+        }
+      } catch (err) {
+        console.warn('[Offline Auth] Master PC offline auth endpoint not reached, falling back to local cache:', err);
+      }
+
+      // 2. Fallback: Fetch staff/user accounts from Local Master Server or local cache
       let usersList: any[] = [];
       try {
         const res = isLocalMasterHost() ? await fetch('/api/lan-sync?collection=users') : null;
@@ -117,7 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // 2. Find user matching email
-      const normalizedEmail = email.trim().toLowerCase();
       const matchedUser = usersList.find(
         (u) => u && (u.email?.toLowerCase() === normalizedEmail || u.id === normalizedEmail)
       );
@@ -235,6 +263,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             lastAuthenticated: Date.now(),
           };
           localStorage.setItem('app_auth_credentials_cache', JSON.stringify(authCache));
+
+          // Also register with Master PC so other devices on local Wi-Fi can log in offline
+          fetch('/api/auth/offline-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'cache_user',
+              user: {
+                uid: u.uid,
+                email: u.email || email,
+                name: u.displayName || (email ? email.split('@')[0] : 'Staff'),
+                photoURL: u.photoURL || null,
+              },
+              password: pass,
+            }),
+          }).catch(() => {});
         } catch {}
       }
 

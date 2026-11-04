@@ -22,6 +22,7 @@ import { differenceInDays, isWithinInterval, startOfDay, endOfDay, isSameDay } f
 import { getSafeDate, uploadImage } from '@/lib/helpers';
 import { useRouter } from 'next/navigation';
 import { Form } from '@/components/ui/form';
+import { pushLanMutation } from '@/lib/lan-sync/sync-helper';
 
 const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
 
@@ -120,6 +121,13 @@ function CreateBookingPage() {
             };
 
             await setDoc(newBookingRef, newBookingData);
+
+            pushLanMutation('bookings', newBookingId, 'set', {
+                ...newBookingData,
+                createdAt: new Date().toISOString(),
+                checkInDate: data.checkInDate.toISOString(),
+                checkOutDate: data.checkOutDate.toISOString(),
+            });
 
             handleBookingSuccess();
 

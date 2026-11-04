@@ -509,6 +509,31 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               } catch {}
           }
 
+          // Deduct inventory items and broadcast over LAN SSE in real time
+          const physicalItems = allItems.filter(item => !item.isService);
+          for (const item of physicalItems) {
+            try {
+              if (firestore) {
+                const stockRef = doc(firestore, getCollectionPath('stock'), item.id);
+                updateDoc(stockRef, { quantity: increment(-item.sellQuantity) }).catch(() => {});
+              }
+            } catch {}
+          }
+
+          if (physicalItems.length > 0) {
+            try {
+              await fetch('/api/lan-sync/stock-deduct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  items: physicalItems.map(i => ({ itemId: i.id, quantity: i.sellQuantity })),
+                }),
+              });
+            } catch (deductErr) {
+              console.warn('[POS] LAN stock deduct error:', deductErr);
+            }
+          }
+
           return { ...saleData, soldAt: new Date() };
         };
 

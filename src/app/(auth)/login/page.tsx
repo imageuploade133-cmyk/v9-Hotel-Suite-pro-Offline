@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth } from '@/components/auth/auth-provider';
-import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2, MessageCircle } from 'lucide-react';
+import { Loader2, Eye, EyeOff, LogIn, Mail, KeyRound, Database, HelpCircle, MapPin, Star, Copy, Building2, MessageCircle, WifiOff } from 'lucide-react';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ForgotPasswordDialog } from '@/components/auth/forgot-password-dialog';
@@ -155,8 +155,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [loginMethod, setLoginMethod] = React.useState<'password' | 'email-otp' | 'whatsapp'>('password');
   const [isForgotPasswordOpen, setForgotPasswordOpen] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(true);
   const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
   const { settings } = useSettings();
+
+  React.useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
@@ -317,6 +330,13 @@ export default function LoginPage() {
               <h1 className="text-[27px] font-bold tracking-tight text-slate-900">Login</h1>
               <p className="mt-1 text-sm text-slate-500">Login to access your hotel management account.</p>
             </div>
+
+            {!isOnline && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <WifiOff className="h-4 w-4 shrink-0 text-amber-600" />
+                <span><strong>Offline Mode</strong>: Staff can log in with their cached credentials on this local Wi-Fi.</span>
+              </div>
+            )}
 
             <div className="mb-5 grid grid-cols-3 rounded-xl border border-slate-200 bg-slate-100/80 p-1" role="tablist" aria-label="Choose login method">
               {([

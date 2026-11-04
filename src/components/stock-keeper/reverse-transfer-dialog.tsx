@@ -309,7 +309,7 @@ export function ReverseTransferDialog({ isOpen, onClose, log, onSuccess }: Rever
                 />
             </div>
             <div>
-                <Label htmlFor="reverse-confirmation">Type 'REVERSE' to confirm</Label>
+                <Label htmlFor="reverse-confirmation">Type &apos;REVERSE&apos; to confirm</Label>
                 <Input
                     id="reverse-confirmation"
                     type="text"

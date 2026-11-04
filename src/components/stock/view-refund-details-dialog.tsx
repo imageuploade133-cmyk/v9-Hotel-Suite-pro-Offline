@@ -67,7 +67,7 @@ export function ViewRefundDetailsDialog({ isOpen, onClose, refund, currency, onV
                     </div>
                      <div>
                         <p className="text-muted-foreground">Reason</p>
-                        <p className="font-semibold italic">"{refund.reason || 'Not specified'}"</p>
+                        <p className="font-semibold italic">&quot;{refund.reason || 'Not specified'}&quot;</p>
                     </div>
                 </div>
                 <Separator />

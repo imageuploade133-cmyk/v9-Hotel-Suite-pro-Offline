@@ -1,0 +1,7 @@
+{
+  "name": "v9 Hotel Suite Pro",
+  "description": "Comprehensive hotel management system including reservations, front desk check-in, POS, inventory, salon, gym, laundry, guest billing, and accounting.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

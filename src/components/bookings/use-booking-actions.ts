@@ -33,6 +33,7 @@ import { useUser } from '@/contexts/user-context';
 import { getSafeDate } from '@/lib/helpers';
 import { useSettings } from '@/contexts/settings-context';
 import { useRouter } from 'next/navigation';
+import { pushLanMutation } from '@/lib/lan-sync/sync-helper';
 
 
 export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room[] | null, onSuccess?: () => void }) => {
@@ -202,6 +203,19 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     try {
       await batch.commit();
 
+      // Broadcast check-in and room occupancy update to all Wi-Fi terminals via SSE
+      pushLanMutation('bookings', booking.id, 'update', {
+        ...booking,
+        ...bookingUpdateData,
+        checkInDate: new Date().toISOString(),
+      });
+      pushLanMutation('rooms', booking.roomId, 'update', {
+        [`individualRoomStatus.${finalRoomNumber}`]: 'Occupied',
+      });
+      if (paymentRecordForReceipt) {
+        pushLanMutation('payments', paymentRecordForReceipt.id, 'set', paymentRecordForReceipt as any);
+      }
+
       const toastDescription = `${booking.guestName} has checked into Room ${finalRoomNumber}.`;
 
       toast({
@@ -285,6 +299,24 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
       await batch.commit();
+
+      pushLanMutation('bookings', booking.id, 'update', {
+        ...booking,
+        ...updateData,
+        actualCheckOutDate: actualCheckOutDate.toISOString(),
+      });
+      pushLanMutation('rooms', booking.roomId, 'update', {
+        [`individualRoomStatus.${booking.roomNumber}`]: 'Cleaning in Progress',
+      });
+      pushLanMutation('cleaning-queue', cleaningQueueRef.id, 'set', {
+        id: cleaningQueueRef.id,
+        roomId: booking.roomId,
+        roomNumber: booking.roomNumber,
+        lastGuestName: booking.guestName,
+        bookingId: booking.id,
+        checkedOutAt: actualCheckOutDate.toISOString(),
+      });
+
       toast({
         variant: 'success',
         title: 'Check-out Successful',
@@ -343,6 +375,18 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
       await batch.commit();
+
+      const newStatus = bookingToCancel.status === 'Reserved' || ['Active', 'Checked-in'].includes(bookingToCancel.status) ? 'Refunded' : 'Cancelled';
+      pushLanMutation('bookings', bookingToCancel.id, 'update', {
+        status: newStatus,
+        cancelledAt: new Date().toISOString(),
+      });
+      if (['Active', 'Checked-in'].includes(bookingToCancel.status) && bookingToCancel.roomNumber && bookingToCancel.roomNumber !== 'N/A') {
+        pushLanMutation('rooms', bookingToCancel.roomId, 'update', {
+          [`individualRoomStatus.${bookingToCancel.roomNumber}`]: 'Vacant',
+        });
+      }
+
       router.push('/reservations');
       onSuccess();
     } catch (error: any) {
@@ -363,11 +407,15 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     batch.set(billRef, { items: items.map(item => ({ ...item, billId: billRef.id })), total, bookingId: booking.id, createdAt: serverTimestamp(), createdBy: user.uid, createdByName: userProfile.name || 'Unknown', paid: false });
 
     const restaurantItems = items.filter(item => !item.isService && !item.id.startsWith('laundry-'));
+    let createdOrderRef: any = null;
+    let createdKitchenOrderData: any = null;
     if (restaurantItems.length > 0) {
         const orderRef = doc(collection(firestore, 'orders'));
         const orderNumber = Math.floor(1000000000 + Math.random() * 9000000000).toString();
         const kitchenOrderData: Partial<Order> = { orderNumber, bookingId: booking.id, guestName: booking.guestName, roomNumber: booking.roomNumber, phoneNumber: booking.guestPhoneNumber || 'N/A', items: restaurantItems, totalPrice: restaurantItems.reduce((sum, item) => sum + (item.price * item.quantity), 0), status: 'Pending', source: 'staff', createdAt: serverTimestamp() };
         batch.set(orderRef, kitchenOrderData);
+        createdOrderRef = orderRef;
+        createdKitchenOrderData = kitchenOrderData;
     }
 
     // Add logic to also create a HeldSale
@@ -396,6 +444,20 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
         await batch.commit();
+
+        pushLanMutation('heldSales', holdSaleRef.id, 'set', {
+          ...holdSaleData,
+          heldAt: new Date().toISOString(),
+        } as any);
+
+        if (createdOrderRef && createdKitchenOrderData) {
+          pushLanMutation('orders', createdOrderRef.id, 'set', {
+            ...createdKitchenOrderData,
+            id: createdOrderRef.id,
+            createdAt: new Date().toISOString(),
+          } as any);
+        }
+
         toast({ variant: 'success', title: 'Bill Updated', description: `Successfully added charge to the bill for Room ${booking.roomNumber}. ${restaurantItems.length > 0 ? 'Order sent to kitchen.' : ''} An on-hold sale has been created for tracking.` });
         setActionState(prev => ({...prev, bookingToAddBill: null}));
         onSuccess();
@@ -438,6 +500,9 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
       await batch.commit();
+
+      pushLanMutation('payments', paymentRef.id, 'set', paymentData as any);
+
       toast({ variant: 'success', title: 'Payment Successful', description: `Successfully processed payment of ${formatCurrency(amountToPay)}.` });
       onSuccess();
     } catch (error) {
@@ -454,6 +519,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     const bookingRef = doc(firestore, 'bookings', booking.id);
     try {
         await updateDoc(bookingRef, { collectPayment: collect });
+        pushLanMutation('bookings', booking.id, 'update', { collectPayment: collect });
         toast({ variant: 'success', title: 'Updated', description: `Payment collection for ${booking.guestName} is now ${collect ? 'ON' : 'OFF'}.` });
         onSuccess();
     } catch (e) {
@@ -476,9 +542,11 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     };
     batch.update(bookingRef, bookingUpdateData);
 
+    let paymentRef: any = null;
+    let paymentData: any = null;
     if (hasPayment) {
-        const paymentRef = doc(collection(firestore, 'payments'));
-        const paymentData: Partial<Payment> = {
+        paymentRef = doc(collection(firestore, 'payments'));
+        paymentData = {
             id: paymentRef.id,
             bookingId: booking.id,
             guestName: booking.guestName,
@@ -498,6 +566,15 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
         await batch.commit();
+
+        pushLanMutation('bookings', booking.id, 'update', {
+            status: 'Reserved',
+            paymentMethod: hasPayment ? paymentMethod : null,
+        });
+        if (hasPayment && paymentRef && paymentData) {
+            pushLanMutation('payments', paymentRef.id, 'set', paymentData);
+        }
+
         toast({
             variant: 'success',
             title: 'Reservation Paid',
@@ -550,6 +627,10 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         maintenanceSnapshot.forEach(doc => batch.delete(doc.ref));
 
         await batch.commit();
+
+        pushLanMutation('rooms', room.id, 'update', {
+          [`individualRoomStatus.${room.roomNumber}`]: status === 'Vacant' ? null : status,
+        });
 
         toast({ variant: 'success', title: 'Status Updated', description: `Room ${room.roomNumber} is now marked as "${status}".` });
         onSuccess();

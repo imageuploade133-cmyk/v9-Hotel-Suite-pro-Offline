@@ -84,7 +84,7 @@ export function Testimonials() {
                                 </div>
                             </div>
                             <blockquote className="italic text-neutral-600 dark:text-neutral-300 font-light flex-1">
-                                "{testimonial.content}"
+                                &quot;{testimonial.content}&quot;
                             </blockquote>
                              <div className="flex gap-0.5 mt-6 text-accent-gold">
                                 {Array.from({length: 5}).map((_, i) => (
