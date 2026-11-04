@@ -114,8 +114,9 @@ const DialogHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
+    data-slot="dialog-header"
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      "flex flex-col space-y-1.5 text-center sm:text-left pr-12",
       className
     )}
     {...props}
@@ -128,6 +129,7 @@ const DialogFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
+    data-slot="dialog-footer"
     className={cn(
       "sticky bottom-0 z-20 mt-auto w-full shrink-0 border-t border-border/60 bg-background/95 pt-3 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur-sm flex flex-col-reverse gap-2",
       "sm:static sm:z-auto sm:mt-0 sm:w-auto sm:border-0 sm:bg-transparent sm:p-0 sm:flex-row sm:justify-end sm:space-x-2 sm:gap-0",
@@ -144,6 +146,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
+    data-slot="dialog-title"
     className={cn("text-lg font-semibold leading-none tracking-tight", className)}
     {...props}
   />
@@ -156,6 +159,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
+    data-slot="dialog-description"
     className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />

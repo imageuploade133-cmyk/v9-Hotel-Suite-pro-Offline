@@ -245,7 +245,27 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
     <Dialog open={isOpen} onOpenChange={(open) => { if (!isPrinted) onClose(); }}>
       <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
-          <DialogTitle>Item Draft Docket</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>Item Draft Docket</span>
+            {qtyToPrint > 0 ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
+                aria-live="polite"
+                aria-label={`Pending: ${qtyToPrint} to print`}
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                Pending
+                <span className="rounded-full bg-amber-200/70 px-1.5 py-0.5 tabular-nums">
+                  {qtyToPrint}
+                </span>
+              </span>
+            ) : isPrinted ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
+                <Check className="h-3.5 w-3.5" />
+                Printed
+              </span>
+            ) : null}
+          </DialogTitle>
           <DialogDescription>
             {qtyToPrint > 0
               ? `Printing a docket for ${qtyToPrint} x "${item.name}".`
