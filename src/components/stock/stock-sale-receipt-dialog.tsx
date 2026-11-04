@@ -116,8 +116,9 @@ export function StockSaleReceiptDialog({
   const { userProfile } = useUser();
   const { currentBranch, getCollectionPath, isGlobalMode } = useBranch();
 
-  // Get effective POS settings based on current context (Global vs Branch)
-  const effectivePosSettings = getEffectivePosSettings();
+  // Get effective POS settings based on sale context (Hotel Booking POS vs Standard POS)
+  const saleContext = sale?.context === 'hotel' ? 'hotel' : 'pos';
+  const effectivePosSettings = getEffectivePosSettings(saleContext);
 
   // Secure print integration
   // Use getCollectionPath to get the correct collection path based on branch/POS mode

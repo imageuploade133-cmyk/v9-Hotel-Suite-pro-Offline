@@ -54,7 +54,7 @@ interface SettingsContextValue {
   globalPosSettings: Partial<Settings> | null;
   branchPosSettings: Partial<Settings> | null;
   // Helper to get effective POS settings based on current context
-  getEffectivePosSettings: () => Partial<Settings>;
+  getEffectivePosSettings: (context?: 'hotel' | 'pos') => Partial<Settings>;
 }
 
 const SettingsContext = createContext<SettingsContextValue>({
@@ -173,7 +173,11 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             'posTaxNumber', 'posAutoPrint', 'posAutoPrintTableUpdates',
             'posAutoGenerateReceiptOnRunningTable', 'posPrintCopies', 'posPaperWidth',
             'posThankYouMessage', 'posRefundPolicy', 'posTermsAndConditions',
-            'posAllowPopups',
+            'posAllowPopups', 'posApplyToAll',
+            // Dedicated Hotel Booking POS settings
+            'hotelPosUseCustomLogo', 'hotelPosReceiptLogoUrl', 'hotelPosReceiptLogoSize',
+            'hotelPosReceiptHeader', 'hotelPosReceiptFooter', 'hotelPosBusinessName',
+            'hotelPosBusinessAddress', 'hotelPosBusinessPhone',
             ];
         posSettingFields.forEach(field => {
             if (mergedSettings[field] !== undefined) {
@@ -268,15 +272,49 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     fetchSettings();
   }, [fetchSettings]);
 
-  // Get effective POS settings based on current context (Global vs Branch)
-  const getEffectivePosSettings = useCallback((): Partial<Settings> => {
-    if (isGlobalMode || !currentBranchId || currentBranchId === 'global') {
-      // In Global mode: use global POS settings
-      return globalPosSettings || {};
+  // Get effective POS settings based on current context (Global vs Branch vs Hotel POS)
+  const getEffectivePosSettings = useCallback((context?: 'hotel' | 'pos'): Partial<Settings> => {
+    // Determine base settings
+    const isGlobal = isGlobalMode || !currentBranchId || currentBranchId === 'global';
+    const applyToAll = !!(globalPosSettings?.posApplyToAll || settings?.posApplyToAll);
+
+    // If posApplyToAll is enabled, global settings universally govern all POS receipts
+    let base = (isGlobal || applyToAll)
+      ? (globalPosSettings || {})
+      : (branchPosSettings || globalPosSettings || {});
+
+    // If this is specifically Hotel Booking POS context and dedicated hotel POS settings exist
+    if (context === 'hotel') {
+      const hotelCustom = { ...base };
+      if (base.hotelPosUseCustomLogo) {
+        if (base.hotelPosReceiptLogoUrl !== undefined) {
+          hotelCustom.posReceiptLogoUrl = base.hotelPosReceiptLogoUrl;
+          hotelCustom.posUseBusinessLogo = false;
+        }
+        if (base.hotelPosReceiptLogoSize !== undefined) {
+          hotelCustom.posReceiptLogoSize = base.hotelPosReceiptLogoSize;
+        }
+      }
+      if (base.hotelPosReceiptHeader) {
+        hotelCustom.posReceiptHeader = base.hotelPosReceiptHeader;
+      }
+      if (base.hotelPosReceiptFooter) {
+        hotelCustom.posReceiptFooter = base.hotelPosReceiptFooter;
+      }
+      if (base.hotelPosBusinessName) {
+        hotelCustom.businessName = base.hotelPosBusinessName;
+      }
+      if (base.hotelPosBusinessAddress) {
+        hotelCustom.businessAddress = base.hotelPosBusinessAddress;
+      }
+      if (base.hotelPosBusinessPhone) {
+        hotelCustom.businessPhone = base.hotelPosBusinessPhone;
+      }
+      return hotelCustom;
     }
-    // In Branch mode: use branch-specific POS settings (no fallback to global)
-    return branchPosSettings || {};
-  }, [isGlobalMode, currentBranchId, globalPosSettings, branchPosSettings]);
+
+    return base;
+  }, [isGlobalMode, currentBranchId, globalPosSettings, branchPosSettings, settings]);
 
   const contextValue = useMemo(
     () => ({

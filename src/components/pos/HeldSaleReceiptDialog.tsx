@@ -44,22 +44,24 @@ export function HeldSaleReceiptDialog({
   onPrinted,
 }: HeldSaleReceiptDialogProps) {
   const [activeTab, setActiveTab] = React.useState('terminal');
-  const { settings } = useSettings();
+  const { settings, getEffectivePosSettings } = useSettings();
   const { currentBranch, isGlobalMode } = useBranch();
   const [isPrinted, setIsPrinted] = React.useState(false);
 
   const terminalRef = React.useRef<HTMLDivElement>(null);
   const invoiceRef = React.useRef<HTMLDivElement>(null);
 
-  const currency = settings?.currency || 'USD';
-  const logoSize = settings?.businessLogoSize || 48;
+  // Check if held sale is associated with a room/hotel guest
+  const isHotelContext = !!(heldSale?.roomNumber || (heldSale as any)?.context === 'hotel');
+  const effectivePosSettings = getEffectivePosSettings(isHotelContext ? 'hotel' : 'pos');
 
-  // Use branch-specific information if available, otherwise fall back to global settings
-  // In global mode, use the POS Receipt Settings business name instead of "Global Branch"
-  const displayLogoUrl = currentBranch?.logoUrl || settings?.businessLogoUrl;
-  const displayName = isGlobalMode ? (settings?.businessName || 'Hotel Suite Pro') : (currentBranch?.name || settings?.businessName || 'Hotel Suite Pro');
-  const displayAddress = isGlobalMode ? undefined : currentBranch?.address;
-  const displayPhone = isGlobalMode ? undefined : currentBranch?.phoneNumber;
+  const currency = settings?.currency || 'USD';
+  const logoSize = effectivePosSettings.posReceiptLogoSize || settings?.businessLogoSize || 48;
+
+  const displayLogoUrl = effectivePosSettings.posReceiptLogoUrl || currentBranch?.logoUrl || settings?.businessLogoUrl;
+  const displayName = effectivePosSettings.businessName || (isGlobalMode ? (settings?.businessName || 'Hotel Suite Pro') : (currentBranch?.name || settings?.businessName || 'Hotel Suite Pro'));
+  const displayAddress = effectivePosSettings.businessAddress !== undefined ? effectivePosSettings.businessAddress : (isGlobalMode ? settings?.businessAddress : currentBranch?.address);
+  const displayPhone = effectivePosSettings.businessPhone !== undefined ? effectivePosSettings.businessPhone : (isGlobalMode ? settings?.businessPhone : currentBranch?.phoneNumber);
 
   const allItemsPrinted = React.useMemo(() => {
     if (!heldSale) return false;

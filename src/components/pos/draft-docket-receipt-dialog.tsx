@@ -63,8 +63,9 @@ export function DraftDocketReceiptDialog({
 
   const currency = settings?.currency || 'USD';
 
-  // Get effective POS settings based on current context (Global vs Branch)
-  const effectivePosSettings = getEffectivePosSettings();
+  // Get effective POS settings based on current context (Global vs Branch vs Hotel POS)
+  const isHotelContext = !!(heldSale?.roomNumber || (heldSale as any)?.context === 'hotel');
+  const effectivePosSettings = getEffectivePosSettings(isHotelContext ? 'hotel' : 'pos');
 
   // Use branch-specific information if available, otherwise fall back to global settings
   const branchLogoUrl = currentBranch?.logoUrl;

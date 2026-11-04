@@ -74,7 +74,21 @@ const posSettingsSchema = z.object({
   posRefundPolicy: z.string().max(500).optional(),
   posTermsAndConditions: z.string().max(1000).optional(),
   posAllowPopups: z.boolean().default(false),
-  });
+
+  // Master Universal Toggle
+  posApplyToAll: z.boolean().default(false),
+
+  // Dedicated Hotel Booking POS Customization
+  hotelPosUseCustomLogo: z.boolean().default(false),
+  hotelPosReceiptLogoUrl: z.string().url().optional().or(z.literal('')),
+  hotelPosReceiptLogoFile: z.instanceof(File).optional(),
+  hotelPosReceiptLogoSize: z.number().min(32).max(200).default(64),
+  hotelPosReceiptHeader: z.string().max(100).optional(),
+  hotelPosReceiptFooter: z.string().max(500).optional(),
+  hotelPosBusinessName: z.string().max(120).optional(),
+  hotelPosBusinessAddress: z.string().max(240).optional(),
+  hotelPosBusinessPhone: z.string().max(50).optional(),
+});
 
 type POSSettingsFormValues = z.infer<typeof posSettingsSchema>;
 
@@ -150,7 +164,15 @@ const defaultValues: Partial<POSSettingsFormValues> = {
   posRefundPolicy: '',
   posTermsAndConditions: '',
   posAllowPopups: false,
-  };
+  posApplyToAll: false,
+  hotelPosUseCustomLogo: false,
+  hotelPosReceiptLogoSize: 64,
+  hotelPosReceiptHeader: 'HOTEL GUEST ORDER RECEIPT',
+  hotelPosReceiptFooter: 'Thank you for your stay!\nRoom charges have been posted.',
+  hotelPosBusinessName: '',
+  hotelPosBusinessAddress: '',
+  hotelPosBusinessPhone: '',
+};
 
 export function POSSettingsForm() {
   const { toast } = useToast();
@@ -167,6 +189,9 @@ export function POSSettingsForm() {
 
   const logoFileInputRef = React.useRef<HTMLInputElement>(null);
   const [isLogoDragging, setIsLogoDragging] = React.useState(false);
+
+  const hotelLogoFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isHotelLogoDragging, setIsHotelLogoDragging] = React.useState(false);
 
   const expirationSeconds = settings?.expirationSeconds ?? 0;
   const imgbbApiKey = settings?.imgbbApiKey || DEFAULT_IMGBB_API_KEY;
@@ -233,13 +258,27 @@ export function POSSettingsForm() {
       posRefundPolicy: posSettings.posRefundPolicy || '',
       posTermsAndConditions: posSettings.posTermsAndConditions || '',
       posAllowPopups: posSettings.posAllowPopups ?? false,
-      });
+      posApplyToAll: posSettings.posApplyToAll ?? false,
+      hotelPosUseCustomLogo: posSettings.hotelPosUseCustomLogo ?? false,
+      hotelPosReceiptLogoUrl: posSettings.hotelPosReceiptLogoUrl || '',
+      hotelPosReceiptLogoFile: undefined,
+      hotelPosReceiptLogoSize: posSettings.hotelPosReceiptLogoSize || 64,
+      hotelPosReceiptHeader: posSettings.hotelPosReceiptHeader || 'HOTEL GUEST ORDER RECEIPT',
+      hotelPosReceiptFooter: posSettings.hotelPosReceiptFooter || 'Thank you for your stay!\nRoom charges have been posted.',
+      hotelPosBusinessName: posSettings.hotelPosBusinessName || '',
+      hotelPosBusinessAddress: posSettings.hotelPosBusinessAddress || '',
+      hotelPosBusinessPhone: posSettings.hotelPosBusinessPhone || '',
+    });
   }, [settings, reset, getEffectivePosSettings, isGlobalMode, isBranchMode, currentBranchId, currentBranch]);
 
   const watchedValues = watch();
   const logoFile = watchedValues.posReceiptLogoFile;
   const logoUrl = watchedValues.posReceiptLogoUrl;
   const logoImagePreview = logoFile ? URL.createObjectURL(logoFile) : logoUrl;
+
+  const hotelLogoFile = watchedValues.hotelPosReceiptLogoFile;
+  const hotelLogoUrl = watchedValues.hotelPosReceiptLogoUrl;
+  const hotelLogoImagePreview = hotelLogoFile ? URL.createObjectURL(hotelLogoFile) : hotelLogoUrl;
 
   const handleFileSelect = (files: FileList | null) => {
     if (files && files.length > 0) {
@@ -309,6 +348,13 @@ export function POSSettingsForm() {
         finalLogoUrl = await uploadImage(data.posReceiptLogoFile, imgbbApiKey, logoName, expirationSeconds);
       }
 
+      let finalHotelLogoUrl = data.hotelPosReceiptLogoUrl;
+      if (data.hotelPosReceiptLogoFile) {
+        toast({ title: 'Uploading Hotel POS Logo...', description: 'Please wait.' });
+        const hotelLogoName = `hotel-pos-logo_${currentBranchId || 'global'}_${Date.now()}`;
+        finalHotelLogoUrl = await uploadImage(data.hotelPosReceiptLogoFile, imgbbApiKey, hotelLogoName, expirationSeconds);
+      }
+
       const settingsToSave = {
         businessName: data.businessName,
         businessAddress: data.businessAddress,
@@ -341,6 +387,15 @@ export function POSSettingsForm() {
         posRefundPolicy: data.posRefundPolicy,
         posTermsAndConditions: data.posTermsAndConditions,
         posAllowPopups: data.posAllowPopups,
+        posApplyToAll: data.posApplyToAll,
+        hotelPosUseCustomLogo: data.hotelPosUseCustomLogo,
+        hotelPosReceiptLogoUrl: finalHotelLogoUrl || '',
+        hotelPosReceiptLogoSize: data.hotelPosReceiptLogoSize,
+        hotelPosReceiptHeader: data.hotelPosReceiptHeader,
+        hotelPosReceiptFooter: data.hotelPosReceiptFooter,
+        hotelPosBusinessName: data.hotelPosBusinessName,
+        hotelPosBusinessAddress: data.hotelPosBusinessAddress,
+        hotelPosBusinessPhone: data.hotelPosBusinessPhone,
       };
 
       // Compare against the correct settings source based on context
@@ -386,6 +441,8 @@ export function POSSettingsForm() {
           ...data,
           posReceiptLogoUrl: finalLogoUrl,
           posReceiptLogoFile: undefined,
+          hotelPosReceiptLogoUrl: finalHotelLogoUrl,
+          hotelPosReceiptLogoFile: undefined,
         },
         { keepDirty: false }
       );
@@ -495,8 +552,33 @@ export function POSSettingsForm() {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <fieldset disabled={isLoading} className="group">
               <CardContent className="space-y-6 group-disabled:opacity-50">
+                {/* Master Universal Toggle */}
+                <FormField
+                  control={form.control}
+                  name="posApplyToAll"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border-2 border-primary/30 bg-primary/5 p-4 shadow-sm">
+                      <div className="space-y-0.5 pr-4">
+                        <FormLabel className="text-base font-semibold text-foreground flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-primary" />
+                          Apply POS Receipt Settings to All POS Sales
+                        </FormLabel>
+                        <FormDescription className="text-xs sm:text-sm">
+                          When turned ON, this master configuration applies universally across all POS sales receipts and invoices in this project, overriding individual fallbacks.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="logo" className="text-xs sm:text-sm">
                       <Palette className="h-4 w-4 mr-1 sm:mr-2" />
                       <span className="hidden sm:inline">Logo</span>
@@ -504,6 +586,10 @@ export function POSSettingsForm() {
                     <TabsTrigger value="content" className="text-xs sm:text-sm">
                       <FileText className="h-4 w-4 mr-1 sm:mr-2" />
                       <span className="hidden sm:inline">Content</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="hotel-pos" className="text-xs sm:text-sm">
+                      <Building2 className="h-4 w-4 mr-1 sm:mr-2 text-primary" />
+                      <span className="hidden sm:inline font-medium">Hotel POS</span>
                     </TabsTrigger>
                     <TabsTrigger value="display" className="text-xs sm:text-sm">
                       <Settings2 className="h-4 w-4 mr-1 sm:mr-2" />
@@ -946,6 +1032,176 @@ export function POSSettingsForm() {
                               </div>
                               <FormControl>
                                 <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Dedicated Hotel Booking POS Tab */}
+                  <TabsContent value="hotel-pos" className="space-y-6 mt-4">
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                        <h4 className="text-sm font-semibold flex items-center gap-2 text-primary">
+                          <Building2 className="h-4 w-4" />
+                          Hotel Booking POS Dedicated Settings
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Customize receipts specifically for the Hotel Booking POS (Room orders and active guest sales). These customizations will only apply when orders originate from the Hotel Booking POS context.
+                        </p>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="hotelPosUseCustomLogo"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Use Dedicated Hotel POS Logo</FormLabel>
+                              <FormDescription>
+                                Enable a custom logo specifically for Hotel Booking POS receipts.
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {watchedValues.hotelPosUseCustomLogo && (
+                        <div className="space-y-4 rounded-lg border p-4 bg-background">
+                          <FormLabel>Hotel Booking POS Logo</FormLabel>
+                          <FormDescription>
+                            Upload an image to appear exclusively on Hotel Booking POS receipts.
+                          </FormDescription>
+                          {hotelLogoImagePreview ? (
+                            <div className="relative group w-40 h-40">
+                              <Image
+                                src={hotelLogoImagePreview}
+                                alt="Hotel Logo preview"
+                                fill
+                                style={{ objectFit: 'contain' }}
+                                className="rounded-md border p-2"
+                              />
+                              <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="icon"
+                                  onClick={() => {
+                                    form.setValue('hotelPosReceiptLogoFile', undefined, { shouldDirty: true });
+                                    form.setValue('hotelPosReceiptLogoUrl', '', { shouldDirty: true });
+                                    if (hotelLogoFileInputRef.current) hotelLogoFileInputRef.current.value = '';
+                                  }}
+                                >
+                                  <X className="h-5 w-5" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+                                isHotelLogoDragging
+                                  ? 'border-primary bg-primary/10'
+                                  : 'border-input hover:border-primary/50'
+                              }`}
+                              onDragEnter={(e) => { e.preventDefault(); setIsHotelLogoDragging(true); }}
+                              onDragOver={(e) => { e.preventDefault(); setIsHotelLogoDragging(true); }}
+                              onDragLeave={(e) => { e.preventDefault(); setIsHotelLogoDragging(false); }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                setIsHotelLogoDragging(false);
+                                if (e.dataTransfer.files?.[0]) {
+                                  form.setValue('hotelPosReceiptLogoFile', e.dataTransfer.files[0], { shouldDirty: true });
+                                }
+                              }}
+                              onClick={() => hotelLogoFileInputRef.current?.click()}
+                            >
+                              <Upload className="w-8 h-8 text-muted-foreground" />
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                <span className="font-semibold text-primary">Click to upload Hotel POS logo</span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">PNG, JPG up to {maxFileSize}MB</p>
+                            </div>
+                          )}
+                          <FormControl>
+                            <Input
+                              ref={hotelLogoFileInputRef}
+                              type="file"
+                              accept="image/png, image/jpeg"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) {
+                                  form.setValue('hotelPosReceiptLogoFile', e.target.files[0], { shouldDirty: true });
+                                }
+                              }}
+                            />
+                          </FormControl>
+
+                          <FormField
+                            control={form.control}
+                            name="hotelPosReceiptLogoSize"
+                            render={({ field }) => (
+                              <FormItem className="pt-2">
+                                <FormLabel>Hotel POS Logo Size ({field.value}px)</FormLabel>
+                                <FormControl>
+                                  <Slider
+                                    min={32}
+                                    max={200}
+                                    step={4}
+                                    value={[field.value || 64]}
+                                    onValueChange={(val) => field.onChange(val[0])}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-4 rounded-lg border p-4">
+                        <h4 className="text-sm font-medium">Hotel Booking Information</h4>
+                        <FormField
+                          control={form.control}
+                          name="hotelPosBusinessName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hotel Booking POS Business Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ''} placeholder="e.g., Hotel Suite Pro - Room Service" />
+                              </FormControl>
+                              <FormDescription>Leave blank to inherit primary business name.</FormDescription>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="hotelPosReceiptHeader"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hotel Booking POS Header</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ''} placeholder="e.g., HOTEL GUEST ORDER RECEIPT" />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="hotelPosReceiptFooter"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hotel Booking POS Footer</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} value={field.value || ''} placeholder="Thank you for your stay!" rows={2} />
                               </FormControl>
                             </FormItem>
                           )}
