@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Input } from './input';
 import { Label } from './label';
 import { ScrollArea } from './scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -188,16 +188,16 @@ export function DateRangePicker({
       type="button"
       variant="outline"
       className={cn(
-        'w-full min-w-0 max-w-full justify-between text-left font-normal hover:bg-accent sm:min-w-[280px] sm:w-auto',
+        'h-10 w-full min-w-0 max-w-full justify-between rounded-lg border border-border/80 bg-background px-3.5 py-2 text-left font-normal shadow-sm transition-all hover:border-primary/50 hover:bg-muted/40 sm:min-w-[280px] sm:w-auto',
         !date && 'text-muted-foreground'
       )}
       disabled={disabled}
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{formatDisplayDate()}</span>
+      <span className="flex min-w-0 items-center gap-2.5">
+        <CalendarIcon className="h-4 w-4 shrink-0 text-primary" />
+        <span className="truncate font-medium text-foreground">{formatDisplayDate()}</span>
       </span>
-      <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground opacity-50" />
+      <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground opacity-60" />
     </Button>
   );
 
@@ -222,22 +222,43 @@ export function DateRangePicker({
     <div className={cn('page-responsive-actions flex min-w-0 max-w-full flex-wrap items-center gap-2', className)}>
       {isMobile ? (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogContent className="min-h-0 overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-2xl">
-            <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 text-left">
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <CalendarIcon className="h-5 w-5 text-primary" /> Select Date Range
+          <DialogTrigger asChild>
+            {button}
+          </DialogTrigger>
+          <DialogContent className="fixed inset-0 flex h-full w-full max-h-none max-w-none flex-col overflow-hidden border-0 p-0 sm:max-h-[92dvh] sm:max-w-2xl sm:rounded-2xl sm:border">
+            <DialogHeader className="shrink-0 border-b bg-background/95 px-5 py-4 pr-12 text-left backdrop-blur-sm">
+              <DialogTitle className="flex items-center gap-2.5 text-base font-semibold">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <CalendarIcon className="h-4 w-4" />
+                </div>
+                <span>Select Date Range</span>
               </DialogTitle>
-              <DialogDescription>Choose the dates to filter your records.</DialogDescription>
+              <DialogDescription className="text-xs">
+                Pick start and end dates or choose a quick preset.
+              </DialogDescription>
             </DialogHeader>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-              <div className="grid grid-cols-2 gap-2">
-                {presetOptions.map(preset => (
-                  <Button key={preset.label} type="button" variant="outline" size="sm" className="justify-start" onClick={() => handlePresetSelect(preset)}>
+
+            {/* Quick Horizontal Presets */}
+            <div className="shrink-0 border-b bg-muted/20 px-4 py-2.5">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {presetOptions.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full border-border/70 px-3.5 text-xs font-medium hover:border-primary/50 hover:bg-primary/5"
+                    onClick={() => handlePresetSelect(preset)}
+                  >
                     {preset.label}
                   </Button>
                 ))}
               </div>
-              <div className="overflow-x-auto rounded-xl border bg-background p-1">
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 overscroll-contain">
+              {/* Calendar Container */}
+              <div className="rounded-2xl border border-border/80 bg-background p-2 shadow-sm">
                 <Calendar
                   initialFocus
                   mode="range"
@@ -248,28 +269,72 @@ export function DateRangePicker({
                   className="mx-auto max-w-full"
                 />
               </div>
+
+              {/* Time Selection */}
               {showTimePicker && (
-                <div className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/30 p-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="start-time-mobile" className="text-xs text-muted-foreground">Start Time</Label>
-                    <Input id="start-time-mobile" type="time" value={startTime} onChange={e => handleTimeChange('start',e.target.value)} />
+                <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/80 bg-muted/25 p-3.5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="start-time-mobile" className="text-xs font-semibold text-muted-foreground">
+                      Start Time
+                    </Label>
+                    <Input
+                      id="start-time-mobile"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => handleTimeChange('start', e.target.value)}
+                      className="h-9 rounded-lg border-border/80 bg-background text-sm font-medium"
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="end-time-mobile" className="text-xs text-muted-foreground">End Time</Label>
-                    <Input id="end-time-mobile" type="time" value={endTime} onChange={e => handleTimeChange('end',e.target.value)} />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="end-time-mobile" className="text-xs font-semibold text-muted-foreground">
+                      End Time
+                    </Label>
+                    <Input
+                      id="end-time-mobile"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => handleTimeChange('end', e.target.value)}
+                      className="h-9 rounded-lg border-border/80 bg-background text-sm font-medium"
+                    />
                   </div>
                 </div>
               )}
-              <div className="rounded-xl bg-muted/40 p-3 text-sm">
-                <span className="font-medium">{tempDateRange?.from ? format(tempDateRange.from,'MMM dd, yyyy') : 'No start date'}</span>
-                {tempDateRange?.to && <span> – {format(tempDateRange.to,'MMM dd, yyyy')}</span>}
-                {showTimePicker && <p className="mt-1 text-xs text-muted-foreground">{startTime} – {endTime}</p>}
+
+              {/* Selection Summary Pill */}
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Selected Period</p>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="font-semibold text-foreground">
+                    {tempDateRange?.from ? format(tempDateRange.from, 'MMM dd, yyyy') : 'Pick start date'}
+                    {tempDateRange?.to && ` → ${format(tempDateRange.to, 'MMM dd, yyyy')}`}
+                  </span>
+                  {showTimePicker && (
+                    <span className="rounded-md bg-background/80 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {startTime} - {endTime}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <DialogFooter className="shrink-0 border-t p-4">
-              <div className="flex w-full flex-col-reverse gap-2">
-                <Button type="button" variant="ghost" onClick={handleClear}>Clear Dates</Button>
-                <Button type="button" onClick={handleApply} disabled={!tempDateRange?.from}>Apply Date Range</Button>
+
+            <DialogFooter className="shrink-0 border-t bg-background/95 p-4 backdrop-blur-sm">
+              <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClear}
+                  className="rounded-xl border-border/80 hover:bg-muted"
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={!tempDateRange?.from}
+                  className="rounded-xl font-medium shadow-sm"
+                >
+                  Apply Range
+                </Button>
               </div>
             </DialogFooter>
           </DialogContent>
@@ -277,30 +342,106 @@ export function DateRangePicker({
       ) : (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>{button}</PopoverTrigger>
-          <PopoverContent className="max-h-[min(85dvh,42rem)] max-w-[calc(100vw-1rem)] overflow-auto p-0" align="start" sideOffset={4}>
-            <div className="flex max-w-full overflow-x-auto">
-              <div className="hidden flex-col border-r bg-muted/30 sm:flex">
-                <div className="border-b p-3"><span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Select</span></div>
-                <ScrollArea className="h-[320px] w-[140px]">
-                  <div className="space-y-1 p-2">
-                    {presetOptions.map(preset => (
-                      <Button key={preset.label} variant="ghost" size="sm" className="w-full justify-start text-left text-sm font-normal" onClick={() => handlePresetSelect(preset)}>{preset.label}</Button>
-                    ))}
-                  </div>
-                </ScrollArea>
+          <PopoverContent
+            className="w-auto max-w-[calc(100vw-2rem)] rounded-2xl border border-border/80 p-0 shadow-2xl"
+            align="start"
+            sideOffset={6}
+          >
+            <div className="flex max-w-full">
+              {/* Presets Sidebar */}
+              <div className="hidden w-40 flex-col border-r border-border/80 bg-muted/20 sm:flex">
+                <div className="border-b border-border/80 px-4 py-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Quick Presets
+                  </span>
+                </div>
+                <div className="flex-1 space-y-1 p-2">
+                  {presetOptions.map((preset) => (
+                    <Button
+                      key={preset.label}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start rounded-lg text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                      onClick={() => handlePresetSelect(preset)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
+
+              {/* Calendars & Bottom Bar */}
               <div className="flex min-w-0 flex-col">
-                <Calendar initialFocus mode="range" defaultMonth={tempDateRange?.from || new Date()} selected={tempDateRange} onSelect={handleDateSelect} numberOfMonths={2} />
-                <div className="border-t">
+                <div className="p-2">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={tempDateRange?.from || new Date()}
+                    selected={tempDateRange}
+                    onSelect={handleDateSelect}
+                    numberOfMonths={2}
+                  />
+                </div>
+
+                <div className="border-t border-border/80 bg-muted/10">
                   {showTimePicker && (
-                    <div className="grid grid-cols-2 gap-4 border-b bg-muted/20 p-4">
-                      <div className="space-y-2"><Label htmlFor="start-time" className="text-xs text-muted-foreground">Start Time</Label><Input id="start-time" type="time" value={startTime} onChange={e => handleTimeChange('start',e.target.value)} className="h-9 text-sm" /></div>
-                      <div className="space-y-2"><Label htmlFor="end-time" className="text-xs text-muted-foreground">End Time</Label><Input id="end-time" type="time" value={endTime} onChange={e => handleTimeChange('end',e.target.value)} className="h-9 text-sm" /></div>
+                    <div className="grid grid-cols-2 gap-4 border-b border-border/80 bg-background/50 px-4 py-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="start-time" className="text-xs font-medium text-muted-foreground">
+                          Start Time
+                        </Label>
+                        <Input
+                          id="start-time"
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => handleTimeChange('start', e.target.value)}
+                          className="h-8 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="end-time" className="text-xs font-medium text-muted-foreground">
+                          End Time
+                        </Label>
+                        <Input
+                          id="end-time"
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => handleTimeChange('end', e.target.value)}
+                          className="h-8 rounded-lg text-xs"
+                        />
+                      </div>
                     </div>
                   )}
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-background p-3">
-                    <div className="text-sm">{tempDateRange?.from ? <span className="font-medium">{format(tempDateRange.from,'MMM dd, yyyy')}{tempDateRange.to && ` - ${format(tempDateRange.to,'MMM dd, yyyy')}`}</span> : <span className="text-muted-foreground">No date selected</span>}</div>
-                    <div className="flex items-center gap-2"><Button variant="ghost" size="sm" onClick={handleClear}>Clear</Button><Button size="sm" onClick={handleApply} disabled={!tempDateRange?.from}>Apply</Button></div>
+
+                  <div className="flex items-center justify-between gap-4 bg-background px-4 py-3">
+                    <div className="text-xs">
+                      {tempDateRange?.from ? (
+                        <span className="font-semibold text-foreground">
+                          {format(tempDateRange.from, 'MMM dd, yyyy')}
+                          {tempDateRange.to && ` → ${format(tempDateRange.to, 'MMM dd, yyyy')}`}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">No range selected</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClear}
+                        className="h-8 rounded-lg px-3 text-xs"
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleApply}
+                        disabled={!tempDateRange?.from}
+                        className="h-8 rounded-lg px-4 text-xs font-medium shadow-sm"
+                      >
+                        Apply
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
