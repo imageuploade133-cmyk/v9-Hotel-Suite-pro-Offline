@@ -233,6 +233,21 @@ export function DraftDocketReceiptDialog({
     return cart.some(item => (item.printedQuantity || 0) < item.sellQuantity);
   }, [currentHeldSale]);
 
+  // Keep the header status tied to the live quantities on this running table.
+  const pendingSummary = React.useMemo(() => {
+    const pendingItems = cartItems.reduce((count, item) => {
+      const sellQuantity = Number(item.sellQuantity || 0);
+      const printedQuantity = Number(item.printedQuantity || 0);
+      return count + (sellQuantity > printedQuantity ? 1 : 0);
+    }, 0);
+    const pendingQuantity = cartItems.reduce((quantity, item) => {
+      const sellQuantity = Number(item.sellQuantity || 0);
+      const printedQuantity = Number(item.printedQuantity || 0);
+      return quantity + Math.max(0, sellQuantity - printedQuantity);
+    }, 0);
+    return { pendingItems, pendingQuantity };
+  }, [cartItems]);
+
   const handleAutoPrint = React.useCallback(async () => {
     if (isPrintingRef.current || isPrinted || !autoPrintEnabled) return;
     if (!currentHeldSale || !isUpdate) return;
@@ -335,14 +350,26 @@ export function DraftDocketReceiptDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="receipt-dialog-fullscreen receipt-reference-dialog pos-draft-docket-dialog">
         <DialogHeader className="receipt-reference-header">
-          <DialogTitle className="flex items-center gap-2">
-            {dialogTitle}
-            {isUpdate && isPrinted && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <Sparkles className="h-3 w-3 mr-1" />
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{dialogTitle}</span>
+            {pendingSummary.pendingItems > 0 ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
+                aria-live="polite"
+                aria-label={`Pending: ${pendingSummary.pendingItems} items, ${pendingSummary.pendingQuantity} quantity`}
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                Pending
+                <span className="rounded-full bg-amber-200/70 px-1.5 py-0.5 tabular-nums">
+                  {pendingSummary.pendingItems}
+                </span>
+              </span>
+            ) : isUpdate && isPrinted ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
+                <Check className="h-3.5 w-3.5" />
                 Auto-Printed
               </span>
-            )}
+            ) : null}
           </DialogTitle>
           <DialogDescription>
             {dialogDescription}
