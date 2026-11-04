@@ -32,6 +32,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'rec
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { ReprintReceiptDialog } from '@/components/payments/reprint-receipt-dialog';
 import { SalonReceiptDialog } from '@/components/salon/salon-receipt-dialog';
+import { GuestBillDialog } from '@/components/bookings/guest-bill-dialog';
 import * as htmlToImage from 'html-to-image';
 import { useUser } from '@/contexts/user-context';
 import { useToast } from '@/hooks/use-toast';
@@ -84,6 +85,7 @@ export interface ProcessedFolioData {
   payments: { amount: number; staffName: string | null, paymentMethod: string, type?: 'Booking' | 'Additional Charges' | 'Credit Repayment' | 'POS' | 'Service' | 'Gym Membership' }[];
   returns: StockReturn[];
   totalReturns: number;
+  originalBooking?: Booking;
 }
 
 interface SoldItem {
@@ -143,6 +145,7 @@ function AccountingPage() {
   const [transferToPrint, setTransferToPrint] = React.useState<Transfer | null>(null);
   const [actionsExpense, setActionsExpense] = React.useState<Expense | null>(null);
   const [actionsTransfer, setActionsTransfer] = React.useState<Transfer | null>(null);
+  const [folioBookingToView, setFolioBookingToView] = React.useState<Booking | null>(null);
 
 
   const [isExporting, setIsExporting] = React.useState(false);
@@ -516,6 +519,7 @@ function AccountingPage() {
         })),
         returns: [],
         totalReturns,
+        originalBooking: booking,
       };
     });
 
@@ -722,23 +726,40 @@ function AccountingPage() {
   };
 
   const paymentForReprint: Payment | null = React.useMemo(() => {
-    if (!incomeToPrint || incomeToPrint.source !== 'Bookings') return null;
-    const booking = incomeToPrint.originalDoc as Booking;
-    return {
-      type: 'Booking',
-      id: booking.bookingId || booking.id,
-      guestName: booking.guestName,
-      guestEmail: booking.guestEmail,
-      guestPhotoURL: booking.guestPhotoURL,
-      roomNumber: booking.roomNumber!,
-      amount: booking.totalAmount || 0,
-      paymentMethod: booking.paymentMethod || 'On-site',
-      status: 'Paid',
-      transactionDate: getSafeDate(booking.checkInDate) || new Date(),
-      bookingDetails: booking,
-      createdByUid: booking.createdByUid,
-      createdByName: booking.createdByName,
-    };
+    if (!incomeToPrint) return null;
+    if (incomeToPrint.source === 'Bookings') {
+      const booking = incomeToPrint.originalDoc as Booking;
+      return {
+        type: 'Booking',
+        id: booking.bookingId || booking.id,
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail,
+        guestPhotoURL: booking.guestPhotoURL,
+        roomNumber: booking.roomNumber!,
+        amount: booking.totalAmount || 0,
+        paymentMethod: booking.paymentMethod || 'On-site',
+        status: 'Paid',
+        transactionDate: getSafeDate(booking.checkInDate) || new Date(),
+        bookingDetails: booking,
+        createdByUid: booking.createdByUid,
+        createdByName: booking.createdByName,
+      };
+    }
+    if (incomeToPrint.source === 'Payments') {
+      const payment = incomeToPrint.originalDoc as Payment;
+      return {
+        ...payment,
+        id: payment.id,
+        amount: payment.amount,
+        status: payment.status || 'Paid',
+        paymentMethod: payment.paymentMethod || 'Cash',
+        type: payment.type || 'Additional Charges',
+        transactionDate: getSafeDate(payment.transactionDate) || new Date(),
+        createdByUid: payment.createdByUid || '',
+        createdByName: payment.createdByName || incomeToPrint.user || 'System',
+      };
+    }
+    return null;
   }, [incomeToPrint]);
 
   const handlePrint = () => {
@@ -915,9 +936,32 @@ function AccountingPage() {
           const variant = statusVariantMap[status] || 'secondary';
           return <Badge variant={variant} className="capitalize">{status}</Badge>;
         }
+      },
+      {
+        id: 'actions',
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }: { row: { original: ProcessedFolioData }}) => {
+          const booking = row.original.originalBooking || (rawData?.allBookings || []).find(b => b.id === row.original.id);
+          return (
+            <div className="text-right">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (booking) {
+                    setFolioBookingToView(booking);
+                  }
+                }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View Folio
+              </Button>
+            </div>
+          );
+        }
       }
     ];
-  }, [settings, currency, userMap]);
+  }, [settings, currency, userMap, rawData]);
 
   const isDateFilterActive = !!dateRange;
 
@@ -1300,6 +1344,15 @@ function AccountingPage() {
         isOpen={!!expenseToPrint}
         onClose={() => setExpenseToPrint(null)}
         expense={expenseToPrint}
+      />
+
+      <GuestBillDialog
+        isOpen={!!folioBookingToView}
+        onClose={() => setFolioBookingToView(null)}
+        booking={folioBookingToView}
+        allBills={rawData?.allBills || []}
+        allPayments={rawData?.allPayments || []}
+        isLoading={false}
       />
 
       <Dialog open={!!actionsExpense} onOpenChange={(open) => setActionsExpense(open ? actionsExpense : null)}>
