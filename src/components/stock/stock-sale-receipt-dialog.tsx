@@ -243,7 +243,22 @@ export function StockSaleReceiptDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
-          <DialogTitle>Sale Receipt #{sale.saleId}</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>Sale Receipt #{sale.saleId}</span>
+            {sale.paymentStatus === 'Unpaid' || sale.paymentMethod === 'Credit' ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
+                aria-live="polite"
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                {sale.paymentMethod === 'Credit' ? 'Pending (Credit)' : 'Pending'}
+              </span>
+            ) : sale.paymentStatus === 'Paid' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
+                Paid in Full
+              </span>
+            ) : null}
+          </DialogTitle>
           <DialogDescription>
             A receipt for the sale transaction. You can print either a professional invoice or a terminal-style receipt.
           </DialogDescription>

@@ -71,8 +71,9 @@ const AlertDialogHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
+    data-slot="alert-dialog-header"
     className={cn(
-      "flex flex-col space-y-2 text-center sm:text-left",
+      "flex flex-col space-y-2 text-center sm:text-left pr-12",
       className
     )}
     {...props}
@@ -85,6 +86,7 @@ const AlertDialogFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
+    data-slot="alert-dialog-footer"
     className={cn(
       "sticky bottom-0 z-20 mt-auto w-full shrink-0 border-t border-border/60 bg-background/95 pt-3 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur-sm flex flex-col-reverse gap-2",
       "sm:static sm:z-auto sm:mt-0 sm:w-auto sm:border-0 sm:bg-transparent sm:p-0 sm:flex-row sm:justify-end sm:space-x-2 sm:gap-0",
@@ -101,6 +103,7 @@ const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
+    data-slot="alert-dialog-title"
     className={cn("text-lg font-semibold", className)}
     {...props}
   />
@@ -113,6 +116,7 @@ const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
+    data-slot="alert-dialog-description"
     className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />

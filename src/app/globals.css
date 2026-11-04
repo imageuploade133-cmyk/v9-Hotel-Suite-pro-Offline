@@ -243,12 +243,15 @@
 
 /* Keep the title area compact, aligned and visible at every zoom level. */
 [data-dialog-content].receipt-dialog-fullscreen > [class*="DialogHeader"],
+[data-dialog-content].receipt-dialog-fullscreen > [data-slot="dialog-header"],
 [data-dialog-content].receipt-dialog-fullscreen > div:has(> [data-slot="dialog-title"]) {
   flex: 0 0 auto !important;
   min-width: 0 !important;
   margin: 0 !important;
-  padding: 1rem clamp(1rem, 2vw, 2rem) !important;
+  padding: 1.15rem 3.5rem 1.15rem clamp(1.25rem, 2.5vw, 2rem) !important;
   border-bottom: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background)) !important;
+  text-align: left !important;
 }
 
 /* Tabbed invoice/receipt dialogs: tabs stay fixed, preview takes all remaining height. */
@@ -502,7 +505,7 @@
   justify-content: space-between !important;
   min-height: 0 !important;
   margin: 0 !important;
-  padding: 1.35rem clamp(1.25rem, 3.2vw, 3rem) !important;
+  padding: 1.35rem 3.5rem 1.35rem clamp(1.25rem, 3.2vw, 3rem) !important;
   border-bottom: 1px solid #e5e7eb !important;
   background: #fff !important;
   text-align: left !important;
@@ -605,7 +608,7 @@
 }
 @media (max-width: 639px) {
   [data-dialog-content].receipt-reference-dialog > .receipt-reference-header {
-    padding: 1rem 1rem !important;
+    padding: 1rem 3.25rem 1rem 1rem !important;
   }
   [data-dialog-content].receipt-reference-dialog .receipt-reference-tab-list {
     padding-inline: .5rem !important;
@@ -701,7 +704,7 @@
   }
 
   [data-dialog-content].pos-draft-docket-dialog > .receipt-reference-header {
-    padding: 1.25rem 1.75rem !important;
+    padding: 1.25rem 3.5rem 1.25rem 1.75rem !important;
   }
 
   [data-dialog-content].pos-draft-docket-dialog .receipt-reference-tab-list {

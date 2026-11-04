@@ -89,7 +89,21 @@ export function BillReceiptDialog({ isOpen, onClose, bill }: BillReceiptDialogPr
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="receipt-dialog-fullscreen">
         <DialogHeader>
-          <DialogTitle>Service Bill Receipt</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>Service Bill Receipt</span>
+            {!bill.paid ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
+                aria-live="polite"
+              >
+                Pending (Billed to Room)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
+                Paid
+              </span>
+            )}
+          </DialogTitle>
           <DialogDescription>
             A receipt for the service transaction.
           </DialogDescription>
