@@ -855,7 +855,7 @@ export default function ProtectedLayout({
             <Button
               variant="outline"
               size="icon"
-              className="hidden sm:inline-flex"
+              className="hidden sm:inline-flex shrink-0"
               onClick={toggleSidebar}
             >
               {isCollapsed ? (
@@ -866,14 +866,27 @@ export default function ProtectedLayout({
               <span className="sr-only">Toggle Sidebar</span>
             </Button>
 
+            {/* Prominent Active / Assigned Branch indicator visible on both Mobile and Desktop */}
+            {((isBranchMode || isGlobalMode) && currentBranch) ? (
+              <div
+                className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2 sm:px-2.5 py-1 text-xs font-medium text-primary max-w-[140px] sm:max-w-[220px] md:max-w-xs truncate shadow-xs"
+                title={`Active Branch: ${currentBranch.name}`}
+              >
+                <Building className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="truncate">{currentBranch.name}</span>
+              </div>
+            ) : userProfile?.branchName ? (
+              <div
+                className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2 sm:px-2.5 py-1 text-xs font-medium text-primary max-w-[140px] sm:max-w-[220px] md:max-w-xs truncate shadow-xs"
+                title={`Assigned Branch: ${userProfile.branchName}`}
+              >
+                <Building className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="truncate">{userProfile.branchName}</span>
+              </div>
+            ) : null}
+
             <div className="hidden w-full items-center justify-end gap-4 sm:flex md:ml-auto md:gap-2 lg:gap-4">
-              {/* Active branch indicator in header */}
-              {(isBranchMode || isGlobalMode) && currentBranch && (
-                <div className="hidden sm:flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
-                  <Building className="h-3.5 w-3.5" />
-                  <span>{currentBranch.name}</span>
-                </div>
-              )}
+              {/* Header website trigger */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button>
