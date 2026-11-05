@@ -18,6 +18,7 @@ export type BranchContextType = BranchContextValue;
 
 export interface BranchContextValue {
   branches: Branch[];
+  activeBranches: Branch[];
   currentBranchId: string | null;
   currentBranch: Branch | null;
   isLoadingBranches: boolean;
@@ -39,6 +40,7 @@ export interface BranchContextValue {
 
 const BranchContext = createContext<BranchContextValue>({
   branches: [],
+  activeBranches: [],
   currentBranchId: null,
   currentBranch: null,
   isLoadingBranches: true,
@@ -70,7 +72,7 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
 
   const branchesQuery = useMemo(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'branches'), where('status', '==', 'active'));
+    return query(collection(firestore, 'branches'));
   }, [firestore]);
 
   const posQuery = useMemo(() => {
@@ -216,15 +218,20 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
     return currentBranchId === 'global';
   }, [currentBranchId]);
 
-  // Determine which branches the user can access
+  // Active branches (visible only)
+  const activeBranches = useMemo(() => {
+    return branches.filter(b => b.status !== 'hidden');
+  }, [branches]);
+
+  // Determine which branches the user can access (only active/visible branches)
   const userAccessibleBranches = useMemo(() => {
     if (!userProfile?.assignedBranches || userProfile.assignedBranches.length === 0) {
-      // Admin can access all branches
-      return branches;
+      // Admin can access all active branches
+      return activeBranches;
     }
-    // User can only access assigned branches
-    return branches.filter(b => userProfile.assignedBranches!.includes(b.id));
-  }, [branches, userProfile]);
+    // User can only access assigned active branches
+    return activeBranches.filter(b => userProfile.assignedBranches!.includes(b.id));
+  }, [activeBranches, userProfile]);
 
   // Check if user is restricted to specific branches
   const isRestrictedToBranch = useMemo(() => {
@@ -265,6 +272,7 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
 
   const value = useMemo(() => ({
     branches,
+    activeBranches,
     currentBranchId,
     currentBranch,
     isLoadingBranches,
@@ -281,7 +289,7 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
     selectPos,
     isPosMode,
     getPosSelectorVisible,
-  }), [branches, currentBranchId, currentBranch, isLoadingBranches, selectBranch, isBranchMode, isGlobalMode, getCollectionPath, userAccessibleBranches, canSwitchBranches, isRestrictedToBranch, pointOfSales, currentPosId, currentPos, selectPos, isPosMode, getPosSelectorVisible]);
+  }), [branches, activeBranches, currentBranchId, currentBranch, isLoadingBranches, selectBranch, isBranchMode, isGlobalMode, getCollectionPath, userAccessibleBranches, canSwitchBranches, isRestrictedToBranch, pointOfSales, currentPosId, currentPos, selectPos, isPosMode, getPosSelectorVisible]);
 
   return (
     <BranchContext.Provider value={value}>

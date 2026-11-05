@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { TimeRemaining } from '@/components/bookings/time-remaining';
 import { Bed, DollarSign, FileText, LogIn, LogOut, Mail, MoreHorizontal, Phone, CircleX } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';

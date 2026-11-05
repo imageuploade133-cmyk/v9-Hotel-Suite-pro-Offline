@@ -108,6 +108,18 @@ function CalendarView({ rooms, bookings, onDateClick, onRangeSelect, onEventClic
 
         const buttonRef = React.useRef<HTMLButtonElement>(null);
 
+        const bookedDateInfo = React.useMemo(() => {
+            if (!date) return undefined;
+            return bookedDates.find(d => isSameDay(d.date, date));
+        }, [date]);
+
+        const billsQuery = React.useMemo(() => {
+            if (!firestore || !bookedDateInfo) return null;
+            return query(collection(firestore, `bookings/${bookedDateInfo.booking.id}/bills`), where('paid', '==', false));
+        }, [bookedDateInfo]);
+
+        const { data: unpaidBills } = useCollection<Bill>(billsQuery);
+
         if (!dayRender) {
             return <div/>
         }
@@ -119,7 +131,6 @@ function CalendarView({ rooms, bookings, onDateClick, onRangeSelect, onEventClic
 
         if (!date) return <td />;
 
-        const bookedDateInfo = bookedDates.find(d => isSameDay(d.date, date));
         const checkoutDateInfo = checkoutDates.find(d => isSameDay(d.date, date));
         const isPast = isBefore(date, startOfDay(new Date()));
         const isBooked = !!bookedDateInfo;
@@ -168,13 +179,6 @@ function CalendarView({ rooms, bookings, onDateClick, onRangeSelect, onEventClic
              statusStyle.backgroundColor = hexToRgba(vacantBgColor, opacity);
              statusStyle.color = settings?.calendarVacantTextColor || '#166534';
         }
-
-        const billsQuery = React.useMemo(() => {
-            if (!firestore || !bookedDateInfo) return null;
-            return query(collection(firestore, `bookings/${bookedDateInfo.booking.id}/bills`), where('paid', '==', false));
-        }, [firestore, bookedDateInfo]);
-
-        const { data: unpaidBills } = useCollection<Bill>(billsQuery);
 
         const isRoomPaid = bookedDateInfo?.booking?.status === 'Reserved' || !!bookedDateInfo?.booking?.paymentMethod;
 

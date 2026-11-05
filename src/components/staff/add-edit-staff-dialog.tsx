@@ -16,7 +16,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Loader2, User, Mail, Shield, KeyRound, EyeOff, Eye, Phone, DollarSign, Sunrise, Sunset } from 'lucide-react';
+import { Loader2, User, Mail, Shield, ShieldAlert, KeyRound, EyeOff, Eye, Phone, DollarSign, Sunrise, Sunset } from 'lucide-react';
 import type { UserProfile, Role } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection } from '@/firebase';
@@ -535,7 +535,7 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
     if (!canManageStaff) {
         return (
             <Alert variant="destructive">
-                <Shield-Alert className="h-4 w-4" />
+                <ShieldAlert className="h-4 w-4" />
                 <AlertTitle>Permission Denied</AlertTitle>
                 <AlertDescription>
                     You do not have permission to manage staff. Please contact an administrator.

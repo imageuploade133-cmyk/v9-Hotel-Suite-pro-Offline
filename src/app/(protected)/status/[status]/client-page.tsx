@@ -193,7 +193,7 @@ function StatusPageContent() {
 }
 
 const StatusPageWrapper = () => {
-    const { dynamicPermissionGroups, loading, userProfile } = useUser();
+    const { dynamicPermissionGroups, loading, userProfile, permissions } = useUser();
     const { user } = useAuth();
     const params = useParams();
     const statusFromUrl = decodeURIComponent(params.status as string);
@@ -218,7 +218,6 @@ const StatusPageWrapper = () => {
         return <CustomStatusLoading statusName={status} />;
     }
 
-    const { permissions } = useUser();
     const isSuperAdmin = !userProfile || userProfile?.isSuperAdmin || userProfile?.role === 'Super Admin' || userProfile?.role === 'Admin';
     const canManageRoomStatus = isSuperAdmin || permissions.includes(PagePermission.MANAGE_ROOM_STATUS);
     const hasRequiredPermission = isSuperAdmin || permissions.includes(requiredPermission) || canManageRoomStatus;

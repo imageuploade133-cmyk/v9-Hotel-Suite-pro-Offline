@@ -26,6 +26,14 @@ interface IndividualSalesLogDialogProps {
 }
 
 export function IndividualSalesLogDialog({ open, onOpenChange, product, currency }: IndividualSalesLogDialogProps) {
+  const flattenedSales = React.useMemo(() => {
+    if (!product) return [];
+    return product.sales.map(sale => ({
+        ...sale,
+        totalValue: sale.sellingPrice * sale.quantity,
+    }));
+  }, [product]);
+
   if (!product) {
     return null;
   }
@@ -33,13 +41,6 @@ export function IndividualSalesLogDialog({ open, onOpenChange, product, currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   };
-
-  const flattenedSales = React.useMemo(() => {
-    return product.sales.map(sale => ({
-        ...sale,
-        totalValue: sale.sellingPrice * sale.quantity,
-    }));
-  }, [product.sales]);
 
 
   return (

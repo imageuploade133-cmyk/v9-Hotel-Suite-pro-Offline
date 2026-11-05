@@ -160,7 +160,7 @@ interface RenderSubComponentProps {
   categoryType: 'stock' | 'service';
 }
 
-export const renderSubComponent = ({ row, onUnlink, categoryType }: RenderSubComponentProps) => {
+export function CategorySubRow({ row, onUnlink, categoryType }: RenderSubComponentProps) {
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
   const globalStockImageUrl = settings?.globalStockImageUrl;
@@ -232,4 +232,6 @@ export const renderSubComponent = ({ row, onUnlink, categoryType }: RenderSubCom
       )}
     </div>
   );
-};
+}
+
+export const renderSubComponent = (props: RenderSubComponentProps) => <CategorySubRow {...props} />;

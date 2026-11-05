@@ -270,7 +270,6 @@ export async function optimisticUpdate<T extends { id: string }>(
     firestoreCache.set(cacheKey, updatedData, CacheTTL.MEDIUM);
 
     try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await updateDoc(docRef, updates as any);
     } catch (error) {
         // Revert cache on error

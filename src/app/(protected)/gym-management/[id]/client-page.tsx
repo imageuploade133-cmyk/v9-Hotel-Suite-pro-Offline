@@ -57,9 +57,7 @@ function PaginationControls({
 }
 
 
-function MemberDetails({ member, currency }: { member: GymMember, currency: string }) {
-    if (!member) return null;
-
+function MemberDetails({ member, currency }: { member: GymMember | null, currency: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
 
@@ -70,7 +68,7 @@ function MemberDetails({ member, currency }: { member: GymMember, currency: stri
 
     React.useEffect(() => {
         const fetchPayments = async () => {
-            if (!firestore || !member.email) {
+            if (!firestore || !member?.email) {
                 setIsLoadingPayments(false);
                 return;
             }
@@ -98,7 +96,7 @@ function MemberDetails({ member, currency }: { member: GymMember, currency: stri
         };
 
         fetchPayments();
-    }, [firestore, member.email, toast]);
+    }, [firestore, member?.email, toast]);
 
     const paginatedPayments = React.useMemo(() => {
         const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -120,6 +118,8 @@ function MemberDetails({ member, currency }: { member: GymMember, currency: stri
     const handlePrintReceipt = (payment: Payment) => {
         setReceiptPayment(payment);
     };
+
+    if (!member) return null;
 
     const expiresAtDate = getSafeDate(member.expiresAt);
 

@@ -6,8 +6,8 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppInstallProvider } from '@/contexts/app-install-context';
 
 export const metadata = {
-  title: 'Hotel Suite Pro',
-  description: 'The complete solution for hotel management.',
+  title: 'v9 Hotel Suite Pro',
+  description: 'Comprehensive hotel management system including reservations, front desk check-in, POS, inventory, salon, gym, laundry, guest billing, and accounting.',
   manifest: '/manifest.json',
 };
 

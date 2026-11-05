@@ -42,8 +42,7 @@ interface ViewRoomDialogProps {
   onNavigate: (direction: 'next' | 'prev') => void;
 }
 
-function RoomDetails({ room, currency }: { room: Room, currency: string }) {
-    if (!room) return null;
+function RoomDetails({ room, currency }: { room: Room | null, currency: string }) {
     const firestore = useFirestore();
 
     const roomFacilitiesQuery = React.useMemo(() => {
@@ -53,7 +52,7 @@ function RoomDetails({ room, currency }: { room: Room, currency: string }) {
     const { data: roomFacilitiesData } = useCollection(roomFacilitiesQuery);
 
     const facilityDetails = React.useMemo(() => {
-        if (!room.facilities || !roomFacilitiesData) return [];
+        if (!room?.facilities || !roomFacilitiesData) return [];
         return room.facilities.map(facilityName => {
             const facilityData = roomFacilitiesData.find((f: any) => f.name === facilityName);
             return {
@@ -61,7 +60,9 @@ function RoomDetails({ room, currency }: { room: Room, currency: string }) {
                 iconName: facilityData?.iconName || facilityName,
             }
         });
-    }, [room.facilities, roomFacilitiesData]);
+    }, [room?.facilities, roomFacilitiesData]);
+
+    if (!room) return null;
 
     const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 
