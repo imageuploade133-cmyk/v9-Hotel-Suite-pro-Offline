@@ -142,7 +142,7 @@ export default function CloudSyncPage() {
       toast({
         variant: 'destructive',
         title: 'Internet Disconnected',
-        description: 'Please connect the Master Server PC or your device to the internet before syncing to Cloud Firebase.',
+        description: 'Please connect the Master Server PC or your device to the internet before syncing to Cloud Database.',
       });
       return;
     }
@@ -152,7 +152,7 @@ export default function CloudSyncPage() {
       toast({
         variant: 'default',
         title: 'Already Synchronized',
-        description: 'All local data is already 100% synced to Cloud Firebase.',
+        description: 'All local data is already 100% synced to Cloud Database.',
       });
       return;
     }
@@ -216,7 +216,7 @@ export default function CloudSyncPage() {
     toast({
       variant: 'default',
       title: 'Cloud Sync Successful',
-      description: `Successfully synchronized ${totalSynced} records to Cloud Firebase.`,
+      description: `Successfully synchronized ${totalSynced} records to Cloud Database.`,
     });
 
     // Refresh mutations table to reflect immediate synced state
@@ -293,7 +293,7 @@ export default function CloudSyncPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Firebase Cloud Sync Center
+              Cloud Sync Center
             </h1>
             <Badge
               variant={isOnline ? 'default' : 'secondary'}
@@ -313,7 +313,7 @@ export default function CloudSyncPage() {
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Real-time synchronization between the Master PC local database and Firebase Cloud Firestore.
+            Real-time synchronization between the Master PC local database and Secure Cloud Database.
           </p>
         </div>
 
@@ -336,7 +336,7 @@ export default function CloudSyncPage() {
             className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <CloudUpload className={`h-4 w-4 ${isSyncing ? 'animate-bounce' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync to Firebase'}
+            {isSyncing ? 'Syncing...' : 'Sync to Cloud'}
           </Button>
         </div>
       </div>
@@ -351,7 +351,7 @@ export default function CloudSyncPage() {
                 Cloud Synchronization Engine
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Push all pending offline transactions, bookings, and inventory updates to Cloud Firebase.
+                Push all pending offline transactions, bookings, and inventory updates to Cloud Database.
               </CardDescription>
             </div>
             <div className="text-xs text-muted-foreground sm:text-right">
@@ -379,7 +379,7 @@ export default function CloudSyncPage() {
                   ? 'Synchronizing in progress...'
                   : summary.pendingMutationsCount === 0
                   ? 'Cloud and Local Database are 100% In Sync'
-                  : `${summary.pendingMutationsCount} record(s) pending sync to Firebase`}
+                  : `${summary.pendingMutationsCount} record(s) pending sync to Cloud`}
               </span>
               <span className="font-mono font-bold text-sm">
                 {isSyncing ? `${syncProgress}%` : summary.pendingMutationsCount === 0 ? '100%' : 'Ready'}
@@ -410,7 +410,7 @@ export default function CloudSyncPage() {
               <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div className="flex-1 text-xs sm:text-sm">
                 <span className="font-semibold">Successfully Synchronized!</span>{' '}
-                Pushed {syncSuccessDetails.count} records to Cloud Firebase at{' '}
+                Pushed {syncSuccessDetails.count} records to Cloud Database at{' '}
                 {format(syncSuccessDetails.time, 'PPpp')}.
               </div>
             </div>
@@ -442,7 +442,7 @@ export default function CloudSyncPage() {
               <h3 className="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">
                 {summary.syncedMutationsCount}
               </h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Safe in Firebase</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Safe in Cloud</p>
             </div>
             <CheckCheck className="h-8 w-8 text-emerald-500/30" />
           </CardContent>
