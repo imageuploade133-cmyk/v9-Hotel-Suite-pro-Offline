@@ -8,7 +8,7 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "node scripts/build.js",
     "export": "npm run build",
-    "start": "NEXT_IGNORE_INCORRECT_NODE_VERSION=1 next start",
+    "start": "node scripts/start.js",
     "start:master": "node scripts/start.js",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
