@@ -152,7 +152,10 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       const cachedUsers = firestoreCache.get<UserProfile[]>(usersCacheKey);
       const cachedInventorySpaces = firestoreCache.get<any[]>(inventorySpacesCacheKey);
 
+      const isDeviceOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
       const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1200): Promise<T | null> => {
+        if (isDeviceOffline) return null;
         try {
           return await Promise.race([
             p,
@@ -348,35 +351,34 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      // 2. When cloud authority is unavailable, prefer the local Master PC roster.
+      // 2. When cloud authority is unavailable, prefer the local Master PC roster or local cache.
       if (!cloudLookupCompleted) {
-        let lanRosterAvailable = false;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1800);
+        // Check local staff cache immediately for 0ms offline response
+        matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid);
 
-        try {
-          const response = await fetch('/api/lan-sync?collection=users', { signal: controller.signal });
-          if (response.ok) {
-            const result = await response.json();
-            if (result?.success === true && result.data && typeof result.data === 'object') {
-              const usersList = Object.values(result.data) as UserProfile[];
-              // An empty LAN response may mean the roster has not synced yet.
-              // Keep the previous device roster available as an offline fallback.
-              if (usersList.length > 0) {
-                lanRosterAvailable = true;
-                firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-                matchedProfile = findStaffProfile(usersList, user.uid);
+        if (!matchedProfile) {
+          let lanRosterAvailable = false;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 800);
+
+          try {
+            const response = await fetch('/api/lan-sync?collection=users', { signal: controller.signal });
+            if (response.ok) {
+              const result = await response.json();
+              if (result?.success === true && result.data && typeof result.data === 'object') {
+                const usersList = Object.values(result.data) as UserProfile[];
+                if (usersList.length > 0) {
+                  lanRosterAvailable = true;
+                  firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
+                  matchedProfile = findStaffProfile(usersList, user.uid);
+                }
               }
             }
+          } catch {
+            // LAN unavailable: fall through to the last successfully synced roster.
+          } finally {
+            clearTimeout(timeoutId);
           }
-        } catch {
-          // LAN unavailable: fall through to the last successfully synced roster.
-        } finally {
-          clearTimeout(timeoutId);
-        }
-
-        if (!lanRosterAvailable) {
-          matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid);
         }
       }
 

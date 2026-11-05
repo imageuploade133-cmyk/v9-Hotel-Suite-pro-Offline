@@ -594,9 +594,11 @@ export default function ProtectedLayout({
   // Protect against infinite loading spinners by auto-releasing the spinner after a short delay
   const [forceReady, setForceReady] = React.useState(false);
   React.useEffect(() => {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const timeoutDuration = isOffline ? 250 : 1200;
     const timer = setTimeout(() => {
       setForceReady(true);
-    }, 1200);
+    }, timeoutDuration);
     return () => clearTimeout(timer);
   }, []);
 

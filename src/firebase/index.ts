@@ -117,12 +117,28 @@ export function useCollection<T>(
       unsubscribeRef.current = null;
     }
 
-    const pathStr = (memoizedQuery as any).path || 'collections';
+    const resolvedPath = (memoizedQuery as any).path ||
+      (memoizedQuery as any)._query?.path?.canonicalString?.() ||
+      'collections';
+    const pathStr = resolvedPath;
+
+    // If offline, short-circuit immediately to LAN store without waiting for network timeouts
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
     // If not realtime, do a one-time fetch
     if (!realtime) {
       const fetchData = async () => {
         try {
+          if (isOffline) {
+            const lanResults = await fetchLanCollectionData<T>(pathStr);
+            if (mountedRef.current) {
+              setData(lanResults);
+              onDataRef.current?.(lanResults);
+              setError(null);
+            }
+            return;
+          }
+
           const snapshot = await getDocs(memoizedQuery);
           let results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
 
@@ -159,6 +175,8 @@ export function useCollection<T>(
       if (mountedRef.current && lanResults && lanResults.length > 0) {
         setData(lanResults);
         onDataRef.current?.(lanResults);
+        setIsLoading(false);
+      } else if (mountedRef.current && isOffline) {
         setIsLoading(false);
       }
     });
