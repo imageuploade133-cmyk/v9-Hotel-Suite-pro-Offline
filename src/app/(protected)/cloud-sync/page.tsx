@@ -448,18 +448,18 @@ export default function CloudSyncPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-amber-500/20">
+        <Card className={`bg-card ${summary.pendingMutationsCount > 0 ? 'border-red-500/30 dark:border-red-500/40 bg-red-500/5' : 'border-emerald-500/20'}`}>
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${summary.pendingMutationsCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 Pending (Not Synced)
               </p>
-              <h3 className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-400">
+              <h3 className={`text-2xl font-bold mt-1 ${summary.pendingMutationsCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 {summary.pendingMutationsCount}
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">Stored on Master PC</p>
             </div>
-            <Clock className="h-8 w-8 text-amber-500/30" />
+            <Clock className={`h-8 w-8 ${summary.pendingMutationsCount > 0 ? 'text-red-500/40' : 'text-emerald-500/30'}`} />
           </CardContent>
         </Card>
 
@@ -585,25 +585,25 @@ export default function CloudSyncPage() {
                           {isSynced ? (
                             <Badge
                               variant="outline"
-                              className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 flex items-center gap-1.5 w-fit font-medium"
+                              className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-semibold flex items-center gap-1.5 w-fit"
                             >
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                               <span>Synced</span>
                             </Badge>
                           ) : isFailed ? (
                             <Badge
                               variant="destructive"
-                              className="flex items-center gap-1.5 w-fit font-medium"
+                              className="bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30 font-semibold flex items-center gap-1.5 w-fit"
                             >
-                              <AlertCircle className="h-3 w-3" />
-                              <span>Failed</span>
+                              <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                              <span>Sync Failed</span>
                             </Badge>
                           ) : (
                             <Badge
                               variant="outline"
-                              className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 flex items-center gap-1.5 w-fit font-medium"
+                              className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 font-semibold flex items-center gap-1.5 w-fit"
                             >
-                              <Clock className="h-3 w-3" />
+                              <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
                               <span>Not Synced</span>
                             </Badge>
                           )}
