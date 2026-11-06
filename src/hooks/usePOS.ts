@@ -247,10 +247,73 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       return acc;
     }, [] as UnifiedItem[]);
 
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const currentUid = userProfile.uid || (userProfile as any).id;
+    let saleId = restoredSaleId || `HELD-${Date.now().toString().slice(-6)}`;
+
+    const executeOfflineHoldWrites = async () => {
+        const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleId);
+
+        const baseHeldSaleData: Partial<HeldSale> = {
+            id: saleId,
+            name: name,
+            cart: combinedItems.map(i => ({...i})),
+            customer: customer?.id ? { id: customer.id, name: customer.name || "Walk-in Customer" } : { name: name || "Walk-in Customer" },
+            heldByUid: currentUid,
+            heldByName: userProfile.name,
+            heldAt: new Date() as any,
+            printStatus: 'pending',
+        };
+
+        if (restoredSaleData?.linkedBillId) {
+            baseHeldSaleData.linkedBillId = restoredSaleData.linkedBillId;
+        }
+
+        const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
+
+        // 1. Write to LAN store on Master PC first for instant 0ms offline persistence & multi-device sync
+        try {
+            await fetch('/api/lan-sync/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    collectionName: getCollectionPath('heldSales'),
+                    docId: heldSaleRef.id,
+                    action: 'set',
+                    data: heldSaleData,
+                }),
+            });
+        } catch (lanErr) {
+            console.warn('[Offline HoldSale] LAN sync mutation error:', lanErr);
+        }
+
+        // 2. Write to Firestore local cache in background (do not block on cloud network)
+        setDoc(heldSaleRef, heldSaleData, { merge: true }).catch((err) => {
+            console.warn('[Offline HoldSale] Local setDoc write note:', err);
+        });
+
+        try {
+            const physicalItems = combinedItems.filter(item => !item.isService);
+            if (physicalItems.length > 0) {
+                await fetch('/api/lan-sync/stock-deduct/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: physicalItems.map(i => ({ itemId: i.id, quantity: i.sellQuantity })),
+                    }),
+                });
+            }
+        } catch (stockErr) {
+            console.warn('[Offline HoldSale] LAN stock deduct error:', stockErr);
+        }
+    };
+
     try {
-        // Declare saleId outside the transaction so it's available for the return statement
-        let saleId = restoredSaleId || `HELD-${Date.now().toString().slice(-6)}`;
-        await runTransaction(firestore, async (transaction) => {
+        if (isOffline) {
+            await executeOfflineHoldWrites();
+        } else {
+            try {
+                const txPromise = runTransaction(firestore, async (transaction) => {
             const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleId);
 
             // ===== PHASE 1: Perform ALL reads first =====
@@ -339,6 +402,17 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
             transaction.set(heldSaleRef, heldSaleData, { merge: true });
         });
+
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Transaction network timeout')), 1500)
+                );
+
+                await Promise.race([txPromise, timeoutPromise]);
+            } catch (txErr) {
+                console.warn('[HoldSale] Online transaction failed/timed out, falling back to offline LAN writes:', txErr);
+                await executeOfflineHoldWrites();
+            }
+        }
 
         toast({ variant: 'success', title: 'Table Added', description: `The table "${name}" has been ${restoredSaleId ? 'updated' : 'added to running tables.'}.` });
 

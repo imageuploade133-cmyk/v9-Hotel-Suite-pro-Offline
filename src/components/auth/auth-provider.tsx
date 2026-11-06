@@ -60,23 +60,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-      if (user && user.email && typeof window !== 'undefined') {
-        // Update user profile info in cache without overwriting any stored password hash
-        try {
-          const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
-          const existing = authCache[user.email.toLowerCase()] || {};
-          authCache[user.email.toLowerCase()] = {
-            ...existing,
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            lastAuthenticated: Date.now(),
-          };
-          localStorage.setItem('app_auth_credentials_cache', JSON.stringify(authCache));
-        } catch {}
+      if (user) {
+        setUser(user);
+        setLoading(false);
+        if (user.email && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('app_active_offline_session', JSON.stringify({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              emailVerified: true,
+            }));
+
+            const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
+            const existing = authCache[user.email.toLowerCase()] || {};
+            authCache[user.email.toLowerCase()] = {
+              ...existing,
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              lastAuthenticated: Date.now(),
+            };
+            localStorage.setItem('app_auth_credentials_cache', JSON.stringify(authCache));
+          } catch {}
+        }
+      } else {
+        // When offline or cloud unreachable, restore active offline session so hard reloads don't log out
+        let offlineSession = null;
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('app_active_offline_session');
+            if (raw) offlineSession = JSON.parse(raw);
+          } catch {}
+        }
+        setUser(offlineSession);
+        setLoading(false);
       }
     });
 
@@ -116,6 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } as User;
 
             setUser(offlineUser);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('app_active_offline_session', JSON.stringify(offlineUser));
+              } catch {}
+            }
             return { user: offlineUser };
           }
         }
@@ -196,6 +221,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } as User;
 
         setUser(offlineUser);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('app_active_offline_session', JSON.stringify(offlineUser));
+          } catch {}
+        }
         return { user: offlineUser };
       }
 
@@ -219,6 +249,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } as User;
 
         setUser(offlineUser);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('app_active_offline_session', JSON.stringify(offlineUser));
+          } catch {}
+        }
         return { user: offlineUser };
       }
 
@@ -292,16 +327,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('app_active_offline_session');
+      } catch {}
+    }
     if (!auth) {
-      console.error("Auth not initialized");
+      setUser(null);
       return;
     }
     try {
-      console.log("Logging out...");
       await signOut(auth);
-      console.log("Logout successful");
+      setUser(null);
     } catch (error) {
       console.error("Error logging out:", error);
+      setUser(null);
     }
   };
 

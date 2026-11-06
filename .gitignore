@@ -47,3 +47,7 @@ firestore-debug.log.playwright-cli/
 
 # playwright
 .playwright-cli/
+
+# Local LAN data
+.lan-data/
+server.log

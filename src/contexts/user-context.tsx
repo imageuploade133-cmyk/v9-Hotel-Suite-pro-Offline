@@ -112,10 +112,15 @@ const readCachedStaffUsers = (): UserProfile[] => {
   return Array.isArray(cached) ? cached : [];
 };
 
-const findStaffProfile = (users: unknown, uid: string): UserProfile | null => {
+const findStaffProfile = (users: unknown, uid: string, email?: string | null): UserProfile | null => {
   if (!Array.isArray(users)) return null;
+  const lowerEmail = email?.toLowerCase();
   return (users as UserProfile[]).find(profile =>
-    profile && (profile.uid === uid || profile.id === uid)
+    profile && (
+      profile.uid === uid ||
+      profile.id === uid ||
+      (lowerEmail && profile.email?.toLowerCase() === lowerEmail)
+    )
   ) || null;
 };
 
@@ -315,7 +320,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     // If Firestore has not initialized, use the device's last synced staff roster
     // before treating this authenticated identity as a Firebase-only Admin.
     if (!firestore) {
-      const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid);
+      const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
       const accountType = getCachedAccountType(user.uid);
       if (cachedStaff) {
         setCachedAccountType(user.uid, 'staff');
@@ -344,7 +349,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           cloudLookupCompleted = true;
           const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
           firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-          matchedProfile = findStaffProfile(usersList, user.uid);
+          matchedProfile = findStaffProfile(usersList, user.uid, user.email);
           setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
         } catch {
           // Cloud is unreachable: use the Master PC roster, then the device cache.
@@ -354,7 +359,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       // 2. When cloud authority is unavailable, prefer the local Master PC roster or local cache.
       if (!cloudLookupCompleted) {
         // Check local staff cache immediately for 0ms offline response
-        matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid);
+        matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
 
         if (!matchedProfile) {
           let lanRosterAvailable = false;
@@ -362,7 +367,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           const timeoutId = setTimeout(() => controller.abort(), 800);
 
           try {
-            const response = await fetch('/api/lan-sync?collection=users', { signal: controller.signal });
+            const response = await fetch('/api/lan-sync/?collection=users', { signal: controller.signal });
             if (response.ok) {
               const result = await response.json();
               if (result?.success === true && result.data && typeof result.data === 'object') {
@@ -370,7 +375,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
                 if (usersList.length > 0) {
                   lanRosterAvailable = true;
                   firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-                  matchedProfile = findStaffProfile(usersList, user.uid);
+                  matchedProfile = findStaffProfile(usersList, user.uid, user.email);
                 }
               }
             }
@@ -438,9 +443,12 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     const dynamicPermissions = dynamicPermissionGroups.flatMap(group =>
       (group.permissions || []).map((permission: any) => permission.id)
     );
-    const assignedPermissions = userProfile.isFirebaseOnlyAdmin
+    const isAdminRole = userProfile.isFirebaseOnlyAdmin || userProfile.role === 'Admin' || userProfile.role === 'Super Admin';
+    const assignedPermissions = isAdminRole
       ? [...ALL_PERMISSIONS, ...dynamicPermissions]
-      : (Array.isArray(userProfile.permissions) ? userProfile.permissions : []);
+      : (Array.isArray(userProfile.permissions) && userProfile.permissions.length > 0
+          ? userProfile.permissions
+          : (DEFAULT_SYSTEM_ROLES.find(r => r.name === userProfile.role)?.permissions || []));
 
     return Array.from(new Set(assignedPermissions.filter(permission => typeof permission === 'string')));
   }, [user, userProfile, dynamicPermissionGroups]);

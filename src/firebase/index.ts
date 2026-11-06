@@ -59,7 +59,7 @@ export interface UseDocResult<T> {
 async function fetchLanCollectionData<T>(pathStr: string): Promise<T[]> {
   if (!isLocalMasterHost()) return [];
   try {
-    const res = await fetch(`/api/lan-sync?collection=${encodeURIComponent(pathStr)}`);
+    const res = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(pathStr)}`);
     if (res.ok) {
       const result = await res.json();
       if (result.data) {
@@ -224,8 +224,26 @@ export function useCollection<T>(
 
     // Set up real-time subscription with Firebase (when internet/cloud is available)
     const unsubscribe = onSnapshot(memoizedQuery,
-      (snapshot) => {
+      async (snapshot) => {
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+
+        // When offline or local Firestore cache is empty, protect against wiping out Master PC LAN data
+        if (results.length === 0) {
+          const lanResults = await fetchLanCollectionData<T>(pathStr);
+          if (mountedRef.current) {
+            if (lanResults && lanResults.length > 0) {
+              setData(lanResults);
+              onDataRef.current?.(lanResults);
+            } else {
+              setData([]);
+              onDataRef.current?.([]);
+            }
+            setIsLoading(false);
+            setError(null);
+          }
+          return;
+        }
+
         if (mountedRef.current) {
           setData(results);
           onDataRef.current?.(results);
