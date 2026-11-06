@@ -21,7 +21,7 @@ import type { Customer, BookingFormField } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection } from '@/firebase';
 import { useSettings } from '@/contexts/settings-context';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import Image from 'next/image';
 import { CustomerFormFields } from './customer-form-fields';
 import { useBranch } from '@/contexts/branch-context';
@@ -161,7 +161,9 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
 
         const collectionPath = getCollectionPath(collectionName);
         const customersCollection = collection(firestore, collectionPath);
-        await addDoc(customersCollection, {
+        const customerRef = doc(customersCollection);
+        const customerData = {
+            id: customerRef.id,
             name: values.name,
             email: values.email || null,
             phoneNumber: phoneNumberWithCode || null,
@@ -170,7 +172,25 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
             totalBookings: 0,
             bookingIds: [],
             customFields: values.customFields || {},
-        });
+        };
+        await setDoc(customerRef, customerData);
+
+        // Keep the Local Master PC LAN data store in sync so customers created
+        // from a staff terminal are immediately searchable in offline POS.
+        try {
+          await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName,
+              docId: customerRef.id,
+              action: 'set',
+              data: { ...customerData, createdAt: new Date().toISOString() },
+            }),
+          });
+        } catch (lanError) {
+          console.warn('[POS Customer] LAN sync write failed; Firestore write remains saved:', lanError);
+        }
 
         toast({ variant: 'success', title: 'Customer Added', description: `${values.name}'s profile has been created.` });
         onSuccess();
