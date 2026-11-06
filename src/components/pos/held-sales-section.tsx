@@ -74,10 +74,16 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
 
     if (userProfile.role === 'Admin') {
         return query(baseQuery, orderBy('heldAt', 'desc'));
-    } else {
-        return query(baseQuery, where('heldByUid', '==', userProfile.uid), orderBy('heldAt', 'desc'));
     }
-}, [firestore, reloadCounter, userProfile]);
+
+    // Match the exact owner identifier used when a running table is saved.
+    // Some offline-cached staff profiles expose their account ID as "id"
+    // instead of "uid"; using only uid hides tables from their creator.
+    const currentUserId = String(userProfile.uid || (userProfile as any).id || '').trim();
+    if (!currentUserId) return query(baseQuery, where('heldByUid', '==', '__no_matching_user__'));
+
+    return query(baseQuery, where('heldByUid', '==', currentUserId), orderBy('heldAt', 'desc'));
+}, [firestore, reloadCounter, userProfile?.role, userProfile?.uid, (userProfile as any)?.id, getCollectionPath]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
 
