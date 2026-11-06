@@ -4,7 +4,7 @@ import * as React from 'react';
 import { collection, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UserPlus, X, Phone, Mail, Info, Search, Table2 } from 'lucide-react';
+import { UserPlus, X, Phone, Mail, Info, Search, Table2, AlertTriangle } from 'lucide-react';
 import type { Customer, HeldSale } from '@/lib/types';
 import { useSettings } from '@/contexts/settings-context';
 import { CustomerSearch } from '../customers/customer-search';
@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useCollection } from '@/firebase';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface CustomerPanelProps {
   selectedCustomer: (Partial<Customer> & { outstandingBalance?: number }) | null;
@@ -25,9 +26,10 @@ interface CustomerPanelProps {
   isSaleRestored: boolean;
   onCustomerAdded?: () => void;
   onSelectRunningTable?: (sale: HeldSale) => void;
+  onCancelRunningTable?: () => void;
 }
 
-export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestored, onCustomerAdded, onSelectRunningTable }: CustomerPanelProps) {
+export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestored, onCustomerAdded, onSelectRunningTable, onCancelRunningTable }: CustomerPanelProps) {
   const { settings } = useSettings();
   const { userProfile } = useUser();
   const firestore = useFirestore();
@@ -36,6 +38,8 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
   const [isAddCustomerOpen, setIsAddCustomerOpen] = React.useState(false);
   const [searchTab, setSearchTab] = React.useState<'customers' | 'tables'>('customers');
   const [tableSearch, setTableSearch] = React.useState('');
+  const [selectedRunningTable, setSelectedRunningTable] = React.useState<HeldSale | null>(null);
+  const [pendingClear, setPendingClear] = React.useState<'customer' | 'table' | null>(null);
   const heldSalesQuery = React.useMemo(() => {
     if (!firestore) return null;
     return query(collection(firestore, getCollectionPath('heldSales')));
@@ -61,7 +65,21 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
   const handleWalkInNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onSelectCustomer(e.target.value ? { name: e.target.value } : null);
   };
-  const handleClearSelection = () => onSelectCustomer(null);
+  const handleClearSelection = () => setPendingClear('customer');
+  const handleSelectTable = (sale: HeldSale) => {
+    setSelectedRunningTable(sale);
+    setTableSearch('');
+    setSearchTab('customers');
+    onSelectRunningTable?.(sale);
+  };
+  const confirmClearSelection = () => {
+    if (pendingClear === 'customer') onSelectCustomer(null);
+    if (pendingClear === 'table') {
+      setSelectedRunningTable(null);
+      onCancelRunningTable?.();
+    }
+    setPendingClear(null);
+  };
   const handleSuccess = () => {
     onCustomerAdded?.();
     setIsAddCustomerOpen(false);
@@ -86,7 +104,18 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
         </CardHeader>
         <CardContent className="space-y-4">
           <fieldset disabled={isSaleRestored} className="space-y-4 group">
-            {isRegisteredCustomer ? (
+            {selectedRunningTable ? (
+              <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/30 bg-muted/50 p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Table2 className="h-5 w-5" /></div>
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">{selectedRunningTable.name || 'Running Table'}</p>
+                    <p className="truncate text-xs text-muted-foreground">{selectedRunningTable.customer?.name || 'Walk-in Customer'} · Running table loaded</p>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected running table" onClick={() => setPendingClear('table')}><X className="h-4 w-4" /></Button>
+              </div>
+            ) : isRegisteredCustomer ? (
               <div className="flex items-start justify-between rounded-lg border p-4 bg-muted/50 group-disabled:opacity-70">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-12 w-12">
@@ -99,7 +128,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
                     {selectedCustomer.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="h-3 w-3" />{selectedCustomer.email}</p>}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClearSelection}><X className="h-4 w-4" /></Button>
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected customer" onClick={handleClearSelection}><X className="h-4 w-4" /></Button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -123,7 +152,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
                         {isLoadingTables ? (
                           <p className="p-3 text-center text-sm text-muted-foreground">Loading your running tables...</p>
                         ) : myRunningTables.length ? myRunningTables.map(sale => (
-                          <button key={sale.id} type="button" onClick={() => onSelectRunningTable?.(sale)} className="flex w-full items-center justify-between gap-3 rounded-md p-3 text-left hover:bg-accent">
+                          <button key={sale.id} type="button" onClick={() => handleSelectTable(sale)} className="flex w-full items-center justify-between gap-3 rounded-md p-3 text-left hover:bg-accent">
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-medium">{sale.name || 'Running Table'}</span>
                               <span className="block truncate text-xs text-muted-foreground">{sale.customer?.name || 'Walk-in Customer'} · {(sale.cart || []).length} item(s)</span>
@@ -150,6 +179,23 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
           )}
         </CardContent>
       </Card>
+      <AlertDialog open={pendingClear !== null} onOpenChange={(open) => { if (!open) setPendingClear(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500" /> {pendingClear === 'table' ? 'Cancel selected running table?' : 'Remove selected customer?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingClear === 'table'
+                ? 'This will clear the loaded running table and its current POS cart. The saved running table will not be deleted.'
+                : 'This will remove the selected customer from this sale. No customer record will be deleted.'}
+              {' '}Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Selection</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearSelection} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Yes, Cancel Selection</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AddCustomerForm open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen} onSuccess={handleSuccess} collectionName="posCustomers" />
     </>
   );
