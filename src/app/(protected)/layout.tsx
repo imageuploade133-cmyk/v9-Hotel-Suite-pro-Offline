@@ -653,7 +653,7 @@ export default function ProtectedLayout({
           </div>
 
           {/* Branch Selector in Sidebar - Desktop */}
-          {userAccessibleBranches.length > 0 && (
+          {(userAccessibleBranches.length > 0 || isGlobalMode) && (
             <div className={cn('border-b px-2 py-2', isCollapsed ? 'flex justify-center' : '')}>
               {isCollapsed ? (
                 <TooltipProvider>
@@ -681,7 +681,7 @@ export default function ProtectedLayout({
                   </p>
                   <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-primary/90 text-primary-foreground rounded-lg">
                     <Building className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 text-left truncate">{userAccessibleBranches[0].name}</span>
+                    <span className="flex-1 text-left truncate">{currentBranch?.name || userAccessibleBranches[0].name}</span>
                   </div>
                 </div>
               ) : (
@@ -781,7 +781,7 @@ export default function ProtectedLayout({
                 </SheetHeader>
                 <ScrollArea className="min-h-0 flex-1">
                   {/* Branch Selector in Mobile Slide Menu */}
-                  {userAccessibleBranches.length > 0 && (
+                  {(userAccessibleBranches.length > 0 || isGlobalMode) && (
                     <div className="border-b px-4 py-3">
                       {isRestrictedToBranch && userAccessibleBranches.length === 1 ? (
                         <>
@@ -791,7 +791,7 @@ export default function ProtectedLayout({
                           </p>
                           <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg">
                             <Building className="h-4 w-4 shrink-0" />
-                            <span className="flex-1 text-left truncate">{userAccessibleBranches[0].name}</span>
+                            <span className="flex-1 text-left truncate">{currentBranch?.name || userAccessibleBranches[0].name}</span>
                           </div>
                         </>
                       ) : (
@@ -856,6 +856,17 @@ export default function ProtectedLayout({
                 </ScrollArea>
               </SheetContent>
             </Sheet>
+
+            {(isBranchMode || isGlobalMode) && currentBranch && (
+              <div
+                className="flex min-w-0 max-w-[42vw] items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-xs font-medium text-primary sm:hidden"
+                title={currentBranch.name}
+                aria-label={`Current branch: ${currentBranch.name}`}
+              >
+                <Building className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{currentBranch.name}</span>
+              </div>
+            )}
 
             <Button
               variant="outline"
