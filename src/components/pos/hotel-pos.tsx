@@ -112,13 +112,13 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
 
 
   React.useEffect(() => {
-    if (!firestore || !userProfile?.uid) return;
-    const q = query(collection(firestore, getCollectionPath("heldSales")), where("heldByUid", "==", userProfile.uid));
+    if (!firestore) return;
+    const q = query(collection(firestore, getCollectionPath("heldSales")));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setHeldSalesCount(snapshot.size);
     });
     return () => unsubscribe();
-  }, [firestore, userProfile?.uid, getCollectionPath]);
+  }, [firestore, getCollectionPath]);
 
   // Track active bookings count
   React.useEffect(() => {
@@ -554,27 +554,68 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
             const autoGenerateReceipt = settings?.posAutoGenerateReceiptOnRunningTable !== false;
 
             // If auto-generate is enabled, automatically show the receipt
-            if (autoGenerateReceipt && firestore && createdSaleId) {
+            if (autoGenerateReceipt && createdSaleId) {
                 try {
-                    const heldSaleDoc = await getDoc(doc(firestore, getCollectionPath('heldSales'), createdSaleId));
-                    if (heldSaleDoc.exists()) {
-                        const heldSaleData = { id: heldSaleDoc.id, ...heldSaleDoc.data() } as HeldSale;
-                        setHeldSaleToPrint(heldSaleData);
+                    let heldSaleData: HeldSale | null = null;
 
-                        // For new tables, pass all cart items as "new items" to print
-                        // For updates, we show only the items that were in the cart before the hold (new additions)
-                        const itemsToPrint = isUpdate ? cartItemsBeforeHold : cartItemsBeforeHold;
-                        setNewItemsToPrint(itemsToPrint);
-
-                        // Show toast notification about auto-generated receipt
-                        toast({
-                            variant: 'default',
-                            title: 'Receipt Generated',
-                            description: isUpdate
-                                ? `A receipt has been generated for the new items added to "${heldSaleData.name}".`
-                                : `A receipt has been generated for "${heldSaleData.name}".`,
-                        });
+                    // Fast fetch with timeout to prevent hanging offline on PC server
+                    if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+                        try {
+                            const fetchPromise = getDoc(doc(firestore, getCollectionPath('heldSales'), createdSaleId));
+                            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200));
+                            const heldSaleDoc = await Promise.race([fetchPromise, timeoutPromise]);
+                            if (heldSaleDoc && heldSaleDoc.exists()) {
+                                heldSaleData = { id: heldSaleDoc.id, ...heldSaleDoc.data() } as HeldSale;
+                            }
+                        } catch (docErr) {
+                            console.warn('Firestore getDoc for heldSale timed out or failed, using local fallback:', docErr);
+                        }
                     }
+
+                    // Fallback to LAN store if offline or Firestore doc fetch timed out
+                    if (!heldSaleData) {
+                        try {
+                            const lanRes = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(getCollectionPath('heldSales'))}`);
+                            if (lanRes.ok) {
+                                const json = await lanRes.json();
+                                if (json.data && json.data[createdSaleId]) {
+                                    heldSaleData = { id: createdSaleId, ...json.data[createdSaleId] } as HeldSale;
+                                }
+                            }
+                        } catch (lanErr) {
+                            console.warn('LAN fetch for heldSale failed:', lanErr);
+                        }
+                    }
+
+                    // Fallback to local memory if LAN query failed or returned empty
+                    if (!heldSaleData) {
+                        heldSaleData = {
+                            id: createdSaleId,
+                            name: name,
+                            cart: cartItemsBeforeHold,
+                            customer: customer?.id ? { id: customer.id, name: customer.name || 'Walk-in Customer' } : { name: name || 'Walk-in Customer' },
+                            heldByUid: userProfile?.uid || '',
+                            heldByName: userProfile?.name || 'Staff',
+                            heldAt: new Date() as any,
+                            printStatus: 'pending',
+                        };
+                    }
+
+                    setHeldSaleToPrint(heldSaleData);
+
+                    // For new tables, pass all cart items as "new items" to print
+                    // For updates, we show only the items that were in the cart before the hold (new additions)
+                    const itemsToPrint = cartItemsBeforeHold;
+                    setNewItemsToPrint(itemsToPrint);
+
+                    // Show toast notification about auto-generated receipt
+                    toast({
+                        variant: 'default',
+                        title: 'Receipt Generated',
+                        description: isUpdate
+                            ? `A receipt has been generated for the new items added to "${heldSaleData.name}".`
+                            : `A receipt has been generated for "${heldSaleData.name}".`,
+                    });
                 } catch (e) {
                     console.error('Error fetching held sale for receipt:', e);
                 }
@@ -589,18 +630,22 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
 
   // Handler to mark new items as printed after printing the auto-generated receipt
   const handleMarkNewItemsPrinted = async (itemIds: string[]) => {
-    if (!firestore || !heldSaleToPrint || itemIds.length === 0) return;
+    if (!heldSaleToPrint || itemIds.length === 0) return;
 
     try {
-      const saleRef = doc(firestore, getCollectionPath('heldSales'), heldSaleToPrint.id);
+      let currentCart = heldSaleToPrint.cart || [];
 
-      // CRITICAL FIX: Fetch the LATEST document from Firestore to avoid using stale local state
-      const saleDoc = await getDoc(saleRef);
-      if (!saleDoc.exists()) {
-        throw new Error('Running table not found');
+      if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const saleRef = doc(firestore, getCollectionPath('heldSales'), heldSaleToPrint.id);
+          const saleDoc = await getDoc(saleRef);
+          if (saleDoc && saleDoc.exists()) {
+            currentCart = saleDoc.data()?.cart || [];
+          }
+        } catch (e) {
+          console.warn('Online fetch for held sale failed, falling back to local state:', e);
+        }
       }
-
-      const currentCart = saleDoc.data()?.cart || [];
 
       // CRITICAL: Use the actual new items that were added (from newItemsToPrint state)
       // These items represent what was in the cart BEFORE the update
@@ -625,7 +670,30 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
         return item;
       });
 
-      await updateDoc(saleRef, { cart: updatedCart });
+      if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const saleRef = doc(firestore, getCollectionPath('heldSales'), heldSaleToPrint.id);
+          await updateDoc(saleRef, { cart: updatedCart });
+        } catch (updateErr) {
+          console.warn('Failed to update Firestore print status:', updateErr);
+        }
+      }
+
+      // Also persist to LAN store for offline Master PC / LAN clients
+      try {
+        await fetch('/api/lan-sync/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collectionName: getCollectionPath('heldSales'),
+            docId: heldSaleToPrint.id,
+            action: 'update',
+            data: { cart: updatedCart },
+          }),
+        });
+      } catch (lanErr) {
+        console.warn('Failed to update LAN store print status:', lanErr);
+      }
 
       // Update local state to reflect the change
       setHeldSaleToPrint(prev => prev ? { ...prev, cart: updatedCart } : null);

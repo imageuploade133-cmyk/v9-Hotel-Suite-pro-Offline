@@ -101,11 +101,9 @@ const HeldSaleSkeleton = () => (
 
   const heldSales = React.useMemo(() => {
     if (!allHeldSales) return [];
-    if (userProfile?.role === 'Admin') {
-      return allHeldSales;
-    }
-    return allHeldSales.filter(sale => sale.heldByUid === userProfile?.uid);
-  }, [allHeldSales, userProfile]);
+    // All POS users can see all running tables in their active branch
+    return allHeldSales;
+  }, [allHeldSales]);
 
   const handleDeleteClick = (sale: HeldSale) => {
     setSaleToDelete(sale);
