@@ -182,7 +182,7 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              collectionName,
+              collectionName: collectionPath,
               docId: customerRef.id,
               action: 'set',
               data: { ...customerData, createdAt: new Date().toISOString() },
