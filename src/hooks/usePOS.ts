@@ -61,16 +61,31 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const addToCart = async (item: UnifiedItem) => {
     const hasFiniteStock = item.quantity !== Infinity;
 
-    // Fetch current stock from Firestore to ensure accurate validation
+    // Fetch current stock from Firestore/LAN to ensure accurate validation
     let currentStock = item.quantity;
-    if (hasFiniteStock && firestore) {
-      try {
-        const stockDoc = await getDoc(doc(firestore, getCollectionPath('stock'), item.id));
-        if (stockDoc.exists()) {
-          currentStock = stockDoc.data().quantity;
+    if (hasFiniteStock) {
+      if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const fetchPromise = getDoc(doc(firestore, getCollectionPath('stock'), item.id));
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
+          const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
+          if (stockDoc && stockDoc.exists()) {
+            currentStock = stockDoc.data().quantity;
+          }
+        } catch (e) {
+          console.warn('Error fetching current stock from firestore:', e);
         }
-      } catch (e) {
-        console.error('Error fetching current stock:', e);
+      } else {
+        // Query LAN store if offline
+        try {
+          const lanRes = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(getCollectionPath('stock'))}`);
+          if (lanRes.ok) {
+            const json = await lanRes.json();
+            if (json.data && json.data[item.id]) {
+              currentStock = json.data[item.id].quantity ?? json.data[item.id].stockCount ?? currentStock;
+            }
+          }
+        } catch {}
       }
     }
 
@@ -168,18 +183,33 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       return;
     }
 
-    // Fetch current stock from Firestore to ensure accurate validation
+    // Fetch current stock from Firestore/LAN to ensure accurate validation
     let currentStock = itemInCart.quantity;
     const hasFiniteStock = itemInCart.quantity !== Infinity;
 
-    if (hasFiniteStock && firestore) {
-      try {
-        const stockDoc = await getDoc(doc(firestore, getCollectionPath('stock'), itemId));
-        if (stockDoc.exists()) {
-          currentStock = stockDoc.data().quantity;
+    if (hasFiniteStock) {
+      if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const fetchPromise = getDoc(doc(firestore, getCollectionPath('stock'), itemId));
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
+          const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
+          if (stockDoc && stockDoc.exists()) {
+            currentStock = stockDoc.data().quantity;
+          }
+        } catch (e) {
+          console.warn('Error fetching current stock from firestore:', e);
         }
-      } catch (e) {
-        console.error('Error fetching current stock:', e);
+      } else {
+        // Query LAN store if offline
+        try {
+          const lanRes = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(getCollectionPath('stock'))}`);
+          if (lanRes.ok) {
+            const json = await lanRes.json();
+            if (json.data && json.data[itemId]) {
+              currentStock = json.data[itemId].quantity ?? json.data[itemId].stockCount ?? currentStock;
+            }
+          }
+        } catch {}
       }
     }
 

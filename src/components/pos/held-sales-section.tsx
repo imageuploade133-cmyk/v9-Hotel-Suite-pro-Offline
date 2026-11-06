@@ -71,13 +71,9 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     if (!firestore || !userProfile) return null;
 
     const baseQuery = collection(firestore, getCollectionPath('heldSales'));
-
-    if (userProfile.role === 'Admin') {
-        return query(baseQuery, orderBy('heldAt', 'desc'));
-    } else {
-        return query(baseQuery, where('heldByUid', '==', userProfile.uid), orderBy('heldAt', 'desc'));
-    }
-}, [firestore, reloadCounter, userProfile]);
+    // All POS users can see all running tables in their active branch
+    return query(baseQuery, orderBy('heldAt', 'desc'));
+  }, [firestore, reloadCounter, userProfile, getCollectionPath]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
 
