@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { Search, X } from 'lucide-react';
 import { useOnClickOutside } from '@/hooks/use-on-click-outside';
 import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -26,6 +27,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
   >(null);
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const { userProfile } = useUser();
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -43,7 +45,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
   const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
 
-  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore]);
+  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath]);
   const paymentsQuery = React.useMemo(() => firestore ? query(collection(firestore, 'payments'), where('type', '==', 'Credit Repayment')) : null, [firestore]);
 
   const { data: allSales, isLoading: areSalesLoading } = useCollection<StockSale>(salesQuery);
@@ -83,15 +85,29 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     });
   }, [allCustomers, allSales, allCreditPayments]);
 
+  // Apply this visibility rule only to the POS customer directory.
+  // Other customer search surfaces retain their previous behavior.
+  const isPOSCustomerCollection = collectionName === 'posCustomers';
+  const canViewAllPOSCustomers = settings?.posUsersCanViewAllCustomers === true;
   const filteredCustomers = React.useMemo(() => {
     if (!customersWithData) return [];
-    if (!searchTerm) return customersWithData;
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return customersWithData.filter(c =>
+    const visibleCustomers = isPOSCustomerCollection && !canViewAllPOSCustomers
+      ? customersWithData.filter(customer => {
+          const ownerUid = (customer as any).createdByUid
+            || (customer as any).registeredByUid
+            || (customer as any).createdByUserId
+            || (customer as any).createdById;
+          return !!userProfile?.uid && ownerUid === userProfile.uid;
+        })
+      : customersWithData;
+    if (!searchTerm) return visibleCustomers;
+    const lowercasedTerm = searchTerm.trim().toLowerCase();
+    return visibleCustomers.filter(c =>
         (c.name || '').toLowerCase().includes(lowercasedTerm) ||
-        (c.email && c.email.toLowerCase().includes(lowercasedTerm))
+        (c.email && c.email.toLowerCase().includes(lowercasedTerm)) ||
+        (c.phoneNumber && c.phoneNumber.toLowerCase().includes(lowercasedTerm))
     );
-  }, [customersWithData, searchTerm]);
+  }, [customersWithData, searchTerm, isPOSCustomerCollection, canViewAllPOSCustomers, userProfile?.uid]);
 
   const handleSelect = (customer: (Customer & { outstandingBalance?: number }) | null) => {
     onSelectCustomer(customer);
