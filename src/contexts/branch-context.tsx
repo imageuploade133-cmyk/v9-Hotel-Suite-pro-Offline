@@ -5,6 +5,7 @@ import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { useUser } from '@/contexts/user-context';
 import type { Branch, UserProfile } from '@/lib/types';
+import { PagePermission } from '@/lib/permissions';
 import {
   BRANCH_ISOLATED_COLLECTIONS,
   POS_ISOLATED_COLLECTIONS,
@@ -63,12 +64,21 @@ export const useBranch = () => useContext(BranchContext);
 
 export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   const firestore = useFirestore();
-  const { userProfile } = useUser();
+  const { userProfile, permissions } = useUser();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
   const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [pointOfSales, setPointOfSales] = useState<PointOfSale[]>([]);
   const [currentPosId, setCurrentPosId] = useState<string | null>(null);
+
+  // Explicit staff assignments always take precedence over administrator access.
+  const hasExplicitBranchAssignments = Array.isArray(userProfile?.assignedBranches)
+    && userProfile.assignedBranches.length > 0;
+  const canAccessAllBranches = !hasExplicitBranchAssignments && (
+    userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || permissions.includes(PagePermission.MANAGE_BRANCHES)
+  );
 
   const branchesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -103,30 +113,32 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
     if (!userProfile) return;
 
     const savedBranchId = localStorage.getItem('currentBranchId');
-    const isBranchRestricted = userProfile?.assignedBranches && userProfile.assignedBranches.length > 0;
+    const assignedBranches = Array.isArray(userProfile.assignedBranches)
+      ? userProfile.assignedBranches
+      : [];
 
-    if (isBranchRestricted) {
-      // Branch-restricted user: never allow global, must use an assigned branch
-      const assignedBranches = userProfile!.assignedBranches!;
-      if (savedBranchId && savedBranchId !== 'global' && assignedBranches.includes(savedBranchId)) {
-        // Saved branch is valid and accessible
-        setCurrentBranchId(savedBranchId);
-      } else {
-        // Default to the first assigned branch
-        const defaultBranch = assignedBranches[0];
-        setCurrentBranchId(defaultBranch);
-        localStorage.setItem('currentBranchId', defaultBranch);
-      }
-    } else {
-      // Admin/unrestricted user: can use global and all branches
-      if (savedBranchId) {
-        setCurrentBranchId(savedBranchId);
-      } else {
-        setCurrentBranchId('global');
-        localStorage.setItem('currentBranchId', 'global');
-      }
+    if (assignedBranches.length > 0) {
+      const validSavedBranch = savedBranchId && savedBranchId !== 'global'
+        && assignedBranches.includes(savedBranchId);
+      const nextBranchId = validSavedBranch ? savedBranchId : assignedBranches[0];
+      setCurrentBranchId(nextBranchId);
+      localStorage.setItem('currentBranchId', nextBranchId);
+      return;
     }
-  }, [userProfile]);
+
+    if (canAccessAllBranches) {
+      const nextBranchId = savedBranchId || 'global';
+      setCurrentBranchId(nextBranchId);
+      localStorage.setItem('currentBranchId', nextBranchId);
+      return;
+    }
+
+    // Do not let an unassigned staff member inherit a branch saved by another user.
+    setCurrentBranchId(null);
+    localStorage.removeItem('currentBranchId');
+    setCurrentPosId(null);
+    localStorage.removeItem('currentPosId');
+  }, [userProfile, canAccessAllBranches]);
 
   // Load saved POS selection
   useEffect(() => {
@@ -151,12 +163,13 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   const selectBranch = useCallback((branchId: string | null) => {
     if (!userProfile) return;
 
-    const isBranchRestricted = userProfile?.assignedBranches && userProfile.assignedBranches.length > 0;
+    const assignedBranches = Array.isArray(userProfile.assignedBranches)
+      ? userProfile.assignedBranches
+      : [];
 
-    // Block global mode for branch-restricted users
     if (branchId === 'global') {
-      if (isBranchRestricted) {
-        console.warn('Branch-restricted user cannot access global mode');
+      if (!canAccessAllBranches) {
+        console.warn('User does not have permission to access Global Branch');
         return;
       }
       setCurrentBranchId('global');
@@ -166,24 +179,24 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // If user is restricted to specific branches, only allow selecting those
-    if (isBranchRestricted) {
-      if (branchId && !userProfile!.assignedBranches!.includes(branchId)) {
+    if (branchId) {
+      const isAssigned = assignedBranches.includes(branchId);
+      const isAdminAccessible = canAccessAllBranches
+        && activeBranches.some(branch => branch.id === branchId);
+      if (!isAssigned && !isAdminAccessible) {
         console.warn('User does not have access to this branch');
         return;
       }
+    } else if (assignedBranches.length > 0) {
+      return;
     }
 
     setCurrentBranchId(branchId);
-    if (branchId) {
-      localStorage.setItem('currentBranchId', branchId);
-    } else {
-      localStorage.removeItem('currentBranchId');
-    }
-    // Clear POS selection when branch changes
+    if (branchId) localStorage.setItem('currentBranchId', branchId);
+    else localStorage.removeItem('currentBranchId');
     setCurrentPosId(null);
     localStorage.removeItem('currentPosId');
-  }, [userProfile]);
+  }, [userProfile, canAccessAllBranches, activeBranches]);
 
   const selectPos = useCallback((posId: string | null) => {
     if (!posId) {
@@ -225,18 +238,15 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Determine which branches the user can access (only active/visible branches)
   const userAccessibleBranches = useMemo(() => {
-    if (!userProfile?.assignedBranches || userProfile.assignedBranches.length === 0) {
-      // Admin can access all active branches
-      return activeBranches;
-    }
-    // User can only access assigned active branches
-    return activeBranches.filter(b => userProfile.assignedBranches!.includes(b.id));
-  }, [activeBranches, userProfile]);
+    if (canAccessAllBranches) return activeBranches;
+    const assignedBranches = Array.isArray(userProfile?.assignedBranches)
+      ? userProfile.assignedBranches
+      : [];
+    return activeBranches.filter(branch => assignedBranches.includes(branch.id));
+  }, [activeBranches, userProfile?.assignedBranches, canAccessAllBranches]);
 
-  // Check if user is restricted to specific branches
-  const isRestrictedToBranch = useMemo(() => {
-    return userProfile?.assignedBranches && userProfile.assignedBranches.length > 0;
-  }, [userProfile]);
+  // Non-administrators are restricted to explicitly assigned branches.
+  const isRestrictedToBranch = useMemo(() => !canAccessAllBranches, [canAccessAllBranches]);
 
   // Can user switch branches?
   const canSwitchBranches = useMemo(() => {
