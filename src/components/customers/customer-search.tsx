@@ -43,7 +43,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
   const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
 
-  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'stockSales')) : null, [firestore]);
+  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore]);
   const paymentsQuery = React.useMemo(() => firestore ? query(collection(firestore, 'payments'), where('type', '==', 'Credit Repayment')) : null, [firestore]);
 
   const { data: allSales, isLoading: areSalesLoading } = useCollection<StockSale>(salesQuery);
