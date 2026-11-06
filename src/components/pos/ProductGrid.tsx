@@ -198,9 +198,25 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
     setIsLoading(true);
 
     const fetchCollection = async (collectionName: string) => {
-        let q = query(collection(firestore, collectionName), orderBy('name'));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        try {
+            let q = query(collection(firestore, collectionName), orderBy('name'));
+            const snapshot = await getDocs(q);
+            if (snapshot.docs.length > 0) {
+                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+        } catch {}
+
+        // Fallback to Master PC LAN Store for zero-delay offline reliability
+        try {
+            const res = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(collectionName)}`);
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data) {
+                    return Object.values(json.data) as any[];
+                }
+            }
+        } catch {}
+        return [];
     };
 
     try {
