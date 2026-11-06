@@ -11,6 +11,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Search, X } from 'lucide-react';
 import { useOnClickOutside } from '@/hooks/use-on-click-outside';
+import { useBranch } from '@/contexts/branch-context';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -25,6 +26,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
   >(null);
   const firestore = useFirestore();
   const { settings } = useSettings();
+  const { getCollectionPath } = useBranch();
   const currency = settings?.currency || 'USD';
   const searchRef = React.useRef<HTMLDivElement>(null);
 
@@ -34,14 +36,41 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   }
 
+  // Support both branch-resolved collection path and fallback root collection
+  const resolvedCollectionPath = React.useMemo(() => {
+    return getCollectionPath(collectionName);
+  }, [getCollectionPath, collectionName]);
+
   const customersQuery = React.useMemo(() => {
-    if (!firestore || !collectionName) return null;
+    if (!firestore || !resolvedCollectionPath) return null;
+    return query(collection(firestore, resolvedCollectionPath), orderBy('name', 'asc'));
+  }, [firestore, resolvedCollectionPath]);
+
+  // Query root collection as well if branch isolated to ensure customers created at root or cross-branch are found
+  const rootCustomersQuery = React.useMemo(() => {
+    if (!firestore || !collectionName || resolvedCollectionPath === collectionName) return null;
     return query(collection(firestore, collectionName), orderBy('name', 'asc'));
-  }, [firestore, collectionName]);
+  }, [firestore, collectionName, resolvedCollectionPath]);
 
-  const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
+  const { data: branchCustomers, isLoading: areBranchCustomersLoading, error: branchCustomersError } = useCollection<Customer>(customersQuery);
+  const { data: rootCustomers, isLoading: areRootCustomersLoading } = useCollection<Customer>(rootCustomersQuery);
 
-  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'stockSales')) : null, [firestore]);
+  const allCustomers = React.useMemo(() => {
+    const list = [...(branchCustomers || [])];
+    if (rootCustomers) {
+      for (const rc of rootCustomers) {
+        if (!list.some(c => c.id === rc.id || (c.email && c.email === rc.email))) {
+          list.push(rc);
+        }
+      }
+    }
+    return list;
+  }, [branchCustomers, rootCustomers]);
+
+  const areCustomersLoading = areBranchCustomersLoading && (!rootCustomersQuery || areRootCustomersLoading);
+  const customersError = branchCustomersError;
+
+  const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath]);
   const paymentsQuery = React.useMemo(() => firestore ? query(collection(firestore, 'payments'), where('type', '==', 'Credit Repayment')) : null, [firestore]);
 
   const { data: allSales, isLoading: areSalesLoading } = useCollection<StockSale>(salesQuery);

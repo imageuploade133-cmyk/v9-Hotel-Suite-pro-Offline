@@ -161,7 +161,7 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
 
         const collectionPath = getCollectionPath(collectionName);
         const customersCollection = collection(firestore, collectionPath);
-        await addDoc(customersCollection, {
+        const customerData = {
             name: values.name,
             email: values.email || null,
             phoneNumber: phoneNumberWithCode || null,
@@ -170,7 +170,22 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
             totalBookings: 0,
             bookingIds: [],
             customFields: values.customFields || {},
-        });
+        };
+        const docRef = await addDoc(customersCollection, customerData);
+
+        // Also push mutation to local LAN store for immediate offline discovery across devices
+        try {
+          fetch('/api/lan-sync/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName: collectionPath,
+              docId: docRef.id,
+              action: 'set',
+              data: { id: docRef.id, ...customerData, createdAt: new Date().toISOString() },
+            }),
+          }).catch(() => {});
+        } catch {}
 
         toast({ variant: 'success', title: 'Customer Added', description: `${values.name}'s profile has been created.` });
         onSuccess();
