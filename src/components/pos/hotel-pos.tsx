@@ -879,6 +879,10 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
                             isSaleRestored={!!restoredSaleId}
                             onCustomerAdded={() => setInternalReloadProducts(c => c + 1)}
                             onSelectRunningTable={handleRestore}
+                            onCancelRunningTable={() => {
+                              clearCart();
+                              setActiveTab('new-sale');
+                            }}
                         />
                     )}
                 <Cart
