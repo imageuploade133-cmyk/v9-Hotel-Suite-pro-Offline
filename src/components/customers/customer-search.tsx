@@ -30,6 +30,8 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
   const { userProfile } = useUser();
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
+  const isPOSCustomerCollection = collectionName === 'posCustomers';
+  const canViewAllPOSCustomers = settings?.posUsersCanViewAllCustomers === true;
   const searchRef = React.useRef<HTMLDivElement>(null);
 
   useOnClickOutside(searchRef, () => setIsFocused(false));
@@ -40,8 +42,14 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
   const customersQuery = React.useMemo(() => {
     if (!firestore || !collectionName) return null;
-    return query(collection(firestore, getCollectionPath(collectionName)), orderBy('name', 'asc'));
-  }, [firestore, collectionName, getCollectionPath]);
+    const customerCollection = collection(firestore, getCollectionPath(collectionName));
+    // In private POS mode, constrain the Firestore read itself to the signed-in
+    // creator UID instead of downloading other staff members' customer records.
+    if (isPOSCustomerCollection && !canViewAllPOSCustomers) {
+      return query(customerCollection, where('createdByUid', '==', userProfile?.uid || '__no_signed_in_user__'));
+    }
+    return query(customerCollection, orderBy('name', 'asc'));
+  }, [firestore, collectionName, getCollectionPath, isPOSCustomerCollection, canViewAllPOSCustomers, userProfile?.uid]);
 
   const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
 
@@ -87,18 +95,10 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
   // Apply this visibility rule only to the POS customer directory.
   // Other customer search surfaces retain their previous behavior.
-  const isPOSCustomerCollection = collectionName === 'posCustomers';
-  const canViewAllPOSCustomers = settings?.posUsersCanViewAllCustomers === true;
   const filteredCustomers = React.useMemo(() => {
     if (!customersWithData) return [];
     const visibleCustomers = isPOSCustomerCollection && !canViewAllPOSCustomers
-      ? customersWithData.filter(customer => {
-          const ownerUid = (customer as any).createdByUid
-            || (customer as any).registeredByUid
-            || (customer as any).createdByUserId
-            || (customer as any).createdById;
-          return !!userProfile?.uid && ownerUid === userProfile.uid;
-        })
+      ? customersWithData.filter(customer => !!userProfile?.uid && (customer as any).createdByUid === userProfile.uid)
       : customersWithData;
     if (!searchTerm) return visibleCustomers;
     const lowercasedTerm = searchTerm.trim().toLowerCase();
