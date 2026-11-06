@@ -35,6 +35,7 @@ import { LaundrySettings } from '@/components/settings/laundry-settings';
 import { NotificationSettingsForm } from '@/components/settings/notification-settings-form';
 import { SignatureRoomManagement } from '@/components/settings/signature-room-management';
 import { InventoryPolicyForm } from '@/components/settings/inventory-policy-form';
+import { POSCustomerAccessSettings } from '@/components/settings/pos-customer-access-settings';
 import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -118,6 +119,7 @@ const settingsSections = [
         group: 'Administration',
         items: [
             { id: 'notifications', title: 'Notification Settings', icon: Bell, component: <NotificationSettingsForm />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
+            { id: 'pos-customer-access', title: 'POS Customer Visibility', icon: User, component: <POSCustomerAccessSettings />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
             { id: 'financial', title: 'Financial Settings', icon: CreditCard, component: (
                 <Card>
                     <CardHeader>
