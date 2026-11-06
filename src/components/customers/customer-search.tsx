@@ -11,6 +11,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Search, X } from 'lucide-react';
 import { useOnClickOutside } from '@/hooks/use-on-click-outside';
+import { useBranch } from '@/contexts/branch-context';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -24,6 +25,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     (Partial<Customer> & { outstandingBalance?: number }) | null
   >(null);
   const firestore = useFirestore();
+  const { getCollectionPath } = useBranch();
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -36,8 +38,8 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
   const customersQuery = React.useMemo(() => {
     if (!firestore || !collectionName) return null;
-    return query(collection(firestore, collectionName), orderBy('name', 'asc'));
-  }, [firestore, collectionName]);
+    return query(collection(firestore, getCollectionPath(collectionName)), orderBy('name', 'asc'));
+  }, [firestore, collectionName, getCollectionPath]);
 
   const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
 
@@ -86,7 +88,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     if (!searchTerm) return customersWithData;
     const lowercasedTerm = searchTerm.toLowerCase();
     return customersWithData.filter(c =>
-        c.name.toLowerCase().includes(lowercasedTerm) ||
+        (c.name || '').toLowerCase().includes(lowercasedTerm) ||
         (c.email && c.email.toLowerCase().includes(lowercasedTerm))
     );
   }, [customersWithData, searchTerm]);
