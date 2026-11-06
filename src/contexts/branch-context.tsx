@@ -71,6 +71,12 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   const [pointOfSales, setPointOfSales] = useState<PointOfSale[]>([]);
   const [currentPosId, setCurrentPosId] = useState<string | null>(null);
 
+  // Active branches (visible only)
+  const activeBranches = useMemo(() => {
+    return branches.filter(b => b.status !== 'hidden');
+  }, [branches]);
+
+
   // Explicit staff assignments always take precedence over administrator access.
   const hasExplicitBranchAssignments = Array.isArray(userProfile?.assignedBranches)
     && userProfile.assignedBranches.length > 0;
@@ -230,11 +236,6 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   const isGlobalMode = useMemo(() => {
     return currentBranchId === 'global';
   }, [currentBranchId]);
-
-  // Active branches (visible only)
-  const activeBranches = useMemo(() => {
-    return branches.filter(b => b.status !== 'hidden');
-  }, [branches]);
 
   // Determine which branches the user can access (only active/visible branches)
   const userAccessibleBranches = useMemo(() => {
