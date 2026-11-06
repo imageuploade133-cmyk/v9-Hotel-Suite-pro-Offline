@@ -1,137 +1,156 @@
-
 'use client';
 
 import * as React from 'react';
+import { collection, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UserPlus, X, Phone, Mail, Info } from 'lucide-react';
-import type { Customer } from '@/lib/types';
+import { UserPlus, X, Phone, Mail, Info, Search, Table2 } from 'lucide-react';
+import type { Customer, HeldSale } from '@/lib/types';
 import { useSettings } from '@/contexts/settings-context';
 import { CustomerSearch } from '../customers/customer-search';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { getInitials } from '@/lib/helpers';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { AddCustomerForm } from '../customers/add-customer-form';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
-import { Separator } from '../ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFirestore, useCollection } from '@/firebase';
+import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
 
 interface CustomerPanelProps {
   selectedCustomer: (Partial<Customer> & { outstandingBalance?: number }) | null;
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
   isSaleRestored: boolean;
   onCustomerAdded?: () => void;
+  onSelectRunningTable?: (sale: HeldSale) => void;
 }
 
-export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestored, onCustomerAdded }: CustomerPanelProps) {
+export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestored, onCustomerAdded, onSelectRunningTable }: CustomerPanelProps) {
   const { settings } = useSettings();
+  const { userProfile } = useUser();
+  const firestore = useFirestore();
+  const { getCollectionPath } = useBranch();
   const currency = settings?.currency || 'USD';
   const [isAddCustomerOpen, setIsAddCustomerOpen] = React.useState(false);
+  const [searchTab, setSearchTab] = React.useState<'customers' | 'tables'>('customers');
+  const [tableSearch, setTableSearch] = React.useState('');
+  const heldSalesQuery = React.useMemo(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, getCollectionPath('heldSales')));
+  }, [firestore, getCollectionPath]);
+  const { data: heldSales, isLoading: isLoadingTables } = useCollection<HeldSale>(heldSalesQuery);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
-  }
+  const myRunningTables = React.useMemo(() => {
+    if (!heldSales || !userProfile?.uid) return [];
+    const term = tableSearch.trim().toLowerCase();
+    return heldSales
+      .filter(sale => sale.heldByUid === userProfile.uid)
+      .filter(sale => !term || [sale.name, sale.customer?.name].some(value => value?.toLowerCase().includes(term)))
+      .sort((a, b) => {
+        const aTime = a.heldAt instanceof Date ? a.heldAt.getTime() : 0;
+        const bTime = b.heldAt instanceof Date ? b.heldAt.getTime() : 0;
+        return bTime - aTime;
+      });
+  }, [heldSales, userProfile?.uid, tableSearch]);
 
+  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
   const isRegisteredCustomer = selectedCustomer && selectedCustomer.id;
 
   const handleWalkInNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    onSelectCustomer(newName ? { name: newName } : null);
+    onSelectCustomer(e.target.value ? { name: e.target.value } : null);
   };
-
-  const handleClearSelection = () => {
-    onSelectCustomer(null);
-  };
-
+  const handleClearSelection = () => onSelectCustomer(null);
   const handleSuccess = () => {
-    if(onCustomerAdded) onCustomerAdded();
+    onCustomerAdded?.();
     setIsAddCustomerOpen(false);
-  }
+  };
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
             Customer
             <Button variant="outline" size="sm" onClick={() => setIsAddCustomerOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" /> New
+              <UserPlus className="mr-2 h-4 w-4" /> New
             </Button>
             {isSaleRestored && (
-
-                    <Tooltip>
-                        <TooltipTrigger>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Customer cannot be changed on a restored sale.</p>
-                        </TooltipContent>
-                    </Tooltip>
-
+              <Tooltip>
+                <TooltipTrigger><Info className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                <TooltipContent><p>Customer cannot be changed on a restored sale.</p></TooltipContent>
+              </Tooltip>
             )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <fieldset disabled={isSaleRestored} className="space-y-4 group">
-          {isRegisteredCustomer ? (
-            <div className="flex items-start justify-between rounded-lg border p-4 bg-muted/50 group-disabled:opacity-70">
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <fieldset disabled={isSaleRestored} className="space-y-4 group">
+            {isRegisteredCustomer ? (
+              <div className="flex items-start justify-between rounded-lg border p-4 bg-muted/50 group-disabled:opacity-70">
                 <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12">
-                        <AvatarImage src={selectedCustomer?.photoURL || ''} alt={selectedCustomer?.name} />
-                        <AvatarFallback>{getInitials(selectedCustomer?.name || 'C')}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <p className="font-bold">{selectedCustomer.name}</p>
-                        {selectedCustomer.phoneNumber && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone className="h-3 w-3"/>{selectedCustomer.phoneNumber}</p>}
-                        {selectedCustomer.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="h-3 w-3"/>{selectedCustomer.email}</p>}
-                    </div>
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={selectedCustomer?.photoURL || ''} alt={selectedCustomer?.name} />
+                    <AvatarFallback>{getInitials(selectedCustomer?.name || 'C')}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-bold">{selectedCustomer.name}</p>
+                    {selectedCustomer.phoneNumber && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone className="h-3 w-3" />{selectedCustomer.phoneNumber}</p>}
+                    {selectedCustomer.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="h-3 w-3" />{selectedCustomer.email}</p>}
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClearSelection}>
-                    <X className="h-4 w-4" />
-                </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClearSelection}><X className="h-4 w-4" /></Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="walk-in-name">Walk-in Customer Name</Label>
-                    <Input
-                        id="walk-in-name"
-                        value={selectedCustomer?.name === 'Walk-in Customer' ? '' : selectedCustomer?.name || ''}
-                        onChange={handleWalkInNameChange}
-                        placeholder="Enter name (e.g., Table 5) or leave empty"
-                    />
+                  <Label htmlFor="walk-in-name">Walk-in Customer Name</Label>
+                  <Input id="walk-in-name" value={selectedCustomer?.name === 'Walk-in Customer' ? '' : selectedCustomer?.name || ''} onChange={handleWalkInNameChange} placeholder="Enter name (e.g., Table 5) or leave empty" />
                 </div>
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-card px-2 text-muted-foreground">
-                        Or search existing
-                        </span>
-                    </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium"><Search className="h-4 w-4" /> Or search existing</div>
+                  <Tabs value={searchTab} onValueChange={(value) => setSearchTab(value as 'customers' | 'tables')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="customers">Customers</TabsTrigger>
+                      <TabsTrigger value="tables"><Table2 className="mr-2 h-4 w-4" /> My Running Tables</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="customers" className="mt-3">
+                      <CustomerSearch onSelectCustomer={onSelectCustomer} collectionName="pos-customers" />
+                    </TabsContent>
+                    <TabsContent value="tables" className="mt-3 space-y-2">
+                      <Input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder="Search your running tables..." />
+                      <div className="max-h-52 space-y-1 overflow-y-auto rounded-md border p-1">
+                        {isLoadingTables ? (
+                          <p className="p-3 text-center text-sm text-muted-foreground">Loading your running tables...</p>
+                        ) : myRunningTables.length ? myRunningTables.map(sale => (
+                          <button key={sale.id} type="button" onClick={() => onSelectRunningTable?.(sale)} className="flex w-full items-center justify-between gap-3 rounded-md p-3 text-left hover:bg-accent">
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">{sale.name || 'Running Table'}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{sale.customer?.name || 'Walk-in Customer'} · {(sale.cart || []).length} item(s)</span>
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">{formatCurrency((sale.cart || []).reduce((sum, item) => sum + (Number(item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0)), 0))}</span>
+                          </button>
+                        )) : (
+                          <p className="p-3 text-center text-sm text-muted-foreground">{tableSearch ? 'No matching running table found.' : 'You have no running tables yet.'}</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
-                <CustomerSearch onSelectCustomer={onSelectCustomer} collectionName="posCustomers" />
+              </div>
+            )}
+          </fieldset>
+          {selectedCustomer?.outstandingBalance !== undefined && selectedCustomer.outstandingBalance > 0 && (
+            <div className="p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-sm">Outstanding Balance:</span>
+                <span className="font-bold text-lg">{formatCurrency(selectedCustomer.outstandingBalance)}</span>
+              </div>
             </div>
           )}
-        </fieldset>
-
-        {selectedCustomer?.outstandingBalance !== undefined && selectedCustomer.outstandingBalance > 0 && (
-          <div className="p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-              <div className="flex justify-between items-center">
-                  <span className="font-semibold text-sm">Outstanding Balance:</span>
-                  <span className="font-bold text-lg">{formatCurrency(selectedCustomer.outstandingBalance)}</span>
-              </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-     <AddCustomerForm
-        open={isAddCustomerOpen}
-        onOpenChange={setIsAddCustomerOpen}
-        onSuccess={handleSuccess}
-        collectionName="posCustomers"
-    />
+        </CardContent>
+      </Card>
+      <AddCustomerForm open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen} onSuccess={handleSuccess} collectionName="pos-customers" />
     </>
   );
 }
