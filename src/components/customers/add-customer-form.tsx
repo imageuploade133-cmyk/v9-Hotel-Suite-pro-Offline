@@ -25,6 +25,7 @@ import { collection, doc, setDoc, serverTimestamp, query, where, getDocs } from 
 import Image from 'next/image';
 import { CustomerFormFields } from './customer-form-fields';
 import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required.'),
@@ -90,6 +91,7 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
   const { toast } = useToast();
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const { user, userProfile } = useUser();
   const formId = `add-customer-form`;
 
   const { settings } = useSettings();
@@ -165,6 +167,9 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
         const customerData = {
             id: customerRef.id,
             name: values.name,
+            createdByUid: user?.uid || userProfile?.uid || null,
+            registeredByUid: user?.uid || userProfile?.uid || null,
+            createdByName: userProfile?.name || user?.displayName || user?.email || 'Staff',
             email: values.email || null,
             phoneNumber: phoneNumberWithCode || null,
             photoURL: photoUrl || null,
