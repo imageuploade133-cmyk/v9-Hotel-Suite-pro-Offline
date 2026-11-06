@@ -74,12 +74,28 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
 
     if (userProfile.role === 'Admin') {
         return query(baseQuery, orderBy('heldAt', 'desc'));
-    } else {
-        return query(baseQuery, where('heldByUid', '==', userProfile.uid), orderBy('heldAt', 'desc'));
     }
-}, [firestore, reloadCounter, userProfile]);
+
+    // Match the exact owner identifier used when a running table is saved.
+    // Some offline-cached staff profiles expose their account ID as "id"
+    // instead of "uid"; using only uid hides tables from their creator.
+    const currentUserId = String(userProfile.uid || (userProfile as any).id || '').trim();
+    if (!currentUserId) return query(baseQuery, where('heldByUid', '==', '__no_matching_user__'));
+
+    return query(baseQuery, where('heldByUid', '==', currentUserId), orderBy('heldAt', 'desc'));
+}, [firestore, reloadCounter, userProfile?.role, userProfile?.uid, (userProfile as any)?.id, getCollectionPath]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
+
+  // The LAN-store fallback returns a whole collection (it cannot execute
+  // Firestore query constraints). Re-apply staff ownership locally so offline
+  // POS shows only the signed-in staff member's tables, while Admin sees all.
+  const currentUserId = String(userProfile?.uid || (userProfile as any)?.id || '').trim();
+  const visibleHeldSales = React.useMemo(() => {
+    if (!heldSales) return heldSales;
+    if (userProfile?.role === 'Admin') return heldSales;
+    return heldSales.filter(sale => String(sale.heldByUid || '').trim() === currentUserId);
+  }, [heldSales, userProfile?.role, currentUserId]);
 
   const handleOpenActions = (sale: HeldSale) => {
     setActionsSale(sale);
@@ -247,7 +263,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     );
   }
 
-  if (!heldSales || heldSales.length === 0) {
+  if (!visibleHeldSales || visibleHeldSales.length === 0) {
     return (
       <EmptyState
         icon={List}
@@ -427,7 +443,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
             <CardContent className="p-0">
                 <DataTable
                     columns={columns}
-                    data={heldSales || []}
+                    data={visibleHeldSales || []}
                     filterColumn="name"
                     filterPlaceholder="Filter by name or customer..."
                     tableId="held-sales-table"

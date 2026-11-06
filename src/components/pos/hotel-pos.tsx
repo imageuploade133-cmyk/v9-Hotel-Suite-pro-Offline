@@ -112,13 +112,17 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
 
 
   React.useEffect(() => {
-    if (!firestore || !userProfile?.uid) return;
-    const q = query(collection(firestore, getCollectionPath("heldSales")), where("heldByUid", "==", userProfile.uid));
+    const currentUserId = String(userProfile?.uid || (userProfile as any)?.id || '').trim();
+    if (!firestore || !currentUserId) {
+      setHeldSalesCount(0);
+      return;
+    }
+    const q = query(collection(firestore, getCollectionPath("heldSales")), where("heldByUid", "==", currentUserId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setHeldSalesCount(snapshot.size);
     });
     return () => unsubscribe();
-  }, [firestore, userProfile?.uid, getCollectionPath]);
+  }, [firestore, userProfile?.uid, (userProfile as any)?.id, getCollectionPath]);
 
   // Track active bookings count
   React.useEffect(() => {
