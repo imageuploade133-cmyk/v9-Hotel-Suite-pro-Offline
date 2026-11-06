@@ -40,7 +40,7 @@ interface AddCustomerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  collectionName?: 'customers' | 'pos-customers';
+  collectionName?: 'customers' | 'posCustomers';
 }
 
 const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
