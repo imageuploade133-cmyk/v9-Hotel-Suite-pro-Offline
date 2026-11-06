@@ -248,7 +248,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     }, [] as UnifiedItem[]);
 
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-    const currentUid = userProfile.uid || (userProfile as any).id;
+    const currentUid = String(userProfile.uid || (userProfile as any).id || '').trim();
+    if (!currentUid) throw new Error('Unable to identify the staff account. Please sign in again.');
     let saleId = restoredSaleId || `HELD-${Date.now().toString().slice(-6)}`;
 
     const executeOfflineHoldWrites = async () => {
@@ -273,7 +274,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
         // 1. Write to LAN store on Master PC first for instant 0ms offline persistence & multi-device sync
         try {
-            await fetch('/api/lan-sync/', {
+            const lanResponse = await fetch('/api/lan-sync/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -283,8 +284,13 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     data: heldSaleData,
                 }),
             });
+            const lanResult = await lanResponse.json().catch(() => null);
+            if (!lanResponse.ok || lanResult?.success !== true) {
+                throw new Error(lanResult?.error || `LAN server rejected the running table save (HTTP ${lanResponse.status}).`);
+            }
         } catch (lanErr) {
-            console.warn('[Offline HoldSale] LAN sync mutation error:', lanErr);
+            console.error('[Offline HoldSale] LAN sync mutation failed:', lanErr);
+            throw new Error(lanErr instanceof Error ? lanErr.message : 'Could not save the running table to the local Master Server.');
         }
 
         // 2. Write to Firestore local cache in background (do not block on cloud network)
@@ -389,7 +395,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 name: name,
                 cart: combinedItems.map(i => ({...i})),
                 customer: customer?.id ? { id: customer.id, name: customer.name || "Walk-in Customer" } : { name: name || "Walk-in Customer" },
-                heldByUid: userProfile.uid,
+                heldByUid: currentUid,
                 heldByName: userProfile.name,
                 heldAt: serverTimestamp() as any,
                 printStatus: 'pending',
