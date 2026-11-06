@@ -13,6 +13,7 @@ import { Search, X } from 'lucide-react';
 import { useOnClickOutside } from '@/hooks/use-on-click-outside';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -26,7 +27,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     (Partial<Customer> & { outstandingBalance?: number }) | null
   >(null);
   const firestore = useFirestore();
-  const { getCollectionPath } = useBranch();
+  const { getCollectionPath, isGlobalMode } = useBranch();
   const { userProfile } = useUser();
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
@@ -40,8 +41,14 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   }
 
+  // The POS Customers management page aggregates root, branch and POS-level
+  // customer collections in global mode. Reuse that same source here so the
+  // POS picker never silently searches only the root collection.
+  const { data: globalCustomers, isLoading: isGlobalCustomersLoading, error: globalCustomersError } =
+    useGlobalCollectionData<Customer>(collectionName);
+
   const customersQuery = React.useMemo(() => {
-    if (!firestore || !collectionName) return null;
+    if (!firestore || !collectionName || isGlobalMode) return null;
     const customerCollection = collection(firestore, getCollectionPath(collectionName));
     // In private POS mode, constrain the Firestore read itself to the signed-in
     // creator UID instead of downloading other staff members' customer records.
@@ -49,9 +56,12 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
       return query(customerCollection, where('createdByUid', '==', userProfile?.uid || '__no_signed_in_user__'));
     }
     return query(customerCollection, orderBy('name', 'asc'));
-  }, [firestore, collectionName, getCollectionPath, isPOSCustomerCollection, canViewAllPOSCustomers, userProfile?.uid]);
+  }, [firestore, collectionName, getCollectionPath, isGlobalMode, isPOSCustomerCollection, canViewAllPOSCustomers, userProfile?.uid]);
 
-  const { data: allCustomers, isLoading: areCustomersLoading, error: customersError } = useCollection<Customer>(customersQuery);
+  const { data: branchCustomers, isLoading: areBranchCustomersLoading, error: branchCustomersError } = useCollection<Customer>(customersQuery);
+  const allCustomers = isGlobalMode ? globalCustomers : branchCustomers;
+  const areCustomersLoading = isGlobalMode ? isGlobalCustomersLoading : areBranchCustomersLoading;
+  const customersError = isGlobalMode ? globalCustomersError : branchCustomersError;
 
   const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath]);
   const paymentsQuery = React.useMemo(() => firestore ? query(collection(firestore, 'payments'), where('type', '==', 'Credit Repayment')) : null, [firestore]);

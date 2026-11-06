@@ -103,34 +103,38 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <fieldset disabled={isSaleRestored} className="space-y-4 group">
-            {selectedRunningTable ? (
-              <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/30 bg-muted/50 p-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Table2 className="h-5 w-5" /></div>
-                  <div className="min-w-0">
-                    <p className="truncate font-bold">{selectedRunningTable.name || 'Running Table'}</p>
-                    <p className="truncate text-xs text-muted-foreground">{selectedRunningTable.customer?.name || 'Walk-in Customer'} · Running table loaded</p>
-                  </div>
+          {selectedRunningTable ? (
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/30 bg-muted/50 p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Table2 className="h-5 w-5" /></div>
+                <div className="min-w-0">
+                  <p className="truncate font-bold">{selectedRunningTable.name || 'Running Table'}</p>
+                  <p className="truncate text-xs text-muted-foreground">{selectedRunningTable.customer?.name || 'Walk-in Customer'} · Running table loaded</p>
                 </div>
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected running table" onClick={() => setPendingClear('table')}><X className="h-4 w-4" /></Button>
               </div>
-            ) : isRegisteredCustomer ? (
-              <div className="flex items-start justify-between rounded-lg border p-4 bg-muted/50 group-disabled:opacity-70">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={selectedCustomer?.photoURL || ''} alt={selectedCustomer?.name} />
-                    <AvatarFallback>{getInitials(selectedCustomer?.name || 'C')}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-bold">{selectedCustomer.name}</p>
-                    {selectedCustomer.phoneNumber && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone className="h-3 w-3" />{selectedCustomer.phoneNumber}</p>}
-                    {selectedCustomer.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="h-3 w-3" />{selectedCustomer.email}</p>}
-                  </div>
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected running table" onClick={() => setPendingClear('table')}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : isRegisteredCustomer ? (
+            <div className="flex items-start justify-between rounded-lg border p-4 bg-muted/50">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={selectedCustomer?.photoURL || ''} alt={selectedCustomer?.name} />
+                  <AvatarFallback>{getInitials(selectedCustomer?.name || 'C')}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-bold">{selectedCustomer.name}</p>
+                  {selectedCustomer.phoneNumber && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone className="h-3 w-3" />{selectedCustomer.phoneNumber}</p>}
+                  {selectedCustomer.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="h-3 w-3" />{selectedCustomer.email}</p>}
                 </div>
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected customer" onClick={handleClearSelection}><X className="h-4 w-4" /></Button>
               </div>
-            ) : (
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Cancel selected customer" onClick={handleClearSelection}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <fieldset disabled={isSaleRestored} className="space-y-4 group">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="walk-in-name">Walk-in Customer Name</Label>
@@ -167,8 +171,8 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
                   </Tabs>
                 </div>
               </div>
-            )}
-          </fieldset>
+            </fieldset>
+          )}
           {selectedCustomer?.outstandingBalance !== undefined && selectedCustomer.outstandingBalance > 0 && (
             <div className="p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
               <div className="flex justify-between items-center">
@@ -192,7 +196,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Selection</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClearSelection} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Yes, Cancel Selection</AlertDialogAction>
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); confirmClearSelection(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Yes, Cancel Selection</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
