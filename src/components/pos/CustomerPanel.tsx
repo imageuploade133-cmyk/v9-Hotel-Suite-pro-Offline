@@ -115,7 +115,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
                       <TabsTrigger value="tables"><Table2 className="mr-2 h-4 w-4" /> My Running Tables</TabsTrigger>
                     </TabsList>
                     <TabsContent value="customers" className="mt-3">
-                      <CustomerSearch onSelectCustomer={onSelectCustomer} collectionName="pos-customers" />
+                      <CustomerSearch onSelectCustomer={onSelectCustomer} collectionName="posCustomers" />
                     </TabsContent>
                     <TabsContent value="tables" className="mt-3 space-y-2">
                       <Input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder="Search your running tables..." />
@@ -150,7 +150,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
           )}
         </CardContent>
       </Card>
-      <AddCustomerForm open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen} onSuccess={handleSuccess} collectionName="pos-customers" />
+      <AddCustomerForm open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen} onSuccess={handleSuccess} collectionName="posCustomers" />
     </>
   );
 }
