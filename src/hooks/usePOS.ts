@@ -550,7 +550,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           try {
             return await getDocsFromCache(target);
           } catch {
-            throw onlineError;
+            // The LAN Master may still have the records even if Firestore has no cached copy.
+            return { docs: [] };
           }
         }
       };
