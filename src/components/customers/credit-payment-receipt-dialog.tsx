@@ -166,6 +166,7 @@ export function CreditPaymentReceiptDialog({
                             <span>Amount Paid ({payment.paymentMethod}):</span>
                             <span>-{formatCurrency(payment.amount)}</span>
                           </div>
+                          {payment.notes && <div className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground"><strong>Payment Details:</strong> {payment.notes}</div>}
                           <Separator />
                           <div className="flex justify-between font-bold text-base text-destructive">
                             <span>Total New Balance Due:</span>
@@ -210,6 +211,7 @@ export function CreditPaymentReceiptDialog({
                             <span>Payment ({payment.paymentMethod}):</span>
                             <span>-{formatCurrency(payment.amount)}</span>
                           </div>
+                          {payment.notes && <p className="border-t border-dashed border-black pt-2 text-xs">{payment.notes}</p>}
                         </div>
                          <div className="flex justify-between font-bold text-base border-t border-dashed border-black pt-2">
                             <span>TOTAL NEW BALANCE DUE:</span>

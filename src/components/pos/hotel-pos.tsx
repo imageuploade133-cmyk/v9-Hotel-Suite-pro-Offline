@@ -75,7 +75,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
   const { data: allUsers } = useCollection<UserProfile>(usersQuery);
 
   const pos = usePOS({ userProfile, toast });
-  const { cart, activeRunningItems, customer, setCustomer, addToCart, removeFromCart, updateQuantity, clearCart, holdSale, processSale, restoreHeldSale, restoredSaleId, discount, applyDiscount, removeDiscount, removeFromActiveRunningItems } = pos;
+  const { cart, activeRunningItems, customer, setCustomer, addToCart, removeFromCart, updateQuantity, clearCart, holdSale, processSale, restoreHeldSale, restoredSaleId, discount, applyDiscount, removeDiscount, removeFromActiveRunningItems, getCustomerFinancials } = pos;
 
   const [activeTab, setActiveTab] = React.useState('new-sale');
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
@@ -411,7 +411,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     }
   };
 
-  const handleOpenCreditSale = () => {
+  const handleOpenCreditSale = async () => {
     if (!canCreateCreditSales) {
       toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
       return;
@@ -420,11 +420,28 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
       toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before starting a credit sale.' });
       return;
     }
-    setStartPaymentInCreditMode(true);
-    setIsPaymentOpen(true);
+    if (isProcessing) return;
+
+    // Always refresh the ledger before opening credit mode. A restored running table
+    // may carry only a customer ID/name, and an existing selection may have a stale balance.
+    setIsProcessing(true);
+    try {
+      const financialCustomers = await getCustomerFinancials();
+      const latestCustomer = financialCustomers.find(entry => entry.id === customer.id);
+      if (!latestCustomer) {
+        throw new Error('This customer is not available in the POS customer directory. Select a registered POS customer before creating a credit sale.');
+      }
+      setCustomer({ ...customer, ...latestCustomer });
+      setStartPaymentInCreditMode(true);
+      setIsPaymentOpen(true);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Customer Balance Unavailable', description: error.message || 'Could not verify the customer’s outstanding balance.' });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string) => {
+  const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string, applyExcessToOutstanding = false, totalTenderedAmount?: number) => {
     if (paymentMethod === 'Credit' && !customer?.id) {
       toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before completing a credit sale.' });
       return;
@@ -539,7 +556,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     } else {
         setIsProcessing(true);
         try {
-          const newSale = await processSale(total, paymentMethod, paymentStatus, context, initialPaymentAmount, initialPaymentMethod);
+          const newSale = await processSale(total, paymentMethod, paymentStatus, context, initialPaymentAmount, initialPaymentMethod, applyExcessToOutstanding, totalTenderedAmount);
           toast({
             variant: 'success',
             title: 'Sale Completed',

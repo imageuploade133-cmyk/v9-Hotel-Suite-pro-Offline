@@ -15,6 +15,7 @@ import {
   setDoc,
   updateDoc,
   getDocs,
+  getDocsFromCache,
   query,
   where,
 } from 'firebase/firestore';
@@ -23,6 +24,7 @@ import type { CartItem, Customer, StockItem, StockSale, HeldSale, UserProfile, P
 import { useToast } from './use-toast';
 import { useBranch } from '@/contexts/branch-context';
 import { getNewDocumentData } from '@/lib/branch-helpers';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 
 interface UsePOSProps {
   userProfile: UserProfile | null;
@@ -41,6 +43,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const firestore = useFirestore();
   const branchContext = useBranch();
   const { getCollectionPath } = branchContext;
+  const { data: globalStockSales, isLoading: isLoadingGlobalStockSales } = useGlobalCollectionData<StockSale>('stockSales');
+  const { data: globalPosCustomers, isLoading: isLoadingGlobalPosCustomers } = useGlobalCollectionData<Customer>('posCustomers');
 
   const applyDiscount = (type: 'percentage' | 'amount', value: number) => {
     setDiscount({ type, value });
@@ -508,7 +512,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     });
   };
 
-  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string): Promise<StockSale> => {
+  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string, applyExcessToOutstanding = false, totalTenderedAmount?: number): Promise<StockSale> => {
     if (!firestore || !userProfile) throw new Error('System not ready.');
     const isAdminIdentity = userProfile.isFirebaseOnlyAdmin === true
       || userProfile.isSuperAdmin === true
@@ -526,10 +530,167 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
     const allItems = [...activeRunningItems, ...cart];
 
+    const loadCreditSettlement = async () => {
+      if (paymentMethod !== 'Credit' || !customer?.id) return null;
+      const salesCollection = collection(firestore, getCollectionPath('stockSales'));
+      const paymentCollection = collection(firestore, 'payments');
+      const branchPaymentCollection = collection(firestore, getCollectionPath('payments'));
+      const salesQueries = [
+        query(salesCollection, where('customerId', '==', customer.id)),
+        ...(customer.email ? [query(salesCollection, where('customerEmail', '==', customer.email))] : []),
+      ];
+      const paymentCollections = paymentCollection.path === branchPaymentCollection.path
+        ? [paymentCollection]
+        : [paymentCollection, branchPaymentCollection];
+      const paymentQueries = paymentCollections.flatMap(source => [
+        query(source, where('customerId', '==', customer.id)),
+        ...(customer.email ? [query(source, where('guestEmail', '==', customer.email))] : []),
+      ]);
+      const readWithCacheFallback = async (target: any): Promise<{ docs: any[]; verified: boolean }> => {
+        try {
+          const snapshot = await getDocs(target);
+          return { docs: snapshot.docs, verified: true };
+        } catch {
+          try {
+            const snapshot = await getDocsFromCache(target);
+            return { docs: snapshot.docs, verified: true };
+          } catch {
+            // Do not treat an unavailable collection as a verified empty ledger.
+            return { docs: [], verified: false };
+          }
+        }
+      };
+      const readLanCollection = async (collectionName: string): Promise<{ documents: { id: string; data: Record<string, any> }[]; verified: boolean }> => {
+        try {
+          const response = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+          if (!response.ok) return { documents: [], verified: false };
+          const payload = await response.json();
+          if (!payload?.success || !payload?.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+            return { documents: [], verified: false };
+          }
+          return {
+            documents: Object.entries(payload.data).map(([id, data]) => ({ id, data: data as Record<string, any> })),
+            verified: true,
+          };
+        } catch {
+          return { documents: [], verified: false };
+        }
+      };
+      const [salesSnapshots, paymentSnapshots, lanSales, ...lanPaymentGroups] = await Promise.all([
+        Promise.all(salesQueries.map(readWithCacheFallback)),
+        Promise.all(paymentQueries.map(readWithCacheFallback)),
+        readLanCollection(getCollectionPath('stockSales')),
+        ...paymentCollections.map(readLanCollection),
+      ]);
+      const salesLedgerVerified = salesSnapshots.some(snapshot => snapshot.verified)
+        || lanSales.verified
+        || (branchContext.isGlobalMode && !isLoadingGlobalStockSales);
+      const paymentLedgerVerified = paymentSnapshots.some(snapshot => snapshot.verified)
+        || lanPaymentGroups.some(group => group.verified);
+      if (!salesLedgerVerified || !paymentLedgerVerified) {
+        throw new Error('The customer credit ledger is unavailable from Firestore, cache, and the Local Master. Please reconnect and retry; no sale has been recorded.');
+      }
+      const salesById = new Map<string, StockSale>();
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalStockSales) {
+          throw new Error('Customer credit history is still loading. Please wait a moment and retry.');
+        }
+        globalStockSales.forEach(sale => {
+          if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+            salesById.set(sale.id, sale);
+          }
+        });
+      }
+      salesSnapshots.forEach(snapshot => snapshot.docs.forEach(saleDoc => {
+        const sale = { ...saleDoc.data(), id: saleDoc.id } as StockSale;
+        if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+          salesById.set(sale.id, sale);
+        }
+      }));
+      lanSales.documents.forEach(({ id, data }) => {
+        const sale = { ...data, id } as StockSale;
+        if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+          salesById.set(id, sale);
+        }
+      });
+      const paymentsById = new Map<string, Payment>();
+      paymentSnapshots.forEach(snapshot => snapshot.docs.forEach(paymentDoc => {
+        const payment = { ...paymentDoc.data(), id: paymentDoc.id } as Payment;
+        if (payment.type === 'Credit Repayment' && (payment.customerId === customer.id || (!!customer.email && payment.guestEmail === customer.email))) {
+          paymentsById.set(payment.id, payment);
+        }
+      }));
+      lanPaymentGroups.flatMap(group => group.documents).forEach(({ id, data }) => {
+        const payment = { ...data, id } as Payment;
+        if (payment.type === 'Credit Repayment' && (payment.customerId === customer.id || (!!customer.email && payment.guestEmail === customer.email))) {
+          paymentsById.set(id, payment);
+        }
+      });
+      const repayments = [...paymentsById.values()];
+      const paidBySale = new Map<string, number>();
+      const knownCreditSaleIds = new Set(salesById.keys());
+      let unallocatedRepayments = 0;
+      repayments.forEach(payment => {
+        const amount = Number(payment.amount) || 0;
+        if (payment.bookingId && knownCreditSaleIds.has(payment.bookingId)) {
+          paidBySale.set(payment.bookingId, (paidBySale.get(payment.bookingId) || 0) + amount);
+        } else {
+          // Legacy repayments may not point to a sale that is present in this branch/cache.
+          // Allocate those to the oldest open credit sale instead of silently losing them.
+          unallocatedRepayments += amount;
+        }
+      });
+      const orderedBalances = [...salesById.values()]
+        .sort((a, b) => {
+          const toMillis = (value: any) => value?.toDate ? value.toDate().getTime() : value instanceof Date ? value.getTime() : new Date(value || 0).getTime();
+          return toMillis(a.soldAt) - toMillis(b.soldAt);
+        })
+        .map(sale => ({
+          sale,
+          outstanding: Math.max(0, Number(sale.totalAmount || 0) - Number(sale.initialPaymentAmount || 0) - (paidBySale.get(sale.id) || 0)),
+        }));
+      // Older repayments without a sale reference still reduce the customer's total;
+      // apply them to the oldest open sale first so they are not counted twice.
+      for (const balance of orderedBalances) {
+        if (unallocatedRepayments <= 0) break;
+        const used = Math.min(balance.outstanding, unallocatedRepayments);
+        balance.outstanding -= used;
+        unallocatedRepayments -= used;
+      }
+      const outstandingBefore = orderedBalances.reduce((sum, entry) => sum + entry.outstanding, 0);
+      if (Number(customer.outstandingBalance) > 0.01 && outstandingBefore + 0.01 < Number(customer.outstandingBalance)) {
+        throw new Error('The customer credit ledger could not be fully verified from the current connection or offline cache. Please reconnect and retry; no sale has been recorded.');
+      }
+      const tendered = Math.max(0, Number(totalTenderedAmount ?? initialPaymentAmount) || 0);
+      const salePayment = Math.min(total, tendered);
+      let remainingToAllocate = applyExcessToOutstanding ? Math.min(Math.max(0, tendered - total), outstandingBefore) : 0;
+      const allocations: { saleDocumentId: string; saleId: string; amount: number }[] = [];
+      for (const entry of orderedBalances) {
+        if (remainingToAllocate <= 0) break;
+        if (entry.outstanding <= 0) continue;
+        const amount = Math.min(entry.outstanding, remainingToAllocate);
+        allocations.push({ saleDocumentId: entry.sale.id, saleId: entry.sale.saleId, amount });
+        remainingToAllocate -= amount;
+      }
+      const appliedToOutstanding = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      const newSaleOutstanding = Math.max(0, total - salePayment);
+      return {
+        tendered,
+        salePayment,
+        outstandingBefore,
+        allocations,
+        appliedToOutstanding,
+        changeGiven: Math.max(0, tendered - total - appliedToOutstanding),
+        outstandingAfter: Math.max(0, outstandingBefore - appliedToOutstanding) + newSaleOutstanding,
+      };
+    };
+
     try {
         let createdSale: StockSale | null = null;
 
         const executeSaleWrites = async () => {
+          // Resolve the customer's live credit ledger before writing any part of this sale.
+          const settlement = await loadCreditSettlement();
           const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
           const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
@@ -546,14 +707,22 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               })),
               totalAmount: total,
               paymentMethod: paymentMethod as any,
-              paymentStatus,
+              paymentStatus: (paymentMethod === 'Credit' && settlement && settlement.salePayment >= total ? 'Paid' : paymentStatus) as StockSale['paymentStatus'],
               soldAt: new Date() as any,
               soldByUid: userProfile.uid,
               soldByName: userProfile.name,
               customerId: customer?.id || null,
               customerName: customer?.name || 'Walk-in Customer',
               customerEmail: customer?.email || null,
-              initialPaymentAmount: initialPaymentAmount || null,
+              initialPaymentAmount: paymentMethod === 'Credit' ? (settlement?.salePayment || null) : (initialPaymentAmount || null),
+              ...(settlement ? {
+                totalTenderedAmount: settlement.tendered,
+                changeGiven: settlement.changeGiven,
+                excessAppliedToOutstanding: settlement.appliedToOutstanding,
+                customerOutstandingBalanceBefore: settlement.outstandingBefore,
+                customerOutstandingBalanceAfter: settlement.outstandingAfter,
+                appliedToPreviousSales: settlement.allocations,
+              } : {}),
               discountType: discount?.type || null,
               discountValue: discount?.value || null,
               context: context,
@@ -561,53 +730,97 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           };
 
           const saleData = getNewDocumentData(baseSaleData, branchContext);
-          await setDoc(newSaleRef, saleData);
+          const ledgerBatch = writeBatch(firestore);
+          const ledgerMutations: { collectionName: string; docId: string; data: Record<string, any> }[] = [];
 
-          // Save sale mutation in Local Master PC LAN Store for 100% offline multi-device sync
-          try {
-            await fetch('/api/lan-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                collectionName: getCollectionPath('stockSales'),
-                docId: newSaleRef.id,
-                action: 'set',
-                data: saleData,
-              }),
-            });
-          } catch {}
+          // Commit the sale and every payment allocation together. A failed Firestore
+          // batch cannot leave a sale without its matching initial-payment/repayment ledger.
+          ledgerBatch.set(newSaleRef, saleData);
+          ledgerMutations.push({
+            collectionName: getCollectionPath('stockSales'),
+            docId: newSaleRef.id,
+            data: saleData,
+          });
 
-          const amountPaid = paymentStatus === 'Paid' ? total : initialPaymentAmount;
+          const amountPaid = paymentMethod === 'Credit'
+            ? (settlement?.salePayment || 0)
+            : (paymentStatus === 'Paid' ? total : initialPaymentAmount);
           if (amountPaid && amountPaid > 0) {
-              const paymentRef = doc(collection(firestore, 'payments'));
-              const paymentData: Omit<Payment, 'id'> = {
-                  bookingId: newSaleRef.id,
-                  guestName: saleData.customerName,
-                  guestEmail: saleData.customerEmail || null,
-                  amount: amountPaid,
-                  paymentMethod: paymentMethod === 'Credit' ? (initialPaymentAmount && initialPaymentAmount > 0 ? (initialPaymentMethod || 'Cash') : 'Credit') : paymentMethod as any,
-                  status: 'Paid',
-                  transactionDate: new Date(),
-                  type: 'POS',
-                  createdByUid: userProfile.uid,
-                  createdByName: userProfile.name,
-                  items: saleData.items,
-                  profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
-              };
-              await setDoc(paymentRef, paymentData);
+            const paymentRef = doc(collection(firestore, 'payments'));
+            const paymentData: Omit<Payment, 'id'> = {
+              bookingId: newSaleRef.id,
+              guestName: saleData.customerName,
+              guestEmail: saleData.customerEmail || null,
+              amount: amountPaid,
+              paymentMethod: (paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod) as any,
+              status: 'Paid',
+              transactionDate: new Date(),
+              type: 'POS',
+              customerId: customer?.id || undefined,
+              createdByUid: userProfile.uid,
+              createdByName: userProfile.name,
+              items: saleData.items,
+              profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
+            };
+            ledgerBatch.set(paymentRef, paymentData);
+            ledgerMutations.push({
+              collectionName: 'payments',
+              docId: paymentRef.id,
+              data: paymentData,
+            });
+          }
 
-              try {
-                await fetch('/api/lan-sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    collectionName: 'payments',
-                    docId: paymentRef.id,
+          if (settlement?.allocations.length) {
+            for (const allocation of settlement.allocations) {
+              const repaymentRef = doc(collection(firestore, 'payments'));
+              const repaymentData: Omit<Payment, 'id'> = {
+                bookingId: allocation.saleDocumentId,
+                guestName: saleData.customerName,
+                guestEmail: saleData.customerEmail || null,
+                customerId: customer?.id,
+                amount: allocation.amount,
+                paymentMethod: (initialPaymentMethod || 'Cash') as any,
+                status: 'Paid',
+                transactionDate: new Date(),
+                type: 'Credit Repayment',
+                createdByUid: userProfile.uid,
+                createdByName: userProfile.name,
+                sourceSaleId: newSaleRef.id,
+                allocationSource: 'POS_CHANGE',
+                notes: `Applied from excess received on POS sale ${saleData.saleId} to previous credit sale ${allocation.saleId}.`,
+              };
+              ledgerBatch.set(repaymentRef, repaymentData);
+              ledgerMutations.push({
+                collectionName: 'payments',
+                docId: repaymentRef.id,
+                data: repaymentData,
+              });
+            }
+          }
+
+          await ledgerBatch.commit();
+
+          // Mirror the complete committed ledger to the Local Master in one request.
+          if (ledgerMutations.length > 0) {
+            try {
+              const response = await fetch('/api/lan-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mutations: ledgerMutations.map(mutation => ({
+                    collectionName: mutation.collectionName,
+                    docId: mutation.docId,
                     action: 'set',
-                    data: paymentData,
-                  }),
-                });
-              } catch {}
+                    data: mutation.data,
+                  })),
+                }),
+              });
+              if (!response.ok) {
+                console.warn('[POS] LAN ledger batch sync returned a non-success response:', response.status);
+              }
+            } catch (syncError) {
+              console.warn('[POS] LAN ledger batch sync failed; Firestore batch is already committed:', syncError);
+            }
           }
 
           if (restoredSaleId) {
@@ -655,7 +868,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         };
 
         try {
-          if (navigator.onLine) {
+          if (paymentMethod === 'Credit') {
+            // Credit settlement also writes payment ledger entries and LAN mutations.
+            // Use the same direct-write path as offline mode so both environments record them.
+            createdSale = await executeSaleWrites();
+          } else if (navigator.onLine) {
             await runTransaction(firestore, async (transaction) => {
                 const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
                 const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -701,6 +918,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             createdSale = await executeSaleWrites();
           }
         } catch (trxErr) {
+          if (paymentMethod === 'Credit') {
+            // Do not replay a credit sale after a partial write failure; retrying with new IDs
+            // could create duplicate sales or duplicate repayments.
+            throw trxErr;
+          }
           console.warn('[POS Offline Mode] Transaction failed/offline. Executing direct local sale writes:', trxErr);
           createdSale = await executeSaleWrites();
         }
@@ -736,71 +958,91 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       return [];
     }
 
+    const readCollection = async (collectionName: string) => {
+      const documents = new Map<string, Record<string, any>>();
+      const source = collection(firestore, collectionName);
+      try {
+        const snapshot = await getDocs(source);
+        snapshot.docs.forEach(document => documents.set(document.id, { ...document.data(), id: document.id }));
+      } catch {
+        try {
+          const snapshot = await getDocsFromCache(source);
+          snapshot.docs.forEach(document => documents.set(document.id, { ...document.data(), id: document.id }));
+        } catch {
+          // Continue to the Local Master store below.
+        }
+      }
+      try {
+        const response = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload?.success && payload?.data && typeof payload.data === 'object') {
+            Object.entries(payload.data).forEach(([id, data]) => documents.set(id, { ...(data as Record<string, any>), id }));
+          }
+        }
+      } catch {
+        // Firestore/cache data remains usable when this device is not connected to a Local Master.
+      }
+      return [...documents.values()];
+    };
+
     try {
-      const customersRef = collection(firestore, getCollectionPath('posCustomers'));
-      const customerSnapshot = await getDocs(customersRef);
-      const customers = customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[];
+      const [customers, allSales, ...paymentGroups] = await Promise.all([
+        readCollection(getCollectionPath('posCustomers')),
+        readCollection(getCollectionPath('stockSales')),
+        ...Array.from(new Set(['payments', getCollectionPath('payments')])).map(readCollection),
+      ]);
+      const customerMap = new Map<string, Customer>((customers as Customer[]).map(customer => [customer.id, customer]));
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalPosCustomers) {
+          throw new Error('Customer directory is still loading. Please retry in a moment.');
+        }
+        globalPosCustomers.forEach(customer => customerMap.set(customer.id, customer));
+      }
+      const allPayments = [...new Map(paymentGroups.flat().map(payment => [payment.id, payment])).values()] as Payment[];
+      const salesMap = new Map<string, StockSale>((allSales as StockSale[]).map(sale => [sale.id, sale]));
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalStockSales) {
+          throw new Error('Customer credit history is still loading. Please retry in a moment.');
+        }
+        globalStockSales.forEach(sale => salesMap.set(sale.id, sale));
+      }
+      const sales = [...salesMap.values()];
 
-      // Stock sales are branch-isolated, use the branch path
-      const salesRef = collection(firestore, getCollectionPath('stockSales'));
-      const salesSnapshot = await getDocs(salesRef);
-      const allSales = salesSnapshot.docs.map(doc => doc.data() as StockSale);
-
-      // Payments are stored at root level (not branch-isolated)
-      const paymentsRef = collection(firestore, 'payments');
-      const paymentsSnapshot = await getDocs(paymentsRef);
-      const allPayments = paymentsSnapshot.docs
-        .map(doc => doc.data() as Payment)
-        // Filter for POS payments and credit repayments that match this branch
-        // Also check for sales within this branch context
-        .filter(p => {
-          // Only POS and Credit Repayment payment types
-          if (p.type !== 'POS' && p.type !== 'Credit Repayment') return false;
-
-          // Get the bookingId which should be the stockSale ID
-          if (!p.bookingId) return false;
-
-          // Check if this payment is related to a sale in our current branch
-          // by looking at the sales we fetched
-          const relatedSale = allSales.find(s => s.id === p.bookingId);
-          return !!relatedSale;
-        });
-
-      const customerData = customers.map(customer => {
-        // Filter sales for this customer - match by customerId or customerEmail
-        const customerSales = allSales.filter(sale =>
+      return [...customerMap.values()].map(customer => {
+        const customerSales = sales.filter(sale =>
           sale.customerId === customer.id ||
-          (sale.customerEmail && sale.customerEmail === customer.email)
+          (!!customer.email && !!sale.customerEmail && sale.customerEmail === customer.email)
         );
-
-        const totalPurchases = customerSales.reduce((acc, sale) => acc + (sale.totalAmount || 0), 0);
-
-        // For payments, match by bookingId being one of the customer's sales
-        const customerPaymentIds = new Set(customerSales.map(s => s.id));
-        const customerPayments = allPayments.filter(p => customerPaymentIds.has(p.bookingId!));
-
-        const totalPayments = customerPayments.reduce((acc, payment) => acc + (payment.amount || 0), 0);
-
-        const outstandingBalance = totalPurchases - totalPayments;
+        const customerCreditSales = customerSales.filter(sale => sale.paymentMethod === 'Credit');
+        const creditSaleIds = new Set(customerCreditSales.map(sale => sale.id));
+        const repayments = allPayments.filter(payment =>
+          payment.type === 'Credit Repayment' &&
+          (payment.customerId === customer.id ||
+            (!!customer.email && payment.guestEmail === customer.email) ||
+            (!!payment.bookingId && creditSaleIds.has(payment.bookingId)))
+        );
+        const totalSpent = customerSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
+        const initialCreditPayments = customerCreditSales.reduce((sum, sale) => sum + (Number(sale.initialPaymentAmount) || 0), 0);
+        const totalRepayments = repayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+        const totalPaid = customerSales
+          .filter(sale => sale.paymentMethod !== 'Credit')
+          .reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0) + initialCreditPayments + totalRepayments;
+        const totalCredit = customerCreditSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
+        const outstandingBalance = Math.max(0, totalCredit - initialCreditPayments - totalRepayments);
 
         return {
           ...customer,
-          totalSpent: totalPurchases,
-          totalPaid: totalPayments,
+          totalSpent,
+          totalPaid,
           outstandingBalance,
         };
       });
-
-      return customerData;
-
     } catch (error) {
       console.error("Error fetching customer financials: ", error);
-      // Return basic customer data without financials on error
-      const customersRef = collection(firestore, getCollectionPath('posCustomers'));
-      const customerSnapshot = await getDocs(customersRef);
-      return customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[];
+      return [];
     }
-  }, [firestore, getCollectionPath]);
+  }, [firestore, getCollectionPath, branchContext.isGlobalMode, globalStockSales, isLoadingGlobalStockSales, globalPosCustomers, isLoadingGlobalPosCustomers]);
 
   return {
     cart,

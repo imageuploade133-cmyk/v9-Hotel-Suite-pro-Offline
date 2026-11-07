@@ -84,11 +84,12 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     const customerEmails = new Set(allCustomers.map(c => c.email).filter(Boolean));
 
     const relevantSales = allSales.filter(s => (s.customerId && customerIds.has(s.customerId)) || (s.customerEmail && customerEmails.has(s.customerEmail)));
-    const relevantCreditPayments = allCreditPayments.filter(p => p.guestEmail && customerEmails.has(p.guestEmail));
+    const relevantCreditPayments = allCreditPayments.filter(p => (p.customerId && customerIds.has(p.customerId)) || (p.guestEmail && customerEmails.has(p.guestEmail)));
 
     return allCustomers.map(customer => {
         const customerSales = relevantSales.filter(s => s.customerId === customer.id || (customer.email && s.customerEmail === customer.email));
-        const customerCreditPayments = relevantCreditPayments.filter(p => customer.email && p.guestEmail === customer.email);
+        const customerSaleIds = new Set(customerSales.map(sale => sale.id));
+        const customerCreditPayments = relevantCreditPayments.filter(p => p.customerId === customer.id || (!!customer.email && p.guestEmail === customer.email) || (!!p.bookingId && customerSaleIds.has(p.bookingId)));
 
         const totalSpent = customerSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
         const totalCreditSales = customerSales.filter(s => s.paymentMethod === 'Credit').reduce((sum, sale) => sum + sale.totalAmount - (sale.initialPaymentAmount || 0), 0);

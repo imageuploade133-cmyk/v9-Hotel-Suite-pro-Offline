@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ interface PaymentDialogProps {
   cart: UnifiedItem[];
   activeRunningItems?: UnifiedItem[];
   customer: Partial<Customer> | null;
-  onConfirm: (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string) => Promise<void>;
+  onConfirm: (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string, applyExcessToOutstanding?: boolean, totalTenderedAmount?: number) => Promise<void>;
   isProcessing: boolean;
   discount: { type: 'percentage' | 'amount'; value: number } | null;
   allowBillToRoom?: boolean;
@@ -38,12 +39,13 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = React.useState('');
+  const [paymentMethod, setPaymentMethod] = React.useState(startInCreditMode ? 'Credit' : '');
   const [amountPaid, setAmountPaid] = React.useState<number>(0);
   const [initialPaymentMethod, setInitialPaymentMethod] = React.useState<string>('Cash');
   const [paymentTab, setPaymentTab] = React.useState<'pay-now' | 'bill-to-room'>('pay-now');
   const [selectedBookingId, setSelectedBookingId] = React.useState<string>('');
   const [roomSearchTerm, setRoomSearchTerm] = React.useState('');
+  const [showExcessDecision, setShowExcessDecision] = React.useState(false);
 
   const paymentMethodsQuery = React.useMemo(() => {
     if (!firestore) return null;
@@ -83,13 +85,13 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   }, [isOpen, total, customer?.id, startInCreditMode]);
 
   React.useEffect(() => {
-    if (!allowBillToRoom) return;
+    if (!allowBillToRoom || startInCreditMode) return;
     if (paymentTab === 'bill-to-room') {
       setPaymentMethod('Bill to Room');
     } else if (paymentMethod === 'Bill to Room') {
       setPaymentMethod('');
     }
-  }, [paymentTab, paymentMethod, allowBillToRoom]);
+  }, [paymentTab, paymentMethod, allowBillToRoom, startInCreditMode]);
 
   React.useEffect(() => {
     if (paymentMethod === 'Credit') {
@@ -99,7 +101,15 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
     }
   }, [paymentMethod, total]);
 
-  const change = amountPaid - total;
+  const change = Math.max(0, amountPaid - total);
+  const customerOutstandingBalance = Math.max(0, Number(customer?.outstandingBalance) || 0);
+  const excessAvailableForOldBalance = Math.min(change, customerOutstandingBalance);
+  const saleInitialPayment = Math.min(Math.max(0, amountPaid), total);
+
+  const completeCreditSale = async (applyExcessToOutstanding: boolean) => {
+    setShowExcessDecision(false);
+    await onConfirm(total, 'Credit', 'Credit', saleInitialPayment > 0 ? saleInitialPayment : undefined, saleInitialPayment > 0 ? initialPaymentMethod : undefined, undefined, applyExcessToOutstanding, amountPaid);
+  };
 
   const handlePaymentMethodChange = (value: string) => {
     if (value === 'Credit' && !canCreateCreditSales) {
@@ -126,12 +136,15 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
     }
 
     if (paymentMethod === 'Credit') {
-        if (!Number.isFinite(amountPaid) || amountPaid < 0 || amountPaid > total) {
-          toast({ variant: 'destructive', title: 'Invalid Initial Payment', description: 'The initial payment must be between zero and the total sale amount.' });
+        if (!Number.isFinite(amountPaid) || amountPaid < 0) {
+          toast({ variant: 'destructive', title: 'Invalid Initial Payment', description: 'Enter a valid payment amount greater than or equal to zero.' });
           return;
         }
-        const initialPayment = amountPaid > 0 ? amountPaid : undefined;
-        await onConfirm(total, paymentMethod, 'Credit', initialPayment, initialPayment ? initialPaymentMethod : undefined);
+        if (amountPaid > total && customerOutstandingBalance > 0) {
+          setShowExcessDecision(true);
+          return;
+        }
+        await completeCreditSale(false);
     } else if (paymentMethod === 'Bill to Room') {
         if (!selectedBookingId) {
           toast({ variant: 'destructive', title: 'Room selection required', description: 'Please select a checked-in room to bill.' });
@@ -153,7 +166,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   };
 
   const paymentAmountNumber = parseFloat(String(amountPaid)) || 0;
-  const newBalance = paymentMethod === 'Credit' ? total - paymentAmountNumber : 0;
+  const newBalance = paymentMethod === 'Credit' ? Math.max(0, total - Math.min(total, paymentAmountNumber)) : 0;
 
   const filteredBookings = React.useMemo(() => {
     if (!activeBookings) return [];
@@ -168,6 +181,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   }, [activeBookings, roomSearchTerm]);
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
@@ -194,14 +208,14 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             </div>
           </div>
 
-          {allowBillToRoom ? (
+          {allowBillToRoom && !startInCreditMode ? (
             <Tabs value={paymentTab} onValueChange={(value) => setPaymentTab(value as 'pay-now' | 'bill-to-room')}>
               <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="pay-now">Pay Now</TabsTrigger>
                 <TabsTrigger value="bill-to-room">Bill to Room</TabsTrigger>
               </TabsList>
               <TabsContent value="pay-now" className="space-y-4">
-                {paymentMethod !== 'Credit' ? (
+                {!startInCreditMode && paymentMethod !== 'Credit' ? (
                   <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                     <SelectTrigger>
                         <div className="flex items-center gap-2">
@@ -234,7 +248,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                   <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="initial-payment">Initial Payment (Optional)</Label>
-                        <Input id="initial-payment" type="number" min="0" max={total} step="0.01" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
+                        <Input id="initial-payment" type="number" min="0" step="0.01" value={amountPaid} placeholder="Enter amount received from customer" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
                     </div>
                     {amountPaid > 0 && (
                           <Select onValueChange={setInitialPaymentMethod} value={initialPaymentMethod}>
@@ -298,8 +312,8 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             </Tabs>
           ) : (
             <>
-              {paymentMethod !== 'Credit' ? (
-                <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
+              {!startInCreditMode && paymentMethod !== 'Credit' ? (
+                  <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                   <SelectTrigger>
                       <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -331,7 +345,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                 <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="initial-payment">Initial Payment (Optional)</Label>
-                      <Input id="initial-payment" type="number" min="0" max={total} step="0.01" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
+                      <Input id="initial-payment" type="number" min="0" step="0.01" value={amountPaid} placeholder="Enter amount received from customer" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
                   </div>
                   {amountPaid > 0 && (
                         <Select onValueChange={setInitialPaymentMethod} value={initialPaymentMethod}>
@@ -357,8 +371,11 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
           )}
 
           {paymentMethod === 'Credit' && (
-            <div className="p-4 rounded-md bg-yellow-100 text-yellow-800 text-center font-semibold">
-              New Credit Balance: {formatCurrency(newBalance)}
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+              <div className="flex justify-between gap-3"><span>Amount applied to this sale</span><strong>{formatCurrency(saleInitialPayment)}</strong></div>
+              <div className="flex justify-between gap-3"><span>Outstanding on this sale</span><strong>{formatCurrency(newBalance)}</strong></div>
+              {change > 0 && <div className="flex justify-between gap-3 border-t border-amber-300 pt-2"><span>Excess available</span><strong>{formatCurrency(change)}</strong></div>}
+              {customerOutstandingBalance > 0 && <p className="text-xs text-amber-800 dark:text-amber-200">Previous outstanding credit: {formatCurrency(customerOutstandingBalance)}. Any excess can be applied to this balance.</p>}
             </div>
           )}
           </div>
@@ -375,5 +392,24 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={showExcessDecision} onOpenChange={setShowExcessDecision}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Use the excess to pay previous balance?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Amount received: {formatCurrency(amountPaid)}. New sale total: {formatCurrency(total)}.
+            Excess available: {formatCurrency(change)}. Existing customer balance: {formatCurrency(customerOutstandingBalance)}.
+            Apply {formatCurrency(excessAvailableForOldBalance)} to the previous balance? Any excess remaining after settling it will be returned to the customer as change.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isProcessing} onClick={() => completeCreditSale(false)}>No, give as change</AlertDialogCancel>
+          <AlertDialogAction disabled={isProcessing} onClick={(event) => { event.preventDefault(); completeCreditSale(true); }}>
+            Yes, pay outstanding balance
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

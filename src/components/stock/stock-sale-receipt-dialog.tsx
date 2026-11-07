@@ -232,6 +232,7 @@ export function StockSaleReceiptDialog({
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  const finalCustomerBalance = sale.customerOutstandingBalanceAfter ?? customerBalance;
 
   const soldAtDate = getSafeDate(sale.soldAt);
   const staffProfile = sale.soldByUid ? userMap.get(sale.soldByUid) : null;
@@ -246,7 +247,7 @@ export function StockSaleReceiptDialog({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>Sale Receipt #{sale.saleId}</span>
-            {sale.paymentStatus === 'Unpaid' || sale.paymentMethod === 'Credit' ? (
+            {(sale.paymentStatus === 'Unpaid' || (sale.paymentMethod === 'Credit' && sale.paymentStatus !== 'Paid')) ? (
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
                 aria-live="polite"
@@ -359,14 +360,23 @@ export function StockSaleReceiptDialog({
                       <>
                         {sale.initialPaymentAmount != null && sale.initialPaymentAmount > 0 && (
                           <div className="flex justify-between text-sm">
-                            <span>Initial Payment:</span>
+                            <span>Applied to This Sale:</span>
                             <span>{formatCurrency(sale.initialPaymentAmount)}</span>
                           </div>
                         )}
-                        {customerBalance != null && customerBalance > 0 && (
+                        {sale.totalTenderedAmount != null && (
+                          <>
+                            <div className="flex justify-between text-sm"><span>Total Amount Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
+                            
+                            <div className="flex justify-between text-sm"><span>Outstanding on This Sale:</span><span>{formatCurrency(Math.max(0, sale.totalAmount - (sale.initialPaymentAmount || 0)))}</span></div>
+                            {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-sm text-green-700"><span>Applied to Previous Credit:</span><span>-{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
+                            {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-sm"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
+                          </>
+                        )}
+                        {(sale.customerOutstandingBalanceAfter != null || customerBalance != null) && (
                           <div className="flex justify-between font-bold text-lg text-destructive border-t-2 border-dashed border-red-300 pt-3">
-                            <span>Total Balance Due:</span>
-                            <span>{formatCurrency(customerBalance)}</span>
+                            <span>Customer's New Outstanding Balance:</span>
+                            <span>{formatCurrency(finalCustomerBalance || 0)}</span>
                           </div>
                         )}
                       </>
@@ -447,13 +457,13 @@ export function StockSaleReceiptDialog({
                 </div>
                 <div className="my-4 space-y-1 text-center border-t border-dashed border-black pt-2">
                   {sale.paymentMethod === 'Credit' ? (
-                    <p className="font-bold text-lg text-red-600">CREDIT SALE</p>
+                    <p className={`font-bold text-lg ${sale.paymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`}>{sale.paymentStatus === 'Paid' ? 'CREDIT SALE - PAID IN FULL' : 'CREDIT SALE'}</p>
                   ) : (
                     <p className="font-bold text-lg text-green-600">PAID IN FULL</p>
                   )}
                   <p className="font-semibold uppercase">{sale.paymentMethod}</p>
                   <p className="font-bold text-lg">
-                    Amount Paid:{' '}
+                    Applied to This Sale:{' '}
                     {formatCurrency(sale.paymentMethod === 'Credit' ? (sale.initialPaymentAmount || 0) : sale.totalAmount)}
                   </p>
                 </div>
@@ -462,9 +472,17 @@ export function StockSaleReceiptDialog({
                     <div className="text-center font-bold text-red-500">
                       BALANCE DUE: {formatCurrency(sale.totalAmount - (sale.initialPaymentAmount || 0))}
                     </div>
-                    {customerBalance != null && customerBalance > 0 && (
+                    {sale.totalTenderedAmount != null && (
+                      <>
+                        <div className="flex justify-between text-xs"><span>Total Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
+                        
+                        {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-xs"><span>Applied to Previous Credit:</span><span>{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
+                        {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-xs"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
+                      </>
+                    )}
+                    {(sale.customerOutstandingBalanceAfter != null || customerBalance != null) && (
                       <div className="text-center font-bold text-red-700 border-t border-dashed mt-2 pt-2">
-                        TOTAL OUTSTANDING BALANCE: {formatCurrency(customerBalance)}
+                        NEW CUSTOMER OUTSTANDING: {formatCurrency(finalCustomerBalance || 0)}
                       </div>
                     )}
                     <PaymentDetailsCreditSale saleId={sale.saleId} isTerminal />

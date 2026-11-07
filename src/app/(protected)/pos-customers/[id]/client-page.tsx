@@ -33,6 +33,7 @@ import { writeBatch } from 'firebase/firestore';
 import type { CreditSale } from '@/app/(protected)/credit-sales/columns';
 import { usePOS } from '@/hooks/usePOS';
 import CustomerDetailsLoading from './loading';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 
 type Transaction = (StockSale | Payment | StockReturn) & { transactionType: 'Sale' | 'Payment' | 'Return' };
 
@@ -46,21 +47,30 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
     // Sort transactions chronologically to calculate running balance correctly
     const chronologicalTransactions = React.useMemo(() => {
         return [...transactions].sort((a, b) => {
-            const dateA = getSafeDate((a as any).soldAt || (a as any).transactionDate || (a as any).returnedAt)!;
-            const dateB = getSafeDate((b as any).soldAt || (b as any).transactionDate || (b as any).returnedAt)!;
-            return dateA.getTime() - dateB.getTime();
+            const dateA = getSafeDate((a as any).soldAt || (a as any).transactionDate || (a as any).returnedAt)?.getTime() || 0;
+            const dateB = getSafeDate((b as any).soldAt || (b as any).transactionDate || (b as any).returnedAt)?.getTime() || 0;
+            if (dateA !== dateB) return dateA - dateB;
+            // At the same timestamp, list the credit sale before its initial payment.
+            const rank = (t: Transaction) => t.transactionType === 'Sale' ? 0 : t.transactionType === 'Payment' ? 1 : 2;
+            return rank(a) - rank(b);
         });
     }, [transactions]);
 
     const runningBalances = React.useMemo(() => {
+        const creditSaleIds = new Set(chronologicalTransactions
+          .filter(t => t.transactionType === 'Sale' && (t as StockSale).paymentMethod === 'Credit')
+          .map(t => t.id));
         let currentBalance = 0;
         const balances: { [id: string]: number } = {};
 
         chronologicalTransactions.forEach(trans => {
             if (trans.transactionType === 'Sale' && (trans as StockSale).paymentMethod === 'Credit') {
-                currentBalance += (trans as StockSale).totalAmount - ((trans as StockSale).initialPaymentAmount || 0);
+                currentBalance += (trans as StockSale).totalAmount;
             } else if (trans.transactionType === 'Payment') {
-                currentBalance -= (trans as Payment).amount;
+                const payment = trans as Payment;
+                const settlesCreditSale = payment.type === 'Credit Repayment'
+                  || (payment.type === 'POS' && !!payment.bookingId && creditSaleIds.has(payment.bookingId));
+                if (settlesCreditSale) currentBalance -= payment.amount;
             } else if (trans.transactionType === 'Return') {
                 currentBalance -= (trans as StockReturn).totalRefundAmount;
             }
@@ -95,7 +105,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                         amount = sale.totalAmount;
                         amountClass = 'text-foreground';
 
-                        const repayments = transactions.filter(p => p.transactionType === 'Payment' && p.bookingId === sale.id) as Payment[];
+                        const repayments = transactions.filter(p => p.transactionType === 'Payment' && (p as Payment).type === 'Credit Repayment' && p.bookingId === sale.id) as Payment[];
                         const totalPaidForSale = (sale.initialPaymentAmount || 0) + repayments.reduce((sum, p) => sum + p.amount, 0);
                         const balanceForSale = sale.totalAmount - totalPaidForSale;
                         const isCredit = sale.paymentMethod === 'Credit';
@@ -103,7 +113,16 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                         saleDetails = (
                              <div className="text-xs space-y-2 mt-2">
                                 <div className="flex justify-between"><span>Payment Method:</span><span className="font-medium">{sale.paymentMethod}</span></div>
-                                {sale.initialPaymentAmount && <div className="flex justify-between"><span>Initial Payment:</span><span>{formatCurrency(sale.initialPaymentAmount)}</span></div>}
+                                {sale.initialPaymentAmount && <div className="flex justify-between"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount)}</span></div>}
+                                {sale.totalTenderedAmount != null && (
+                                  <>
+                                    <div className="flex justify-between"><span>Total Amount Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
+                                    
+                                    {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-green-700"><span>Applied to Previous Credit:</span><span>{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
+                                    {(sale.changeGiven || 0) > 0 && <div className="flex justify-between"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
+                                    {sale.customerOutstandingBalanceAfter != null && <div className="flex justify-between font-semibold border-t pt-2"><span>Customer Balance After Sale:</span><span>{formatCurrency(sale.customerOutstandingBalanceAfter)}</span></div>}
+                                  </>
+                                )}
                                 {repayments.map(p => (
                                     <div key={p.id} className="flex justify-between"><span>Repayment ({format(getSafeDate(p.transactionDate)!, 'PP')}):</span><span>{formatCurrency(p.amount)}</span></div>
                                 ))}
@@ -126,7 +145,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                     case 'Payment':
                         const payment = t as Payment;
                         icon = <CreditCard className="h-5 w-5 text-green-500" />;
-                        title = `Credit Repayment`;
+                        title = payment.allocationSource === 'POS_CHANGE' ? 'Previous Credit Balance Payment' : payment.type === 'Credit Repayment' ? 'Credit Repayment' : 'Sale Payment';
                         amount = -payment.amount;
                         amountClass = 'text-green-600';
                         break;
@@ -153,6 +172,9 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                                 <div>
                                     <p className="font-semibold">{title}</p>
                                     <p className="text-xs text-muted-foreground">{date ? format(date, 'PPp') : 'N/A'}</p>
+                                    {t.transactionType === 'Payment' && (t as Payment).notes && (
+                                      <p className="mt-1 text-xs text-muted-foreground">{(t as Payment).notes}</p>
+                                    )}
                                 </div>
                             </CollapsibleTrigger>
                              <div className="flex items-center gap-4">
@@ -168,7 +190,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
                                         {t.transactionType === 'Sale' && <DropdownMenuItem onClick={() => setSaleToPrint(t as StockSale)}><Printer className="mr-2 h-4 w-4" />Print Sale Receipt</DropdownMenuItem>}
-                                        {t.transactionType === 'Payment' && <DropdownMenuItem onClick={() => handlePrintCreditPayment(t as Payment)}><Printer className="mr-2 h-4 w-4" />Print Payment Receipt</DropdownMenuItem>}
+                                        {t.transactionType === 'Payment' && (t as Payment).type === 'Credit Repayment' && <DropdownMenuItem onClick={() => handlePrintCreditPayment(t as Payment)}><Printer className="mr-2 h-4 w-4" />Print Payment Receipt</DropdownMenuItem>}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </div>
@@ -219,7 +241,9 @@ function CustomerDetails({ customerData }: { customerData: any }) {
     const { userProfile } = useUser();
     const { toast } = useToast();
     const { settings } = useSettings();
-    const { getCollectionPath } = useBranch();
+    const { getCollectionPath, isGlobalMode } = useBranch();
+    const { data: globalSales, isLoading: isGlobalSalesLoading } = useGlobalCollectionData<StockSale>('stockSales');
+    const { data: globalReturns, isLoading: isGlobalReturnsLoading } = useGlobalCollectionData<StockReturn>('stockReturns');
     const [transactions, setTransactions] = React.useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [isPayCreditOpen, setIsPayCreditOpen] = React.useState(false);
@@ -254,7 +278,7 @@ function CustomerDetails({ customerData }: { customerData: any }) {
                 } else if (sale.initialPaymentAmount) {
                     paid += sale.initialPaymentAmount;
                 }
-            } else if (t.transactionType === 'Payment') {
+            } else if (t.transactionType === 'Payment' && (t as Payment).type === 'Credit Repayment') {
                 paid += (t as Payment).amount;
             } else if (t.transactionType === 'Return') {
                 returned += (t as StockReturn).totalRefundAmount;
@@ -277,20 +301,38 @@ function CustomerDetails({ customerData }: { customerData: any }) {
                 setIsLoading(false);
                 return;
             }
+            if (isGlobalMode && (isGlobalSalesLoading || isGlobalReturnsLoading)) return;
             setIsLoading(true);
             try {
                 const salesQuery = query(collection(firestore, getCollectionPath('stockSales')), where('customerId', '==', customer.id), orderBy('soldAt', 'desc'));
-                // Fetch all payment types (POS and Credit Repayment) for this customer's email
-                const paymentsQuery = query(collection(firestore, getCollectionPath('payments')), where('guestEmail', '==', customer.email), orderBy('transactionDate', 'desc'));
+                const paymentCollections = [collection(firestore, 'payments')];
+                const branchPaymentCollection = collection(firestore, getCollectionPath('payments'));
+                if (branchPaymentCollection.path !== paymentCollections[0].path) paymentCollections.push(branchPaymentCollection);
+                const paymentQueries = paymentCollections.flatMap(paymentCollection => [
+                  query(paymentCollection, where('customerId', '==', customer.id)),
+                  ...(customer.email ? [query(paymentCollection, where('guestEmail', '==', customer.email))] : []),
+                ]);
                 const returnsQuery = query(collection(firestore, getCollectionPath('stockReturns')), where('customerId', '==', customer.id), orderBy('returnedAt', 'desc'));
 
-                const [salesSnap, paymentsSnap, returnsSnap] = await Promise.all([getDocs(salesQuery), getDocs(paymentsQuery), getDocs(returnsQuery)]);
+                const [salesSnap, paymentSnaps, returnsSnap] = await Promise.all([
+                  isGlobalMode ? Promise.resolve(null) : getDocs(salesQuery),
+                  Promise.all(paymentQueries.map(getDocs)),
+                  isGlobalMode ? Promise.resolve(null) : getDocs(returnsQuery),
+                ]);
 
-                const salesData: Transaction[] = salesSnap.docs.map(d => ({ ...(d.data() as StockSale), id: d.id, transactionType: 'Sale' }));
-                const paymentsData: Transaction[] = paymentsSnap.docs
-                    .map(d => ({ ...(d.data() as Payment), id: d.id, transactionType: 'Payment' }))
-                    .filter(p => p.type === 'POS' || p.type === 'Credit Repayment');
-                const returnsData: Transaction[] = returnsSnap.docs.map(d => ({ ...(d.data() as StockReturn), id: d.id, transactionType: 'Return' } as unknown as Transaction));
+                const sourceSales = isGlobalMode
+                  ? globalSales.filter(sale => sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))
+                  : (salesSnap?.docs || []).map(d => ({ ...(d.data() as StockSale), id: d.id }));
+                const salesData: Transaction[] = sourceSales.map(sale => ({ ...sale, transactionType: 'Sale' }));
+                const uniquePayments = new Map<string, Payment>();
+                paymentSnaps.forEach(snapshot => snapshot.docs.forEach(d => uniquePayments.set(d.id, { ...(d.data() as Payment), id: d.id })));
+                const paymentsData: Transaction[] = [...uniquePayments.values()]
+                    .filter(p => p.type === 'POS' || p.type === 'Credit Repayment')
+                    .map(p => ({ ...p, transactionType: 'Payment' }));
+                const sourceReturns = isGlobalMode
+                  ? globalReturns.filter(ret => ret.customerId === customer.id)
+                  : (returnsSnap?.docs || []).map(d => ({ ...(d.data() as StockReturn), id: d.id }));
+                const returnsData: Transaction[] = sourceReturns.map(ret => ({ ...ret, transactionType: 'Return' } as unknown as Transaction));
 
 
                 const all = [...salesData, ...paymentsData, ...returnsData].sort((a, b) => {
@@ -309,7 +351,7 @@ function CustomerDetails({ customerData }: { customerData: any }) {
         };
 
         fetchTransactions();
-    }, [firestore, customer.id, customer.email, toast, reload]);
+    }, [firestore, customer.id, customer.email, toast, reload, getCollectionPath, isGlobalMode, globalSales, globalReturns, isGlobalSalesLoading, isGlobalReturnsLoading]);
 
     const handlePaymentSuccess = (data: { payment: Payment; customer: Customer; balance: number }) => {
         setIsPayCreditOpen(false);

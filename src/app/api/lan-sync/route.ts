@@ -48,6 +48,38 @@ export async function POST(req: NextRequest) {
   try {
     const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const body = await req.json();
+
+    // Accept a validated group of ledger mutations in one request. This keeps
+    // the sale and its related payments together when writing to the Local Master.
+    if (Array.isArray(body?.mutations)) {
+      const mutations = body.mutations as Array<{
+        collectionName?: string;
+        docId?: string;
+        action?: 'set' | 'update' | 'delete';
+        data?: Record<string, unknown>;
+      }>;
+      const valid = mutations.length > 0 && mutations.every((mutation) =>
+        typeof mutation.collectionName === 'string'
+        && mutation.collectionName.length > 0
+        && typeof mutation.docId === 'string'
+        && mutation.docId.length > 0
+        && ['set', 'update', 'delete'].includes(mutation.action || '')
+        && (mutation.action === 'delete' || (mutation.data && typeof mutation.data === 'object' && !Array.isArray(mutation.data)))
+      );
+      if (!valid) {
+        return NextResponse.json({ success: false, error: 'Invalid LAN mutation batch.' }, { status: 400 });
+      }
+      const saved = mutations.map((mutation) =>
+        lanStore.addMutation(mutation.collectionName!, mutation.docId!, mutation.action!, mutation.data)
+      );
+      return NextResponse.json({
+        success: true,
+        message: 'Mutation batch saved locally to Master PC',
+        mutationIds: saved.map((mutation) => mutation.id),
+        summary: lanStore.getStateSummary(),
+      });
+    }
+
     const { collectionName, docId, action, data } = body;
 
     if (!collectionName || !docId || !action) {
