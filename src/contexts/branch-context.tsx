@@ -147,27 +147,10 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
       if (initializedAdminUidRef.current === adminUid) return;
       initializedAdminUidRef.current = adminUid;
 
-      // The project's default branch is the oldest active/visible branch by createdAt.
-      // Use a stable ID fallback for legacy branch records without createdAt.
-      const defaultBranch = [...activeBranches].sort((a, b) => {
-        const getCreatedAt = (branch: Branch) => {
-          const value: any = branch.createdAt;
-          if (value && typeof value.toMillis === 'function') return value.toMillis();
-          if (value instanceof Date) return value.getTime();
-          if (typeof value === 'string' || typeof value === 'number') {
-            const parsed = new Date(value).getTime();
-            return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
-          }
-          return Number.MAX_SAFE_INTEGER;
-        };
-        const timeDifference = getCreatedAt(a) - getCreatedAt(b);
-        return timeDifference || a.id.localeCompare(b.id);
-      })[0];
-
-      // If no active branch exists yet, retain the safe global fallback.
-      const nextBranchId = defaultBranch?.id || 'global';
-      setCurrentBranchId(nextBranchId);
-      localStorage.setItem('currentBranchId', nextBranchId);
+      // Global Branch is the administrator's default at every fresh login.
+      // Administrators can still manually select an individual branch afterward.
+      setCurrentBranchId('global');
+      localStorage.setItem('currentBranchId', 'global');
       setCurrentPosId(null);
       localStorage.removeItem('currentPosId');
       return;
