@@ -49,7 +49,13 @@ import {
 function CreditSalesPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { userProfile } = useUser();
+  const { user, userProfile } = useUser();
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const currentUserUid = userProfile?.uid || user?.uid || userProfile?.id || null;
+  const noUserMatchUid = '__NO_CREDIT_SALE_OWNER__';
   const { settings } = useSettings();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
 
@@ -62,7 +68,10 @@ function CreditSalesPage() {
   const [saleToPrint, setSaleToPrint] = React.useState<StockSale | null>(null);
   const [actionsSale, setActionsSale] = React.useState<CreditSale | null>(null);
 
-  const salesConstraints = React.useMemo(() => [where('paymentMethod', '==', 'Credit'), orderBy('soldAt', 'desc')], []);
+  const salesConstraints = React.useMemo(() => isAdminIdentity
+    ? [where('paymentMethod', '==', 'Credit'), orderBy('soldAt', 'desc')]
+    : [where('paymentMethod', '==', 'Credit'), where('soldByUid', '==', currentUserUid || noUserMatchUid)],
+    [isAdminIdentity, currentUserUid]);
   const paymentsConstraints = React.useMemo(() => [where('type', '==', 'Credit Repayment')], []);
 
   // Branch mode queries
@@ -84,7 +93,11 @@ function CreditSalesPage() {
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 
   const { creditSales, summaryStats } = React.useMemo(() => {
-    let salesToProcess = sales || [];
+    let salesToProcess = [...(sales || [])];
+    if (!isAdminIdentity) {
+      salesToProcess = salesToProcess.filter(sale => !!currentUserUid && sale.soldByUid === currentUserUid);
+      salesToProcess.sort((a, b) => (getSafeDate(b.soldAt)?.getTime() || 0) - (getSafeDate(a.soldAt)?.getTime() || 0));
+    }
 
     // Filter by date range first
     if (dateRange?.from) {
@@ -137,7 +150,7 @@ function CreditSalesPage() {
         todaysCreditSales: todaysCreditSales,
       },
     };
-  }, [sales, payments, dateRange, searchTerm]);
+  }, [sales, payments, dateRange, searchTerm, isAdminIdentity, currentUserUid]);
 
   const handleConfirmPayment = async (sale: CreditSale, paymentAmount: number, paymentMethod: string, paymentRef: string) => {
     if (!firestore || !userProfile) {
