@@ -756,3 +756,70 @@
     grid-template-columns: repeat(var(--pos-product-grid-columns-desktop, 2), minmax(0, 1fr));
   }
 }
+
+
+/*
+ * App-wide mobile layout guardrails.
+ * Page action/header rows wrap instead of widening the protected app viewport.
+ * Data tables and explicitly marked horizontal scrollers keep their own
+ * contained scrolling regions for content that genuinely needs more width.
+ */
+@media (max-width: 639px) {
+  main {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip !important;
+  }
+
+  main > :where(div, section, article) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  main :where(
+    .flex.items-center.justify-between,
+    .flex.items-start.justify-between,
+    .flex.justify-between,
+    .flex.items-center.justify-end
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    row-gap: 0.65rem;
+  }
+
+  /* Common header/action groups used throughout protected pages. */
+  main :where(
+    .flex.items-center.justify-between,
+    .flex.items-start.justify-between,
+    .flex.justify-between,
+    .flex.items-center.justify-end
+  ) > :where(
+    .flex.items-center.gap-1,
+    .flex.items-center.gap-2,
+    .flex.items-center.gap-3,
+    .flex.items-center.gap-4
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Avoid fixed-width button labels forcing an action row wider than a phone. */
+  main button,
+  main a.inline-flex {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  main :where(input, select, [role="combobox"]) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  main .page-responsive-actions {
+    width: 100%;
+  }
+}
