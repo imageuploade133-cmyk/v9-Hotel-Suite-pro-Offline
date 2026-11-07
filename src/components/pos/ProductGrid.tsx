@@ -29,7 +29,15 @@ interface ProductGridProps {
   reloadTrigger: number;
 }
 
-const ProductCard = ({ item, onAddToCart }: { item: UnifiedItem, onAddToCart: (item: UnifiedItem) => void }) => {
+interface ProductCardProps {
+  item: UnifiedItem;
+  onAddToCart: (item: UnifiedItem) => void;
+  cardBorderEnabled: boolean;
+  cardBorderColor: string;
+  buttonStyle?: React.CSSProperties;
+}
+
+const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, buttonStyle }: ProductCardProps) => {
     const { settings } = useSettings();
     const useGlobalImage = settings?.useGlobalStockImage;
     const globalImageUrl = settings?.globalStockImageUrl;
@@ -57,7 +65,14 @@ const ProductCard = ({ item, onAddToCart }: { item: UnifiedItem, onAddToCart: (i
     };
 
     return (
-        <Card className="flex flex-col overflow-hidden relative">
+        <Card
+            className="flex flex-col overflow-hidden relative"
+            style={{
+                borderStyle: 'solid',
+                borderWidth: cardBorderEnabled ? 1 : 0,
+                borderColor: cardBorderEnabled ? cardBorderColor : 'transparent',
+            }}
+        >
             <motion.div
                 className="absolute inset-0 z-10 pointer-events-none"
                 initial={false}
@@ -91,6 +106,7 @@ const ProductCard = ({ item, onAddToCart }: { item: UnifiedItem, onAddToCart: (i
             <CardFooter className="p-2 pt-0">
                 <Button
                     size="sm"
+                    style={buttonStyle}
                     className="w-full relative overflow-hidden"
                     onClick={handleAddToCart}
                     disabled={isOutOfStock}
@@ -141,7 +157,33 @@ const CategoryThumbnail = ({ category, size = 'sm' }: { category: CategoryOption
     );
 };
 
-const PAGE_SIZE = 10;
+const DEFAULT_PRODUCT_PAGE_SIZE = 6;
+const MIN_PRODUCT_PAGE_SIZE = 1;
+const MAX_PRODUCT_PAGE_SIZE = 48;
+
+function getProductPageSize(value: unknown): number {
+  if (value === undefined || value === null || value === '') return DEFAULT_PRODUCT_PAGE_SIZE;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_PRODUCT_PAGE_SIZE;
+  return Math.min(MAX_PRODUCT_PAGE_SIZE, Math.max(MIN_PRODUCT_PAGE_SIZE, Math.round(parsed)));
+}
+
+function getProductCardButtonStyle(value: unknown): React.CSSProperties | undefined {
+  if (typeof value !== 'string') return undefined;
+  const color = value.trim();
+
+  if (/^#[0-9a-f]{6}$/i.test(color)) {
+    return { backgroundColor: color };
+  }
+
+  // The online menu also supports gradient button themes. Keep POS consistent
+  // while rejecting arbitrary CSS values from a malformed settings document.
+  if (/^linear-gradient\([^{};]+\)$/i.test(color) && !/\burl\s*\(/i.test(color)) {
+    return { backgroundImage: color };
+  }
+
+  return undefined;
+}
 
 export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -150,6 +192,13 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
   const [categorySearchTerm, setCategorySearchTerm] = React.useState('');
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const { settings } = useSettings();
+  const pageSize = getProductPageSize(settings?.menuItemsPerPage);
+  const cardBorderEnabled = settings?.menuCardBorderEnabled !== false;
+  const cardBorderColor = typeof settings?.menuCardBorderColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(settings.menuCardBorderColor)
+    ? settings.menuCardBorderColor
+    : '#E5E7EB';
+  const buttonStyle = getProductCardButtonStyle(settings?.menuButtonColor ?? '#2563EB');
   const [items, setItems] = React.useState<UnifiedItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -261,12 +310,20 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
     return tempItems;
   }, [items, searchTerm, selectedCategory]);
 
-  const paginatedItems = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
-    return filteredItems.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [filteredItems, currentPage]);
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, pageSize]);
 
-  const totalPages = Math.ceil(filteredItems.length / PAGE_SIZE);
+  const paginatedItems = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, currentPage, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+
+  React.useEffect(() => {
+    setCurrentPage(page => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const handleCategorySelect = (categoryName: string) => {
     setSelectedCategory(categoryName);
@@ -359,12 +416,19 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
         <ScrollArea className="h-full">
           {isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-1">
-                 {Array.from({length: 10}).map((_, i) => <Skeleton key={i} className="aspect-square"/>)}
+                 {Array.from({ length: Math.min(pageSize, 10) }).map((_, i) => <Skeleton key={i} className="aspect-square" />)}
             </div>
           ) : paginatedItems && paginatedItems.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-1">
               {paginatedItems.map(item => (
-                <ProductCard key={item.id} item={item} onAddToCart={onAddToCart} />
+                <ProductCard
+                  key={item.id}
+                  item={item}
+                  onAddToCart={onAddToCart}
+                  cardBorderEnabled={cardBorderEnabled}
+                  cardBorderColor={cardBorderColor}
+                  buttonStyle={buttonStyle}
+                />
               ))}
             </div>
           ) : (
