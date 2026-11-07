@@ -1307,397 +1307,395 @@ function RunningTablesPage() {
         </TabsContent>
 
         {/* History Dockets Tab */}
-        {!isPosStaff && (
-          <TabsContent value="history" className="mt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <History className="h-5 w-5" />
-                      History Dockets
-                    </CardTitle>
-                    <CardDescription>
-                      View all past dockets that have been deleted, reset, or completed.
-                    </CardDescription>
-                  </div>
-                  <DateRangePicker
-                    date={historyDateRange}
-                    onDateChange={setHistoryDateRange}
-                  />
+        <TabsContent value="history" className="mt-4" hidden={isPosStaff}>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    History Dockets
+                  </CardTitle>
+                  <CardDescription>
+                    View all past dockets that have been deleted, reset, or completed.
+                  </CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {isHistoryLoading ? (
-                  <div className="p-4 space-y-4">
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : !filteredHistory || filteredHistory.length === 0 ? (
-                  <EmptyState
-                    icon={History}
-                    title="No History Dockets"
-                    description={
-                      historyDateRange?.from
-                        ? 'No history found for the selected date range.'
-                        : 'There are no history dockets yet. When tables are deleted or reset, they will appear here.'
-                    }
-                    className="py-12"
-                  />
-                ) : (
-                  <>
-                    <ScrollArea className="h-[500px]">
-                      <div className="p-4 space-y-4">
-                      {filteredHistory.map((history) => {
-                        const actionDate = getSafeDate(history.actionAt);
-                        const heldDate = getSafeDate(history.heldAt);
-                        return (
-                          <div key={history.id} className="border rounded-lg p-4 bg-card">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h3 className="font-semibold text-lg">{history.tableName}</h3>
-                                  <Badge
-                                    variant={history.actionType === 'Deleted' ? 'destructive' : history.actionType === 'Reset' ? 'warning' : 'default'}
-                                    className="text-xs"
-                                  >
-                                    {history.actionType}
-                                  </Badge>
-                                </div>
-                                <div className="text-sm text-muted-foreground space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <CalendarClock className="h-4 w-4" />
-                                    <span>Started: {heldDate ? format(heldDate, 'PPpp') : 'N/A'}</span>
-                                    <span className="text-xs">({heldDate ? format(heldDate, 'EEEE') : ''})</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    <span>By: {history.heldByName}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <CalendarClock className="h-4 w-4" />
-                                    <span>{history.actionType}: {actionDate ? format(actionDate, 'PPpp') : 'N/A'}</span>
-                                    <span className="text-xs">({actionDate ? format(actionDate, 'EEEE') : ''})</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">Processed by: {history.actionByName}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm text-muted-foreground">Total Amount</p>
-                                <p className="text-lg font-bold">{formatCurrency(history.totalAmount)}</p>
-                                <p className="text-xs text-muted-foreground mt-1">{history.items?.length || 0} items</p>
-                                <p className="text-xs text-muted-foreground">{history.customerName}</p>
-                              </div>
-                            </div>
-                            {history.items && history.items.length > 0 && (
-                              <div className="mt-3 pt-3 border-t">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Items:</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
-                                  {history.items.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between">
-                                      <span>{item.itemName} x{item.quantity}</span>
-                                      <span className="text-muted-foreground">{formatCurrency(item.price * item.quantity)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Pagination Controls for History */}
-                    {filteredHistory && filteredHistory.length > 0 && (
-                      <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
-                        <div className="text-sm text-muted-foreground">
-                          Page {historyPage}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (historyPage === 1) {
-                                handleHistoryPageReset();
-                              } else {
-                                handleHistoryPrev();
-                              }
-                            }}
-                            disabled={historyPage === 1}
-                          >
-                            <ChevronLeft className="h-4 w-4 mr-1" />
-                            Previous
-                          </Button>
-                          {filteredHistory.length >= historyPageSize && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleHistoryNext}
-                            >
-                              Next
-                              <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </ScrollArea>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* Returns & Resets Tab */}
-        {!isPosStaff && (
-          <TabsContent value="returns" className="mt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <RotateCcw className="h-5 w-5" />
-                      Returns & Resets
-                    </CardTitle>
-                    <CardDescription>
-                      View all returns and resets with full information including day, date, time, original and remaining amounts.
-                    </CardDescription>
-                  </div>
-                  <DateRangePicker
-                    date={returnsDateRange}
-                    onDateChange={setReturnsDateRange}
-                  />
+                <DateRangePicker
+                  date={historyDateRange}
+                  onDateChange={setHistoryDateRange}
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isHistoryLoading ? (
+                <div className="p-4 space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {areReturnsLoading || isHistoryLoading ? (
-                  <div className="p-4 space-y-4">
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : (
+              ) : !filteredHistory || filteredHistory.length === 0 ? (
+                <EmptyState
+                  icon={History}
+                  title="No History Dockets"
+                  description={
+                    historyDateRange?.from
+                      ? 'No history found for the selected date range.'
+                      : 'There are no history dockets yet. When tables are deleted or reset, they will appear here.'
+                  }
+                  className="py-12"
+                />
+              ) : (
+                <>
                   <ScrollArea className="h-[500px]">
                     <div className="p-4 space-y-4">
-                      {/* Combine returns and resets */}
-                      {(() => {
-                        // Combine and sort by date (most recent first)
-                        const combinedItems = [
-                          ...filteredReturns.map(r => ({
-                            type: 'return' as const,
-                            id: r.id,
-                            date: getSafeDate(r.returnedAt),
-                            day: getSafeDate(r.returnedAt) ? format(getSafeDate(r.returnedAt)!, 'EEEE') : '',
-                            dateStr: getSafeDate(r.returnedAt) ? format(getSafeDate(r.returnedAt)!, 'PPpp') : '',
-                            user: r.returnedByName,
-                            amount: r.totalRefundAmount,
-                            originalTotal: (r as any).originalTotal || r.totalRefundAmount,
-                            remainingAmount: (r as any).remainingAmount || 0,
-                            items: r.items,
-                            reason: r.reason,
-                            customerName: r.customerName,
-                            originalSaleId: r.originalSaleId,
-                            rawData: r,
-                          })),
-                          ...filteredResets.map(h => ({
-                            type: 'reset' as const,
-                            id: h.id,
-                            date: getSafeDate(h.actionAt),
-                            day: getSafeDate(h.actionAt) ? format(getSafeDate(h.actionAt)!, 'EEEE') : '',
-                            dateStr: getSafeDate(h.actionAt) ? format(getSafeDate(h.actionAt)!, 'PPpp') : '',
-                            user: h.actionByName,
-                            amount: h.totalAmount,
-                            originalTotal: h.totalAmount,
-                            remainingAmount: 0,
-                            items: h.items,
-                            reason: `Reset - All items returned to stock`,
-                            customerName: h.customerName,
-                            originalSaleId: h.originalSaleId,
-                            rawData: null,
-                          })),
-                        ].sort((a, b) => {
-                          if (!a.date || !b.date) return 0;
-                          return b.date.getTime() - a.date.getTime();
-                        });
-  
-                        if (combinedItems.length === 0) {
-                          return (
-                            <EmptyState
-                              icon={RotateCcw}
-                              title="No Returns or Resets"
-                              description={
-                                returnsDateRange?.from
-                                  ? 'No returns or resets found for the selected date range.'
-                                  : 'When items are returned or tables are reset, they will appear here.'
-                              }
-                              className="py-12"
-                            />
-                          );
-                        }
-  
-                        return combinedItems.map((item) => (
-                          <div key={`${item.type}-${item.id}`} className={`border rounded-lg p-4 ${item.type === 'return' ? 'bg-orange-50 border-orange-200 dark:bg-orange-950/20' : 'bg-red-50 border-red-200 dark:bg-red-950/20'}`}>
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge
-                                    variant={item.type === 'return' ? 'warning' : 'destructive'}
-                                    className="text-xs"
-                                  >
-                                    {item.type === 'return' ? 'RETURN' : 'RESET'}
-                                  </Badge>
-                                  <span className="text-sm font-medium text-muted-foreground">{item.originalSaleId}</span>
-                                </div>
-                                <div className="text-sm text-muted-foreground space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>Day: <span className="font-medium text-foreground">{item.day || 'N/A'}</span></span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <CalendarClock className="h-4 w-4" />
-                                    <span>Date/Time: {item.dateStr || 'N/A'}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    <span>By: <span className="font-medium text-foreground">{item.user}</span></span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span>Customer: <span className="font-medium text-foreground">{item.customerName}</span></span>
-                                  </div>
-                                </div>
-                                {item.reason && (
-                                  <div className="mt-2 text-xs text-muted-foreground bg-white/50 p-2 rounded">
-                                    <span className="font-medium">Reason:</span> {item.reason}
-                                  </div>
-                                )}
+                    {filteredHistory.map((history) => {
+                      const actionDate = getSafeDate(history.actionAt);
+                      const heldDate = getSafeDate(history.heldAt);
+                      return (
+                        <div key={history.id} className="border rounded-lg p-4 bg-card">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold text-lg">{history.tableName}</h3>
+                                <Badge
+                                  variant={history.actionType === 'Deleted' ? 'destructive' : history.actionType === 'Reset' ? 'warning' : 'default'}
+                                  className="text-xs"
+                                >
+                                  {history.actionType}
+                                </Badge>
                               </div>
-                              <div className="text-right space-y-2">
-                                {/* Original Total */}
-                                <div className="bg-white/70 rounded p-2">
-                                  <p className="text-xs text-muted-foreground">Original Total</p>
-                                  <p className="text-lg font-bold">{formatCurrency(item.originalTotal)}</p>
+                              <div className="text-sm text-muted-foreground space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <CalendarClock className="h-4 w-4" />
+                                  <span>Started: {heldDate ? format(heldDate, 'PPpp') : 'N/A'}</span>
+                                  <span className="text-xs">({heldDate ? format(heldDate, 'EEEE') : ''})</span>
                                 </div>
-  
-                                {/* Return/Reset Amount */}
-                                <div className={`rounded p-2 ${item.type === 'return' ? 'bg-orange-100' : 'bg-red-100'}`}>
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.type === 'return' ? 'Return Amount' : 'Reset Amount'}
-                                  </p>
-                                  <p className={`text-lg font-bold ${item.type === 'return' ? 'text-orange-600' : 'text-red-600'}`}>
-                                    -{formatCurrency(item.amount)}
-                                  </p>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4" />
+                                  <span>By: {history.heldByName}</span>
                                 </div>
-  
-                                {/* Remaining Amount (only for returns) */}
-                                {item.type === 'return' && (
-                                  <div className="bg-green-100 rounded p-2">
-                                    <p className="text-xs text-green-600">Remaining</p>
-                                    <p className="text-lg font-bold text-green-600">{formatCurrency(item.remainingAmount)}</p>
-                                  </div>
-                                )}
-  
-                                <p className="text-xs text-muted-foreground">{item.items?.length || 0} items</p>
-  
-                                {/* Re-print button for returns */}
-                                {item.type === 'return' && item.rawData && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-2"
-                                    onClick={() => handleReprintReturnReceipt(item.rawData!)}
-                                  >
-                                    <Printer className="h-3 w-3 mr-1" />
-                                    Re-print Receipt
-                                  </Button>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <CalendarClock className="h-4 w-4" />
+                                  <span>{history.actionType}: {actionDate ? format(actionDate, 'PPpp') : 'N/A'}</span>
+                                  <span className="text-xs">({actionDate ? format(actionDate, 'EEEE') : ''})</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Processed by: {history.actionByName}</span>
+                                </div>
                               </div>
                             </div>
-                            {item.items && item.items.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-black/10">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">
-                                  {item.type === 'return' ? 'Returned Items (with Original & Remaining):' : 'Reset Items:'}
-                                </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                                  {item.items.map((itemEntry, idx) => {
-                                    const originalQty = (itemEntry as any).originalQuantity || itemEntry.quantity;
-                                    const remainingQty = (itemEntry as any).remainingQuantity || 0;
-                                    return (
-                                      <div key={idx} className="flex flex-col p-2 bg-white/50 rounded">
-                                        <div className="flex justify-between items-center">
-                                          <span className={item.type === 'return' ? 'line-through text-muted-foreground' : 'font-medium'}>
-                                            {itemEntry.itemName}
-                                          </span>
-                                          <span className="text-muted-foreground font-medium">
-                                            {formatCurrency(itemEntry.refundAmount || (itemEntry.price * itemEntry.quantity))}
-                                          </span>
-                                        </div>
-                                        {item.type === 'return' && (
-                                          <div className="text-xs text-muted-foreground mt-1 flex gap-3">
-                                            <span>Original: <span className="font-medium">{originalQty}</span></span>
-                                            <span>Returned: <span className="font-medium text-orange-600">{itemEntry.quantity}</span></span>
-                                            <span>Remaining: <span className="font-medium text-green-600">{remainingQty}</span></span>
-                                          </div>
-                                        )}
-                                        {item.type === 'reset' && (
-                                          <div className="text-xs text-muted-foreground mt-1">
-                                            Qty: {itemEntry.quantity}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Total Amount</p>
+                              <p className="text-lg font-bold">{formatCurrency(history.totalAmount)}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{history.items?.length || 0} items</p>
+                              <p className="text-xs text-muted-foreground">{history.customerName}</p>
+                            </div>
                           </div>
-                        ));
-                      })()}
-                    </div>
-                    {/* Pagination Controls for Returns */}
-                    {(filteredReturns.length > 0 || filteredResets.length > 0) && (
-                      <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
-                        <div className="text-sm text-muted-foreground">
-                          Page {returnsPage}
+                          {history.items && history.items.length > 0 && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Items:</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+                                {history.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between">
+                                    <span>{item.itemName} x{item.quantity}</span>
+                                    <span className="text-muted-foreground">{formatCurrency(item.price * item.quantity)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
+                      );
+                    })}
+                  </div>
+                  {/* Pagination Controls for History */}
+                  {filteredHistory && filteredHistory.length > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
+                      <div className="text-sm text-muted-foreground">
+                        Page {historyPage}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (historyPage === 1) {
+                              handleHistoryPageReset();
+                            } else {
+                              handleHistoryPrev();
+                            }
+                          }}
+                          disabled={historyPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Previous
+                        </Button>
+                        {filteredHistory.length >= historyPageSize && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              if (returnsPage === 1) {
-                                handleReturnsPageReset();
-                              } else {
-                                handleReturnsPrev();
-                              }
-                            }}
-                            disabled={returnsPage === 1}
+                            onClick={handleHistoryNext}
                           >
-                            <ChevronLeft className="h-4 w-4 mr-1" />
-                            Previous
+                            Next
+                            <ChevronRight className="h-4 w-4 ml-1" />
                           </Button>
-                          {((filteredReturns.length + filteredResets.length) >= returnsPageSize) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleReturnsNext}
-                            >
-                              Next
-                              <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </ScrollArea>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+        </TabsContent>
+
+        {/* Returns & Resets Tab */}
+        <TabsContent value="returns" className="mt-4" hidden={isPosStaff}>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <RotateCcw className="h-5 w-5" />
+                    Returns & Resets
+                  </CardTitle>
+                  <CardDescription>
+                    View all returns and resets with full information including day, date, time, original and remaining amounts.
+                  </CardDescription>
+                </div>
+                <DateRangePicker
+                  date={returnsDateRange}
+                  onDateChange={setReturnsDateRange}
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {areReturnsLoading || isHistoryLoading ? (
+                <div className="p-4 space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="p-4 space-y-4">
+                    {/* Combine returns and resets */}
+                    {(() => {
+                      // Combine and sort by date (most recent first)
+                      const combinedItems = [
+                        ...filteredReturns.map(r => ({
+                          type: 'return' as const,
+                          id: r.id,
+                          date: getSafeDate(r.returnedAt),
+                          day: getSafeDate(r.returnedAt) ? format(getSafeDate(r.returnedAt)!, 'EEEE') : '',
+                          dateStr: getSafeDate(r.returnedAt) ? format(getSafeDate(r.returnedAt)!, 'PPpp') : '',
+                          user: r.returnedByName,
+                          amount: r.totalRefundAmount,
+                          originalTotal: (r as any).originalTotal || r.totalRefundAmount,
+                          remainingAmount: (r as any).remainingAmount || 0,
+                          items: r.items,
+                          reason: r.reason,
+                          customerName: r.customerName,
+                          originalSaleId: r.originalSaleId,
+                          rawData: r,
+                        })),
+                        ...filteredResets.map(h => ({
+                          type: 'reset' as const,
+                          id: h.id,
+                          date: getSafeDate(h.actionAt),
+                          day: getSafeDate(h.actionAt) ? format(getSafeDate(h.actionAt)!, 'EEEE') : '',
+                          dateStr: getSafeDate(h.actionAt) ? format(getSafeDate(h.actionAt)!, 'PPpp') : '',
+                          user: h.actionByName,
+                          amount: h.totalAmount,
+                          originalTotal: h.totalAmount,
+                          remainingAmount: 0,
+                          items: h.items,
+                          reason: `Reset - All items returned to stock`,
+                          customerName: h.customerName,
+                          originalSaleId: h.originalSaleId,
+                          rawData: null,
+                        })),
+                      ].sort((a, b) => {
+                        if (!a.date || !b.date) return 0;
+                        return b.date.getTime() - a.date.getTime();
+                      });
+
+                      if (combinedItems.length === 0) {
+                        return (
+                          <EmptyState
+                            icon={RotateCcw}
+                            title="No Returns or Resets"
+                            description={
+                              returnsDateRange?.from
+                                ? 'No returns or resets found for the selected date range.'
+                                : 'When items are returned or tables are reset, they will appear here.'
+                            }
+                            className="py-12"
+                          />
+                        );
+                      }
+
+                      return combinedItems.map((item) => (
+                        <div key={`${item.type}-${item.id}`} className={`border rounded-lg p-4 ${item.type === 'return' ? 'bg-orange-50 border-orange-200 dark:bg-orange-950/20' : 'bg-red-50 border-red-200 dark:bg-red-950/20'}`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge
+                                  variant={item.type === 'return' ? 'warning' : 'destructive'}
+                                  className="text-xs"
+                                >
+                                  {item.type === 'return' ? 'RETURN' : 'RESET'}
+                                </Badge>
+                                <span className="text-sm font-medium text-muted-foreground">{item.originalSaleId}</span>
+                              </div>
+                              <div className="text-sm text-muted-foreground space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4" />
+                                  <span>Day: <span className="font-medium text-foreground">{item.day || 'N/A'}</span></span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <CalendarClock className="h-4 w-4" />
+                                  <span>Date/Time: {item.dateStr || 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4" />
+                                  <span>By: <span className="font-medium text-foreground">{item.user}</span></span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span>Customer: <span className="font-medium text-foreground">{item.customerName}</span></span>
+                                </div>
+                              </div>
+                              {item.reason && (
+                                <div className="mt-2 text-xs text-muted-foreground bg-white/50 p-2 rounded">
+                                  <span className="font-medium">Reason:</span> {item.reason}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right space-y-2">
+                              {/* Original Total */}
+                              <div className="bg-white/70 rounded p-2">
+                                <p className="text-xs text-muted-foreground">Original Total</p>
+                                <p className="text-lg font-bold">{formatCurrency(item.originalTotal)}</p>
+                              </div>
+
+                              {/* Return/Reset Amount */}
+                              <div className={`rounded p-2 ${item.type === 'return' ? 'bg-orange-100' : 'bg-red-100'}`}>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.type === 'return' ? 'Return Amount' : 'Reset Amount'}
+                                </p>
+                                <p className={`text-lg font-bold ${item.type === 'return' ? 'text-orange-600' : 'text-red-600'}`}>
+                                  -{formatCurrency(item.amount)}
+                                </p>
+                              </div>
+
+                              {/* Remaining Amount (only for returns) */}
+                              {item.type === 'return' && (
+                                <div className="bg-green-100 rounded p-2">
+                                  <p className="text-xs text-green-600">Remaining</p>
+                                  <p className="text-lg font-bold text-green-600">{formatCurrency(item.remainingAmount)}</p>
+                                </div>
+                              )}
+
+                              <p className="text-xs text-muted-foreground">{item.items?.length || 0} items</p>
+
+                              {/* Re-print button for returns */}
+                              {item.type === 'return' && item.rawData && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2"
+                                  onClick={() => handleReprintReturnReceipt(item.rawData!)}
+                                >
+                                  <Printer className="h-3 w-3 mr-1" />
+                                  Re-print Receipt
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {item.items && item.items.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-black/10">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">
+                                {item.type === 'return' ? 'Returned Items (with Original & Remaining):' : 'Reset Items:'}
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                {item.items.map((itemEntry, idx) => {
+                                  const originalQty = (itemEntry as any).originalQuantity || itemEntry.quantity;
+                                  const remainingQty = (itemEntry as any).remainingQuantity || 0;
+                                  return (
+                                    <div key={idx} className="flex flex-col p-2 bg-white/50 rounded">
+                                      <div className="flex justify-between items-center">
+                                        <span className={item.type === 'return' ? 'line-through text-muted-foreground' : 'font-medium'}>
+                                          {itemEntry.itemName}
+                                        </span>
+                                        <span className="text-muted-foreground font-medium">
+                                          {formatCurrency(itemEntry.refundAmount || (itemEntry.price * itemEntry.quantity))}
+                                        </span>
+                                      </div>
+                                      {item.type === 'return' && (
+                                        <div className="text-xs text-muted-foreground mt-1 flex gap-3">
+                                          <span>Original: <span className="font-medium">{originalQty}</span></span>
+                                          <span>Returned: <span className="font-medium text-orange-600">{itemEntry.quantity}</span></span>
+                                          <span>Remaining: <span className="font-medium text-green-600">{remainingQty}</span></span>
+                                        </div>
+                                      )}
+                                      {item.type === 'reset' && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          Qty: {itemEntry.quantity}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           )}
                         </div>
+                      ));
+                    })()}
+                  </div>
+                  {/* Pagination Controls for Returns */}
+                  {(filteredReturns.length > 0 || filteredResets.length > 0) && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
+                      <div className="text-sm text-muted-foreground">
+                        Page {returnsPage}
                       </div>
-                    )}
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (returnsPage === 1) {
+                              handleReturnsPageReset();
+                            } else {
+                              handleReturnsPrev();
+                            }
+                          }}
+                          disabled={returnsPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Previous
+                        </Button>
+                        {((filteredReturns.length + filteredResets.length) >= returnsPageSize) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleReturnsNext}
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+        </TabsContent>
       </Tabs>
 
       <Dialog
