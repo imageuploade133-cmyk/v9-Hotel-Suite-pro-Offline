@@ -176,6 +176,10 @@ export function DataTable<TData, TValue>({
 
   const currentUserUid = user?.uid || userProfile?.uid || userProfile?.id || null
   const isFirebaseOnlyAdmin = userProfile?.isFirebaseOnlyAdmin === true
+  const isAdminIdentity = isFirebaseOnlyAdmin
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === "Admin"
+    || userProfile?.role === "Super Admin"
   const isExternallyControlled = columnVisibility !== undefined && onColumnVisibilityChange !== undefined
   const columnVisibilityChangeRef = React.useRef(onColumnVisibilityChange)
   const isColumnVisibilityControlledRef = React.useRef(isExternallyControlled)
@@ -279,18 +283,31 @@ export function DataTable<TData, TValue>({
       if (!cancelled) setColumnPreferencesLoadedFor(preferenceScope)
     }
 
-    if (isFirebaseOnlyAdmin && firestore) {
+    const shouldLoadAdminPreference = isFirebaseOnlyAdmin
+      || (isAdminIdentity && tableId === "running-tables-table" && !profilePreference)
+
+    if (shouldLoadAdminPreference && firestore) {
+      const preferenceDocId = isFirebaseOnlyAdmin
+        ? getFirebaseAdminColumnPreferenceDocId(tableId)
+        : "runningTables"
+
       getDoc(doc(
         firestore,
         "users",
         currentUserUid,
         "preferences",
-        getFirebaseAdminColumnPreferenceDocId(tableId)
+        preferenceDocId
       )).then(snapshot => {
         if (cancelled) return
 
-        const remotePreference = snapshot.exists()
-          ? parseStoredColumnVisibility(snapshot.data().columnVisibility, columnIds)
+        const remoteData = snapshot.exists() ? snapshot.data() : null
+        const remotePreference = remoteData
+          ? {
+              visibility: normalizeColumnVisibility(remoteData.columnVisibility, columnIds),
+              updatedAt: typeof remoteData.updatedAt === "number"
+                ? remoteData.updatedAt
+                : (typeof remoteData.updatedAt === "string" ? Date.parse(remoteData.updatedAt) || 0 : 0),
+            }
           : null
 
         if (remotePreference && (
@@ -300,6 +317,11 @@ export function DataTable<TData, TValue>({
           setColumnVisibilityUpdatedAt(remotePreference.updatedAt)
           if (isColumnVisibilityControlledRef.current) {
             columnVisibilityChangeRef.current?.(remotePreference.visibility)
+          }
+          // Migrate preferences written by the previous Running Tables-only
+          // implementation into the shared profile preference format.
+          if (!isFirebaseOnlyAdmin && tableId === "running-tables-table" && !profilePreference) {
+            setColumnVisibilityDirty(true)
           }
         } else if (localPreference && (
           !remotePreference || localPreference.updatedAt > remotePreference.updatedAt
@@ -341,6 +363,7 @@ export function DataTable<TData, TValue>({
     tableId,
     columnIdsKey,
     isFirebaseOnlyAdmin,
+    isAdminIdentity,
     firestore,
     userProfile?.id,
     userProfile?.uiPreferences,
