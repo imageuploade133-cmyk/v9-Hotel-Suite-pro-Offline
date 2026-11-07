@@ -157,7 +157,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
           toast({ variant: 'destructive', title: 'Invalid Initial Payment', description: 'Enter a valid payment amount greater than or equal to zero.' });
           return;
         }
-        if (amountPaid > total && customerOutstandingBalance > 0) {
+        if (amountPaid > total) {
           setShowExcessDecision(true);
           return;
         }
@@ -443,17 +443,19 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
     <AlertDialog open={showExcessDecision} onOpenChange={setShowExcessDecision}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Use the excess to pay previous balance?</AlertDialogTitle>
+          <AlertDialogTitle>{customerOutstandingBalance > 0 ? 'Use the excess to pay previous balance?' : 'Save the excess as customer advance credit?'}</AlertDialogTitle>
           <AlertDialogDescription>
             Amount received: {formatCurrency(amountPaid)}. New sale total: {formatCurrency(total)}.
             Excess available: {formatCurrency(change)}. Existing customer balance: {formatCurrency(customerOutstandingBalance)}.
-            Apply {formatCurrency(excessAvailableForOldBalance)} to the previous balance? Any excess remaining after settling it will be returned to the customer as change.
+            {customerOutstandingBalance > 0
+              ? <>Apply {formatCurrency(excessAvailableForOldBalance)} to the previous balance? Any excess remaining after settling it will be returned to the customer as change.</>
+              : <>Would you like to save {formatCurrency(change)} as advance credit for this customer? It will be available to settle a future credit sale.</>}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isProcessing} onClick={() => completeCreditSale(false)}>No, give as change</AlertDialogCancel>
           <AlertDialogAction disabled={isProcessing} onClick={(event) => { event.preventDefault(); completeCreditSale(true); }}>
-            Yes, pay outstanding balance
+            {customerOutstandingBalance > 0 ? 'Yes, pay outstanding balance' : 'Yes, save as advance credit'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
