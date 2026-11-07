@@ -448,11 +448,13 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             }),
           ]);
 
-          if (uidDocument.exists()) {
-            const uidProfile = {
-              id: uidDocument.id,
-              ...uidDocument.data(),
-            } as UserProfile;
+          const uidProfile = uidDocument.exists()
+            ? ({ id: uidDocument.id, ...uidDocument.data() } as UserProfile)
+            : null;
+          const uidDocumentMatchesIdentity = !!uidProfile &&
+            (!uidProfile.uid || uidProfile.uid === user.uid);
+
+          if (uidDocumentMatchesIdentity) {
             matchedProfile = findStaffProfile([uidProfile], user.uid, user.email);
             cloudLookupCompleted = true;
           } else {
