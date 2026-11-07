@@ -20,6 +20,7 @@ import {
   endBefore,
   queryEqual,
   getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import type { HeldSale, UserProfile, StockReturn, DocketHistory } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,7 @@ import { Badge } from '@/components/ui/badge';
 import { TopHeader } from '@/components/ui/top-header';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, VisibilityState } from '@tanstack/react-table';
 import { format, isToday, isYesterday, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { getSafeDate } from '@/lib/helpers';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,49 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { CreditCard } from 'lucide-react';
 import { useUser } from '@/contexts/user-context';
 
+const RUNNING_TABLES_COLUMN_LABELS: Record<string, string> = {
+  name: 'Table Name',
+  heldAt: 'Date Started',
+  heldByName: 'Started By',
+  customer: 'Customer',
+  totalItems: 'Total Items',
+  totalAmount: 'Total Amount',
+  status: 'Status',
+  actions: 'Actions',
+};
+
+const RUNNING_TABLES_COLUMN_IDS = Object.keys(RUNNING_TABLES_COLUMN_LABELS);
+const DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY: VisibilityState = Object.fromEntries(
+  RUNNING_TABLES_COLUMN_IDS.map(columnId => [columnId, true])
+);
+
+const getRunningTablesColumnStorageKey = (uid: string) =>
+  `app_running_tables_columns_${encodeURIComponent(uid)}`;
+
+function normalizeRunningTablesColumnVisibility(value: unknown): VisibilityState {
+  const saved = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+  // Newly introduced columns remain visible for existing users.
+  return Object.fromEntries(
+    RUNNING_TABLES_COLUMN_IDS.map(columnId => [
+      columnId,
+      typeof saved[columnId] === 'boolean' ? saved[columnId] : true,
+    ])
+  );
+}
+
+function readRunningTablesColumnVisibility(uid: string): VisibilityState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(getRunningTablesColumnStorageKey(uid));
+    return raw ? normalizeRunningTablesColumnVisibility(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
 function RunningTablesPage() {
   const router = useRouter();
   const firestore = useFirestore();
@@ -71,6 +115,11 @@ function RunningTablesPage() {
   const { getCollectionPath, isBranchMode, currentBranch } = useBranch();
   const { hasPermission } = usePermissions();
   const { userProfile } = useUser();
+  const currentUserUid = userProfile?.uid || userProfile?.id || null;
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
+    DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY
+  );
+  const [columnPreferencesLoadedForUid, setColumnPreferencesLoadedForUid] = React.useState<string | null>(null);
 
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
     || userProfile?.isSuperAdmin === true
@@ -93,6 +142,111 @@ function RunningTablesPage() {
   }, [hasPermission, isPosStaff, router]);
   const currency = settings?.currency || 'USD';
 
+  // Load this user's saved visibility before rendering the table. Staff and
+  // non-virtual admin profiles store preferences on their existing profile doc;
+  // Firebase-only Admins use a profile-scoped subdocument to avoid creating a
+  // staff record just to save a display preference.
+  const isVirtualFirebaseAdmin = userProfile?.isFirebaseOnlyAdmin === true;
+
+  React.useEffect(() => {
+    if (!currentUserUid) {
+      setColumnVisibility(DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY);
+      setColumnPreferencesLoadedForUid(null);
+      return;
+    }
+
+    let cancelled = false;
+    setColumnPreferencesLoadedForUid(null);
+
+    const localPreferences = readRunningTablesColumnVisibility(currentUserUid);
+    const profilePreferences = !isVirtualFirebaseAdmin
+      ? userProfile?.uiPreferences?.runningTablesColumnVisibility
+      : undefined;
+    const fallbackPreferences = profilePreferences
+      ? normalizeRunningTablesColumnVisibility(profilePreferences)
+      : (localPreferences || DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY);
+
+    // Show this device's last saved layout immediately while an Admin's profile
+    // preference document is being checked. Do not enable syncing until that
+    // check finishes, so defaults can never overwrite an existing remote layout.
+    setColumnVisibility(fallbackPreferences);
+
+    if (isVirtualFirebaseAdmin && firestore) {
+      getDoc(doc(firestore, 'users', currentUserUid, 'preferences', 'runningTables'))
+        .then(snapshot => {
+          if (cancelled) return;
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            if (data.columnVisibility) {
+              setColumnVisibility(normalizeRunningTablesColumnVisibility(data.columnVisibility));
+            }
+          }
+        })
+        .catch(error => {
+          console.warn('[Running Tables] Could not load saved column preferences:', error);
+        })
+        .finally(() => {
+          if (!cancelled) setColumnPreferencesLoadedForUid(currentUserUid);
+        });
+    } else {
+      setColumnPreferencesLoadedForUid(currentUserUid);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUserUid,
+    isVirtualFirebaseAdmin,
+    firestore,
+  ]);
+
+  // Save locally immediately, then synchronize to this user's profile in the
+  // background. The short debounce avoids one Firestore write per quick checkbox click.
+  React.useEffect(() => {
+    if (!currentUserUid || columnPreferencesLoadedForUid !== currentUserUid) return;
+
+    const safeVisibility = normalizeRunningTablesColumnVisibility(columnVisibility);
+    try {
+      window.localStorage.setItem(
+        getRunningTablesColumnStorageKey(currentUserUid),
+        JSON.stringify(safeVisibility)
+      );
+    } catch (error) {
+      console.warn('[Running Tables] Could not save local column preferences:', error);
+    }
+
+    if (!firestore) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const write = isVirtualFirebaseAdmin
+        ? setDoc(
+            doc(firestore, 'users', currentUserUid, 'preferences', 'runningTables'),
+            { columnVisibility: safeVisibility, updatedAt: new Date().toISOString() },
+            { merge: true }
+          )
+        : (userProfile?.id
+            ? updateDoc(
+                doc(firestore, 'users', userProfile.id),
+                { 'uiPreferences.runningTablesColumnVisibility': safeVisibility }
+              )
+            : Promise.reject(new Error('The signed-in user profile is not available.')));
+
+      write.catch(error => {
+        console.warn('[Running Tables] Could not synchronize column preferences:', error);
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    columnVisibility,
+    columnPreferencesLoadedForUid,
+    currentUserUid,
+    firestore,
+    isVirtualFirebaseAdmin,
+    userProfile?.id,
+  ]);
+
   const [reloadCounter, setReloadCounter] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState('active');
   const [selectedSale, setSelectedSale] = React.useState<HeldSale | null>(null);
@@ -108,7 +262,6 @@ function RunningTablesPage() {
   const [returnSale, setReturnSale] = React.useState<HeldSale | null>(null);
   const [selectedUserId, setSelectedUserId] = React.useState<string>('all');
 
-  const currentUserUid = userProfile?.uid || userProfile?.id || null;
   const assertOwnRunningTable = React.useCallback((sale: Pick<HeldSale, 'heldByUid'>) => {
     if (isPosStaff && (!currentUserUid || sale.heldByUid !== currentUserUid)) {
       throw new Error('You can only access your own running tables.');
@@ -1251,6 +1404,10 @@ function RunningTablesPage() {
                   filterColumn="name"
                   filterPlaceholder="Filter by table name or customer..."
                   tableId="running-tables-table"
+                  columnVisibility={columnVisibility}
+                  onColumnVisibilityChange={setColumnVisibility}
+                  columnLabels={RUNNING_TABLES_COLUMN_LABELS}
+                  columnVisibilityLoading={!!currentUserUid && columnPreferencesLoadedForUid !== currentUserUid}
                 />
               )}
             </CardContent>

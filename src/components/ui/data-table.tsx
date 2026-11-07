@@ -17,12 +17,15 @@ import {
   RowSelectionState,
   getExpandedRowModel,
   ExpandedState,
+  OnChangeFn,
 } from "@tanstack/react-table"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
 import {
@@ -47,7 +50,9 @@ interface DataTableProps<TData, TValue> {
   children?: (table: ReturnType<typeof useReactTable<TData>>) => React.ReactNode
   tableId: string
   columnVisibility?: VisibilityState
-  onColumnVisibilityChange?: (visibility: VisibilityState) => void
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>
+  columnLabels?: Record<string, string>
+  columnVisibilityLoading?: boolean
   rowSelection?: RowSelectionState
   onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>
   emptyStateTitle?: string
@@ -70,6 +75,8 @@ export function DataTable<TData, TValue>({
   tableId,
   columnVisibility,
   onColumnVisibilityChange,
+  columnLabels,
+  columnVisibilityLoading = false,
   rowSelection = {},
   onRowSelectionChange = () => {},
   emptyStateTitle = "No Results Found",
@@ -138,27 +145,34 @@ export function DataTable<TData, TValue>({
                 {children && children(table)}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="ml-auto">
-                        Columns
+                        <Button variant="outline" className="ml-auto" disabled={columnVisibilityLoading}>
+                        {columnVisibilityLoading ? "Loading columns..." : "Columns"}
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
+                        <DropdownMenuItem
+                            onSelect={() => table.setColumnVisibility({})}
+                            className="font-medium"
+                        >
+                            Show all columns
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         {table
                         .getAllColumns()
-                        .filter(
-                            (column) => column.getCanHide()
-                        )
+                        .filter((column) => column.getCanHide())
                         .map((column) => {
+                            const fallbackLabel = typeof column.columnDef.header === "string"
+                                ? column.columnDef.header
+                                : column.id.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, value => value.toUpperCase());
                             return (
                             <DropdownMenuCheckboxItem
                                 key={column.id}
-                                className="capitalize"
                                 checked={column.getIsVisible()}
                                 onCheckedChange={(value) =>
-                                column.toggleVisibility(!!value)
+                                    column.toggleVisibility(!!value)
                                 }
                             >
-                                {column.id.replace(/_/g, ' ')}
+                                {columnLabels?.[column.id] || fallbackLabel}
                             </DropdownMenuCheckboxItem>
                             )
                         })}
@@ -201,7 +215,7 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                     {row.getIsExpanded() && renderSubComponent && (
                       <TableRow>
-                          <TableCell colSpan={columns.length}>
+                          <TableCell colSpan={Math.max(1, row.getVisibleCells().length)}>
                               {renderSubComponent({ row })}
                           </TableCell>
                       </TableRow>
@@ -210,7 +224,7 @@ export function DataTable<TData, TValue>({
                 ))
                 ) : (
                 <TableRow>
-                    <TableCell colSpan={columns.length} className="h-48 text-center">
+                    <TableCell colSpan={Math.max(1, table.getVisibleLeafColumns().length)} className="h-48 text-center">
                         <EmptyState
                             icon={emptyStateIcon}
                             title={emptyStateTitle}

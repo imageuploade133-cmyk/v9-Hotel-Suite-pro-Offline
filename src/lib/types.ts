@@ -41,6 +41,10 @@ export interface UserProfile {
   createdAt?: Timestamp | null;
   isSuperAdmin?: boolean;
   isFirebaseOnlyAdmin?: boolean; // Runtime identity marker; never persisted as a staff permission override
+  uiPreferences?: {
+    runningTablesColumnVisibility?: Record<string, boolean>;
+    [key: string]: any;
+  };
 }
 
 export type BookingType = 'reservation' | 'checkin' | 'reservation-and-pay';
