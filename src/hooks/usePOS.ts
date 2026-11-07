@@ -705,10 +705,13 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       const advanceRemainingAfterPrevious = advanceSourcesForNewSale.reduce((sum, advance) => sum + advance.remaining, 0);
       const advanceToNewSale = Math.min(advanceRemainingAfterPrevious, Math.max(0, total - salePayment));
       const newSaleOutstanding = Math.max(0, total - salePayment - advanceToNewSale);
+      const advanceCreated = applyExcessToOutstanding && Number(customer.outstandingBalance || 0) <= 0.01
+        ? Math.max(0, tendered - total - appliedToOutstanding)
+        : 0;
       return {
         tendered, salePayment, outstandingBefore, allocations, advanceAllocations, advanceToNewSale,
-        advanceSourcesForNewSale, appliedToOutstanding,
-        changeGiven: Math.max(0, tendered - total - appliedToOutstanding),
+        advanceSourcesForNewSale, advanceCreated, appliedToOutstanding,
+        changeGiven: Math.max(0, tendered - total - appliedToOutstanding - advanceCreated),
         outstandingAfter: Math.max(0, outstandingBefore - advanceAppliedToPrevious - appliedToOutstanding) + newSaleOutstanding,
       };
     };
@@ -798,8 +801,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             });
           }
 
-          if (settlement && applyExcessToOutstanding && settlement.outstandingBefore <= 0.01 && settlement.tendered > total) {
-            const advanceAmount = settlement.tendered - total;
+          if (settlement && settlement.advanceCreated > 0.01) {
+            const advanceAmount = settlement.advanceCreated;
             if (advanceAmount > 0.01) {
               const advanceRef = doc(collection(firestore, 'payments'));
               const advanceData: Omit<Payment, 'id'> = {
