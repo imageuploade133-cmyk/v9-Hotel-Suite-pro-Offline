@@ -176,6 +176,10 @@ export function DataTable<TData, TValue>({
 
   const currentUserUid = user?.uid || userProfile?.uid || userProfile?.id || null
   const isFirebaseOnlyAdmin = userProfile?.isFirebaseOnlyAdmin === true
+  const columnVisibilityChangeRef = React.useRef(onColumnVisibilityChange)
+  const isColumnVisibilityControlledRef = React.useRef(columnVisibility !== undefined)
+  columnVisibilityChangeRef.current = onColumnVisibilityChange
+  isColumnVisibilityControlledRef.current = columnVisibility !== undefined
   const preferenceScope = currentUserUid ? `${currentUserUid}:${tableId}` : null
   const activeColumnVisibility = columnVisibility ?? internalColumnVisibility
 
@@ -266,8 +270,8 @@ export function DataTable<TData, TValue>({
     const loadedVisibility = initialPreference?.visibility || {}
     setInternalColumnVisibility(loadedVisibility)
     setColumnVisibilityUpdatedAt(initialPreference?.updatedAt || 0)
-    if (columnVisibility !== undefined) {
-      onColumnVisibilityChange?.(loadedVisibility)
+    if (isColumnVisibilityControlledRef.current) {
+      columnVisibilityChangeRef.current?.(loadedVisibility)
     }
 
     const finishLoading = () => {
@@ -293,8 +297,8 @@ export function DataTable<TData, TValue>({
         )) {
           setInternalColumnVisibility(remotePreference.visibility)
           setColumnVisibilityUpdatedAt(remotePreference.updatedAt)
-          if (columnVisibility !== undefined) {
-            onColumnVisibilityChange?.(remotePreference.visibility)
+          if (isColumnVisibilityControlledRef.current) {
+            columnVisibilityChangeRef.current?.(remotePreference.visibility)
           }
         } else if (localPreference && (
           !remotePreference || localPreference.updatedAt > remotePreference.updatedAt
@@ -303,8 +307,8 @@ export function DataTable<TData, TValue>({
           // Queue it for synchronization when Firestore becomes reachable.
           setInternalColumnVisibility(localPreference.visibility)
           setColumnVisibilityUpdatedAt(localPreference.updatedAt)
-          if (columnVisibility !== undefined) {
-            onColumnVisibilityChange?.(localPreference.visibility)
+          if (isColumnVisibilityControlledRef.current) {
+            columnVisibilityChangeRef.current?.(localPreference.visibility)
           }
           setColumnVisibilityDirty(true)
         }
@@ -330,8 +334,6 @@ export function DataTable<TData, TValue>({
     firestore,
     userProfile?.id,
     userProfile?.uiPreferences,
-    columnVisibility,
-    onColumnVisibilityChange,
   ])
 
   // Persist a change immediately on this device and debounce the profile write
