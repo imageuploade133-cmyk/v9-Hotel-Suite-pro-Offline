@@ -371,14 +371,19 @@ export default function ProtectedLayout({
 
   // Live count follows the same branch/POS collection path as the Running Tables page.
   // Non-admin POS staff receive a user-scoped query so the badge never counts coworkers' tables.
+  const hasRunningTablesAccess = isAdminIdentity
+    || isPosAssignedStaff
+    || finalPermissions.includes(PagePermission.VIEW_RUNNING_TABLES)
+    || finalPermissions.includes(PagePermission.MANAGE_RUNNING_TABLES);
   const runningTablesNotificationQuery = React.useMemo(() => {
-    if (!firestore) return null;
-    if (!isAdminIdentity && !userProfile?.uid) return null;
+    if (!firestore || !hasRunningTablesAccess) return null;
     const heldSalesCollection = collection(firestore, getCollectionPath('heldSales'));
-    return isAdminIdentity
-      ? query(heldSalesCollection)
-      : query(heldSalesCollection, where('heldByUid', '==', userProfile!.uid));
-  }, [firestore, getCollectionPath, isAdminIdentity, userProfile?.uid]);
+    return isPosAssignedStaff
+      ? (userProfile?.uid
+          ? query(heldSalesCollection, where('heldByUid', '==', userProfile.uid))
+          : null)
+      : query(heldSalesCollection);
+  }, [firestore, getCollectionPath, hasRunningTablesAccess, isPosAssignedStaff, userProfile?.uid]);
   const handleRunningTablesCount = React.useCallback((data: HeldSale[]) => {
     setRunningTablesCount(data.length);
   }, []);
@@ -461,7 +466,7 @@ export default function ProtectedLayout({
 
     // Check if user has any POS permissions to show the POS section
     // Uses requiredPermission to ensure we check the actual permission needed for each item
-    const hasPosPermissions = posSectionItems.some(item =>
+    const hasPosPermissions = isPosAssignedStaff || posSectionItems.some(item =>
       finalPermissions.includes(item.requiredPermission || item.permission)
     );
     // Check if user has any Management permissions to show the Management section
@@ -578,11 +583,9 @@ export default function ProtectedLayout({
                 const isEnabled = (item as any).enabled === undefined || (item as any).enabled === true;
                 // Use requiredPermission if available, otherwise fall back to permission
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
+                const itemHref = (item as any).href;
                 const hasPerm = finalPermissions.includes(permissionId)
-                  || (itemHref === '/running-tables' && (
-                    finalPermissions.includes(PagePermission.VIEW_POS)
-                    || finalPermissions.includes(PagePermission.PROCESS_SALES)
-                  ));
+                  || (itemHref === '/running-tables' && isPosAssignedStaff);
 
                 // If no permission is defined, allow access
                 if (!permissionId) {
@@ -591,7 +594,6 @@ export default function ProtectedLayout({
 
                 // If it's a custom status page, grant access if the user has the umbrella 'manage:room_status' permission
                 // Only apply this to custom statuses (href starts with /status/), not to all view: permissions
-                const itemHref = (item as any).href;
                 if (permissionId.startsWith('view:') && !hasPerm && itemHref?.startsWith('/status/')) {
                     return canManageRoomStatus;
                 }
@@ -602,7 +604,7 @@ export default function ProtectedLayout({
       })
       .filter(group => group.items.length > 0);
 
-  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, runningTablesCount, dynamicPermissionGroups, roomStatusesData, isBranchMode]);
+  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, runningTablesCount, dynamicPermissionGroups, roomStatusesData, isBranchMode, isPosAssignedStaff, finalPermissions]);
 
   useEffect(() => {
     if (!authLoading && !user) {
