@@ -546,27 +546,34 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         query(source, where('customerId', '==', customer.id)),
         ...(customer.email ? [query(source, where('guestEmail', '==', customer.email))] : []),
       ]);
-      const readWithCacheFallback = async (target: any) => {
+      const readWithCacheFallback = async (target: any): Promise<{ docs: any[]; verified: boolean }> => {
         try {
-          return await getDocs(target);
-        } catch (onlineError) {
+          const snapshot = await getDocs(target);
+          return { docs: snapshot.docs, verified: true };
+        } catch {
           try {
-            return await getDocsFromCache(target);
+            const snapshot = await getDocsFromCache(target);
+            return { docs: snapshot.docs, verified: true };
           } catch {
-            // The LAN Master may still have the records even if Firestore has no cached copy.
-            return { docs: [] };
+            // Do not treat an unavailable collection as a verified empty ledger.
+            return { docs: [], verified: false };
           }
         }
       };
-      const readLanCollection = async (collectionName: string): Promise<{ id: string; data: Record<string, any> }[]> => {
+      const readLanCollection = async (collectionName: string): Promise<{ documents: { id: string; data: Record<string, any> }[]; verified: boolean }> => {
         try {
           const response = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
-          if (!response.ok) return [];
+          if (!response.ok) return { documents: [], verified: false };
           const payload = await response.json();
-          if (!payload?.success || !payload?.data || typeof payload.data !== 'object') return [];
-          return Object.entries(payload.data).map(([id, data]) => ({ id, data: data as Record<string, any> }));
+          if (!payload?.success || !payload?.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+            return { documents: [], verified: false };
+          }
+          return {
+            documents: Object.entries(payload.data).map(([id, data]) => ({ id, data: data as Record<string, any> })),
+            verified: true,
+          };
         } catch {
-          return [];
+          return { documents: [], verified: false };
         }
       };
       const [salesSnapshots, paymentSnapshots, lanSales, ...lanPaymentGroups] = await Promise.all([
@@ -575,6 +582,14 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         readLanCollection(getCollectionPath('stockSales')),
         ...paymentCollections.map(readLanCollection),
       ]);
+      const salesLedgerVerified = salesSnapshots.some(snapshot => snapshot.verified)
+        || lanSales.verified
+        || (branchContext.isGlobalMode && !isLoadingGlobalStockSales);
+      const paymentLedgerVerified = paymentSnapshots.some(snapshot => snapshot.verified)
+        || lanPaymentGroups.some(group => group.verified);
+      if (!salesLedgerVerified || !paymentLedgerVerified) {
+        throw new Error('The customer credit ledger is unavailable from Firestore, cache, and the Local Master. Please reconnect and retry; no sale has been recorded.');
+      }
       const salesById = new Map<string, StockSale>();
       if (branchContext.isGlobalMode) {
         if (isLoadingGlobalStockSales) {
@@ -592,7 +607,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           salesById.set(sale.id, sale);
         }
       }));
-      lanSales.forEach(({ id, data }) => {
+      lanSales.documents.forEach(({ id, data }) => {
         const sale = { ...data, id } as StockSale;
         if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
           salesById.set(id, sale);
@@ -605,7 +620,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           paymentsById.set(payment.id, payment);
         }
       }));
-      lanPaymentGroups.flat().forEach(({ id, data }) => {
+      lanPaymentGroups.flatMap(group => group.documents).forEach(({ id, data }) => {
         const payment = { ...data, id } as Payment;
         if (payment.type === 'Credit Repayment' && (payment.customerId === customer.id || (!!customer.email && payment.guestEmail === customer.email))) {
           paymentsById.set(id, payment);
