@@ -411,6 +411,9 @@ export interface Payment {
   notes?: string;
   context?: 'hotel' | 'pos';
   originalPaymentId?: string;
+  customerId?: string;
+  sourceSaleId?: string;
+  allocationSource?: 'POS_CHANGE';
 }
 
 export interface BillItem {
@@ -515,6 +518,12 @@ export interface StockSale {
     context?: 'hotel' | 'pos';
     branchId?: string;
     linkedHeldSaleId?: string;
+    totalTenderedAmount?: number;
+    changeGiven?: number;
+    excessAppliedToOutstanding?: number;
+    customerOutstandingBalanceBefore?: number;
+    customerOutstandingBalanceAfter?: number;
+    appliedToPreviousSales?: { saleDocumentId: string; saleId: string; amount: number }[];
 }
 
 export interface StockReturn {
