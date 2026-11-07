@@ -431,7 +431,7 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
                  {Array.from({ length: Math.min(pageSize, 10) }).map((_, i) => <Skeleton key={i} className="aspect-square" />)}
             </div>
           ) : paginatedItems && paginatedItems.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-1">
+            <div className="pos-product-card-grid grid gap-4 p-1" style={productGridStyle}>
               {paginatedItems.map(item => (
                 <ProductCard
                   key={item.id}
