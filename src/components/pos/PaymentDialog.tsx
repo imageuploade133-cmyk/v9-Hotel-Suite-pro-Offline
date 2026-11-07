@@ -374,7 +374,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
               <div className="flex justify-between gap-3"><span>Amount applied to this sale</span><strong>{formatCurrency(saleInitialPayment)}</strong></div>
               <div className="flex justify-between gap-3"><span>Outstanding on this sale</span><strong>{formatCurrency(newBalance)}</strong></div>
-              {change > 0 && <div className="flex justify-between gap-3 border-t border-amber-300 pt-2"><span>Excess received (change)</span><strong>{formatCurrency(change)}</strong></div>}
+              {change > 0 && <div className="flex justify-between gap-3 border-t border-amber-300 pt-2"><span>Excess available</span><strong>{formatCurrency(change)}</strong></div>}
               {customerOutstandingBalance > 0 && <p className="text-xs text-amber-800 dark:text-amber-200">Previous outstanding credit: {formatCurrency(customerOutstandingBalance)}. Any excess can be applied to this balance.</p>}
             </div>
           )}
