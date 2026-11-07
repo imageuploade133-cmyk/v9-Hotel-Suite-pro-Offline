@@ -494,7 +494,8 @@ export function DataTable<TData, TValue>({
                             <DropdownMenuCheckboxItem
                                 key={column.id}
                                 checked={column.getIsVisible()}
-                                onSelect={(event) => event.preventDefault()}
+                                // Do not prevent the Radix checkbox item's select event:
+                                // Radix uses that event internally to toggle checked state.
                                 onCheckedChange={(value) =>
                                     column.toggleVisibility(value === true)
                                 }
