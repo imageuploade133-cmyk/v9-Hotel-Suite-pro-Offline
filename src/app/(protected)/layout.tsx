@@ -586,7 +586,7 @@ export default function ProtectedLayout({
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
                 const itemHref = (item as any).href;
                 const hasPerm = finalPermissions.includes(permissionId)
-                  || (itemHref === '/running-tables' && isPosAssignedStaff);
+                  || (itemHref === '/running-tables' && (isPosAssignedStaff || isAdminIdentity));
 
                 // If no permission is defined, allow access
                 if (!permissionId) {
@@ -605,7 +605,7 @@ export default function ProtectedLayout({
       })
       .filter(group => group.items.length > 0);
 
-  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, runningTablesCount, dynamicPermissionGroups, roomStatusesData, isBranchMode, isPosAssignedStaff, finalPermissions]);
+  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, runningTablesCount, dynamicPermissionGroups, roomStatusesData, isBranchMode, isPosAssignedStaff, isAdminIdentity, finalPermissions]);
 
   useEffect(() => {
     if (!authLoading && !user) {

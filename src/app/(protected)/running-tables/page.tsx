@@ -240,11 +240,18 @@ function RunningTablesPage() {
     } else if (selectedUserId !== 'all') {
       constraints.push(where('heldByUid', '==', selectedUserId));
     }
-    constraints.push(orderBy('heldAt', 'desc'));
+    // Staff queries intentionally avoid combining equality + orderBy so existing
+    // LAN/Firestore installations do not depend on a composite index.
+    if (!isPosStaff) constraints.push(orderBy('heldAt', 'desc'));
     return query(collection(firestore, getCollectionPath('heldSales')), ...constraints);
   }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid]);
 
-  const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
+  const { data: heldSalesData, isLoading } = useCollection<HeldSale>(heldSalesQuery);
+  const heldSales = React.useMemo(() => [...(heldSalesData || [])].sort((a, b) => {
+    const dateA = getSafeDate(a.heldAt)?.getTime() || 0;
+    const dateB = getSafeDate(b.heldAt)?.getTime() || 0;
+    return dateB - dateA;
+  }), [heldSalesData]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
