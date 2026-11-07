@@ -82,12 +82,17 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     // POS staff see only their own running tables; administrators keep the all-table view.
     if (isPosStaff) {
       if (!currentUserUid) return null;
-      return query(baseQuery, where('heldByUid', '==', currentUserUid), orderBy('heldAt', 'desc'));
+      return query(baseQuery, where('heldByUid', '==', currentUserUid));
     }
     return query(baseQuery, orderBy('heldAt', 'desc'));
   }, [firestore, reloadCounter, userProfile, getCollectionPath, isPosStaff, currentUserUid]);
 
-  const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
+  const { data: heldSalesData, isLoading } = useCollection<HeldSale>(heldSalesQuery);
+  const heldSales = React.useMemo(() => [...(heldSalesData || [])].sort((a, b) => {
+    const dateA = getSafeDate(a.heldAt)?.getTime() || 0;
+    const dateB = getSafeDate(b.heldAt)?.getTime() || 0;
+    return dateB - dateA;
+  }), [heldSalesData]);
 
   const handleOpenActions = (sale: HeldSale) => {
     setActionsSale(sale);
