@@ -44,6 +44,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const branchContext = useBranch();
   const { getCollectionPath } = branchContext;
   const { data: globalStockSales, isLoading: isLoadingGlobalStockSales } = useGlobalCollectionData<StockSale>('stockSales');
+  const { data: globalPosCustomers, isLoading: isLoadingGlobalPosCustomers } = useGlobalCollectionData<Customer>('posCustomers');
 
   const applyDiscount = (type: 'percentage' | 'amount', value: number) => {
     setDiscount({ type, value });
@@ -951,6 +952,13 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         readCollection(getCollectionPath('stockSales')),
         ...Array.from(new Set(['payments', getCollectionPath('payments')])).map(readCollection),
       ]);
+      const customerMap = new Map<string, Customer>((customers as Customer[]).map(customer => [customer.id, customer]));
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalPosCustomers) {
+          throw new Error('Customer directory is still loading. Please retry in a moment.');
+        }
+        globalPosCustomers.forEach(customer => customerMap.set(customer.id, customer));
+      }
       const allPayments = [...new Map(paymentGroups.flat().map(payment => [payment.id, payment])).values()] as Payment[];
       const salesMap = new Map<string, StockSale>((allSales as StockSale[]).map(sale => [sale.id, sale]));
       if (branchContext.isGlobalMode) {
@@ -961,7 +969,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
       const sales = [...salesMap.values()];
 
-      return (customers as Customer[]).map(customer => {
+      return [...customerMap.values()].map(customer => {
         const customerSales = sales.filter(sale =>
           sale.customerId === customer.id ||
           (!!customer.email && !!sale.customerEmail && sale.customerEmail === customer.email)
@@ -994,7 +1002,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       console.error("Error fetching customer financials: ", error);
       return [];
     }
-  }, [firestore, getCollectionPath, branchContext.isGlobalMode, globalStockSales, isLoadingGlobalStockSales]);
+  }, [firestore, getCollectionPath, branchContext.isGlobalMode, globalStockSales, isLoadingGlobalStockSales, globalPosCustomers, isLoadingGlobalPosCustomers]);
 
   return {
     cart,
