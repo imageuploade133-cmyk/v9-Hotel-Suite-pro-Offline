@@ -213,7 +213,7 @@ export default function ProtectedLayout({
 }) {
   const { user, loading: authLoading, logout } = useAuth();
   const { userProfile, loading: profileLoading, dynamicPermissionGroups } = useUser();
-  const { settings, isLoading: areSettingsLoading } = useSettings();
+  const { settings } = useSettings();
   const { individualRoomsByStatus, roomStatusesData } = useRoomStatus();
   const { canInstall, triggerInstall } = useAppInstall();
   const { branches, currentBranchId, currentBranch, selectBranch, isBranchMode, isGlobalMode, userAccessibleBranches, isRestrictedToBranch, getCollectionPath } = useBranch();
@@ -621,18 +621,9 @@ export default function ProtectedLayout({
     setIsCollapsed(!isCollapsed);
   };
 
-  // Protect against infinite loading spinners by auto-releasing the spinner after a short delay
-  const [forceReady, setForceReady] = React.useState(false);
-  React.useEffect(() => {
-    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-    const timeoutDuration = isOffline ? 250 : 1200;
-    const timer = setTimeout(() => {
-      setForceReady(true);
-    }, timeoutDuration);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const isLoading = !forceReady && (authLoading || profileLoading || areSettingsLoading);
+  // Authentication and the user's permission profile are required before protected
+  // pages can render. Non-critical settings continue loading in the background.
+  const isLoading = authLoading || profileLoading;
 
   if (isLoading) {
     return (
