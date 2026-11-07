@@ -613,10 +613,17 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       });
       const repayments = [...paymentsById.values()];
       const paidBySale = new Map<string, number>();
+      const knownCreditSaleIds = new Set(salesById.keys());
       let unallocatedRepayments = 0;
       repayments.forEach(payment => {
-        if (payment.bookingId) paidBySale.set(payment.bookingId, (paidBySale.get(payment.bookingId) || 0) + (Number(payment.amount) || 0));
-        else unallocatedRepayments += Number(payment.amount) || 0;
+        const amount = Number(payment.amount) || 0;
+        if (payment.bookingId && knownCreditSaleIds.has(payment.bookingId)) {
+          paidBySale.set(payment.bookingId, (paidBySale.get(payment.bookingId) || 0) + amount);
+        } else {
+          // Legacy repayments may not point to a sale that is present in this branch/cache.
+          // Allocate those to the oldest open credit sale instead of silently losing them.
+          unallocatedRepayments += amount;
+        }
       });
       const orderedBalances = [...salesById.values()]
         .sort((a, b) => {
