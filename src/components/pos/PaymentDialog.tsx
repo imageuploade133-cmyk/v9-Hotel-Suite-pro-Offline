@@ -29,9 +29,10 @@ interface PaymentDialogProps {
   isProcessing: boolean;
   discount: { type: 'percentage' | 'amount'; value: number } | null;
   allowBillToRoom?: boolean;
+  canCreateCreditSales?: boolean;
 }
 
-export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], customer, onConfirm, isProcessing, discount, allowBillToRoom = false }: PaymentDialogProps) {
+export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], customer, onConfirm, isProcessing, discount, allowBillToRoom = false, canCreateCreditSales = false }: PaymentDialogProps) {
   const { settings } = useSettings();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -99,7 +100,20 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
 
   const change = amountPaid - total;
 
+  const handlePaymentMethodChange = (value: string) => {
+    if (value === 'Credit' && !canCreateCreditSales) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales. Please contact your administrator.' });
+      setPaymentMethod('');
+      return;
+    }
+    setPaymentMethod(value);
+  };
+
   const handleConfirm = async () => {
+    if (paymentMethod === 'Credit' && !canCreateCreditSales) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
+      return;
+    }
     if (!paymentMethod) {
       toast({ variant: 'destructive', title: 'Payment method required' });
       return;
@@ -182,7 +196,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                 <TabsTrigger value="bill-to-room">Bill to Room</TabsTrigger>
               </TabsList>
               <TabsContent value="pay-now" className="space-y-4">
-                <Select onValueChange={setPaymentMethod} value={paymentMethod}>
+                <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                   <SelectTrigger>
                       <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -193,7 +207,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                     {paymentMethods?.map((method: any) => (
                       <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
                     ))}
-                    <SelectItem value="Credit">On Credit</SelectItem>
+                    <SelectItem value="Credit" className={!canCreateCreditSales ? "opacity-50 text-muted-foreground" : ""}>On Credit {!canCreateCreditSales ? "(Permission required)" : ""}</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -273,7 +287,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             </Tabs>
           ) : (
             <>
-              <Select onValueChange={setPaymentMethod} value={paymentMethod}>
+              <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                 <SelectTrigger>
                     <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -284,7 +298,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                   {paymentMethods?.map((method: any) => (
                     <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
                   ))}
-                  <SelectItem value="Credit">On Credit</SelectItem>
+                  <SelectItem value="Credit" className={!canCreateCreditSales ? "opacity-50 text-muted-foreground" : ""}>On Credit {!canCreateCreditSales ? "(Permission required)" : ""}</SelectItem>
                 </SelectContent>
               </Select>
 
