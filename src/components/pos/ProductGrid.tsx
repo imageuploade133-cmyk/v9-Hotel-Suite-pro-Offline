@@ -178,7 +178,7 @@ function getProductCardButtonStyle(value: unknown): React.CSSProperties | undefi
 
   // The online menu also supports gradient button themes. Keep POS consistent
   // while rejecting arbitrary CSS values from a malformed settings document.
-  if (String.raw`/^linear-gradient\([^{};]+\)$/i`.length && /^linear-gradient\([^{};]+\)$/i.test(color) && !/\burl\s*\(/i.test(color)) {
+  if (/^linear-gradient\([^{};]+\)$/i.test(color) && !/\burl\s*\(/i.test(color)) {
     return { backgroundImage: color };
   }
 
