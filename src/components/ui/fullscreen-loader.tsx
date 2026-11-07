@@ -8,43 +8,53 @@ interface FullscreenLoaderProps {
   message?: string;
   subtext?: string;
   className?: string;
+  /** Keep very short loading states from flashing a full-screen loader. */
+  delayMs?: number;
 }
 
 export function FullscreenLoader({
   message = 'Please wait...',
   subtext,
   className,
+  delayMs = 150,
 }: FullscreenLoaderProps) {
+  const [isVisible, setIsVisible] = React.useState(false);
   const appName = 'v9 Hotel Suite Pro';
+
+  React.useEffect(() => {
+    if (delayMs <= 0) {
+      setIsVisible(true);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setIsVisible(true), delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs]);
+
+  // Avoid mounting and unmounting the overlay for quick state transitions.
+  if (!isVisible) return null;
 
   return (
     <div
       className={cn(
         'fixed inset-0 z-[1000] flex flex-col items-center justify-center',
-        'bg-background/60 backdrop-blur-md select-none transition-all duration-300',
+        'select-none bg-background',
         className
       )}
       role="status"
       aria-live="polite"
+      aria-busy="true"
     >
-      <div className="flex flex-col items-center justify-center gap-4 text-center p-6">
-        {/* Slow Bouncing Transparent Project App Logo */}
-        <div className="relative flex items-center justify-center animate-[bounce_2s_infinite]">
-          {/* Transparent container with glow effect */}
-          <div className="relative flex items-center justify-center p-3 rounded-2xl bg-transparent">
-            {/* Project App Logo SVG - Transparent with primary theme color */}
-            <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center text-primary drop-shadow-[0_10px_20px_rgba(var(--primary),0.35)]">
-              <Building2 className="h-full w-full stroke-[1.8]" />
-            </div>
-          </div>
+      <div className="flex flex-col items-center justify-center gap-3 p-5 text-center">
+        <div className="flex items-center justify-center rounded-xl bg-primary/5 p-2 text-primary motion-reduce:animate-none animate-[hotel-loader-bounce_2.4s_ease-in-out_infinite]">
+          <Building2 className="h-7 w-7 stroke-[1.8] sm:h-8 sm:w-8" aria-hidden="true" />
         </div>
 
-        {/* Project App Name & Please Wait message */}
-        <div className="flex flex-col items-center gap-1.5 max-w-xs sm:max-w-sm">
-          <h3 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+        <div className="flex max-w-xs flex-col items-center gap-1">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground sm:text-base">
             {appName}
           </h3>
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground animate-pulse">
+          <p className="text-xs font-medium text-muted-foreground sm:text-sm">
             {message}
           </p>
           {subtext && (
