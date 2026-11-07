@@ -904,69 +904,75 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       return [];
     }
 
+    const readCollection = async (collectionName: string) => {
+      const documents = new Map<string, Record<string, any>>();
+      const source = collection(firestore, collectionName);
+      try {
+        const snapshot = await getDocs(source);
+        snapshot.docs.forEach(document => documents.set(document.id, { ...document.data(), id: document.id }));
+      } catch {
+        try {
+          const snapshot = await getDocsFromCache(source);
+          snapshot.docs.forEach(document => documents.set(document.id, { ...document.data(), id: document.id }));
+        } catch {
+          // Continue to the Local Master store below.
+        }
+      }
+      try {
+        const response = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload?.success && payload?.data && typeof payload.data === 'object') {
+            Object.entries(payload.data).forEach(([id, data]) => documents.set(id, { ...(data as Record<string, any>), id }));
+          }
+        }
+      } catch {
+        // Firestore/cache data remains usable when this device is not connected to a Local Master.
+      }
+      return [...documents.values()];
+    };
+
     try {
-      const customersRef = collection(firestore, getCollectionPath('posCustomers'));
-      const customerSnapshot = await getDocs(customersRef);
-      const customers = customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[];
+      const [customers, allSales, ...paymentGroups] = await Promise.all([
+        readCollection(getCollectionPath('posCustomers')),
+        readCollection(getCollectionPath('stockSales')),
+        ...new Set(['payments', getCollectionPath('payments')]).values().map(readCollection),
+      ]);
+      const allPayments = [...new Map(paymentGroups.flat().map(payment => [payment.id, payment])).values()] as Payment[];
+      const sales = allSales as StockSale[];
 
-      // Stock sales are branch-isolated, use the branch path
-      const salesRef = collection(firestore, getCollectionPath('stockSales'));
-      const salesSnapshot = await getDocs(salesRef);
-      const allSales = salesSnapshot.docs.map(doc => doc.data() as StockSale);
-
-      // Payments are stored at root level (not branch-isolated)
-      const paymentsRef = collection(firestore, 'payments');
-      const paymentsSnapshot = await getDocs(paymentsRef);
-      const allPayments = paymentsSnapshot.docs
-        .map(doc => doc.data() as Payment)
-        // Filter for POS payments and credit repayments that match this branch
-        // Also check for sales within this branch context
-        .filter(p => {
-          // Only POS and Credit Repayment payment types
-          if (p.type !== 'POS' && p.type !== 'Credit Repayment') return false;
-
-          // Get the bookingId which should be the stockSale ID
-          if (!p.bookingId) return false;
-
-          // Check if this payment is related to a sale in our current branch
-          // by looking at the sales we fetched
-          const relatedSale = allSales.find(s => s.id === p.bookingId);
-          return !!relatedSale;
-        });
-
-      const customerData = customers.map(customer => {
-        // Filter sales for this customer - match by customerId or customerEmail
-        const customerSales = allSales.filter(sale =>
+      return (customers as Customer[]).map(customer => {
+        const customerSales = sales.filter(sale =>
           sale.customerId === customer.id ||
-          (sale.customerEmail && sale.customerEmail === customer.email)
+          (!!customer.email && !!sale.customerEmail && sale.customerEmail === customer.email)
         );
-
-        const totalPurchases = customerSales.reduce((acc, sale) => acc + (sale.totalAmount || 0), 0);
-
-        // For payments, match by bookingId being one of the customer's sales
-        const customerPaymentIds = new Set(customerSales.map(s => s.id));
-        const customerPayments = allPayments.filter(p => customerPaymentIds.has(p.bookingId!));
-
-        const totalPayments = customerPayments.reduce((acc, payment) => acc + (payment.amount || 0), 0);
-
-        const outstandingBalance = totalPurchases - totalPayments;
+        const customerCreditSales = customerSales.filter(sale => sale.paymentMethod === 'Credit');
+        const creditSaleIds = new Set(customerCreditSales.map(sale => sale.id));
+        const repayments = allPayments.filter(payment =>
+          payment.type === 'Credit Repayment' &&
+          (payment.customerId === customer.id ||
+            (!!customer.email && payment.guestEmail === customer.email) ||
+            (!!payment.bookingId && creditSaleIds.has(payment.bookingId)))
+        );
+        const totalSpent = customerSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
+        const initialCreditPayments = customerCreditSales.reduce((sum, sale) => sum + (Number(sale.initialPaymentAmount) || 0), 0);
+        const totalRepayments = repayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+        const totalPaid = customerSales
+          .filter(sale => sale.paymentMethod !== 'Credit')
+          .reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0) + initialCreditPayments + totalRepayments;
+        const totalCredit = customerCreditSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
+        const outstandingBalance = Math.max(0, totalCredit - initialCreditPayments - totalRepayments);
 
         return {
           ...customer,
-          totalSpent: totalPurchases,
-          totalPaid: totalPayments,
+          totalSpent,
+          totalPaid,
           outstandingBalance,
         };
       });
-
-      return customerData;
-
     } catch (error) {
       console.error("Error fetching customer financials: ", error);
-      // Return basic customer data without financials on error
-      const customersRef = collection(firestore, getCollectionPath('posCustomers'));
-      const customerSnapshot = await getDocs(customersRef);
-      return customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[];
+      return [];
     }
   }, [firestore, getCollectionPath]);
 
