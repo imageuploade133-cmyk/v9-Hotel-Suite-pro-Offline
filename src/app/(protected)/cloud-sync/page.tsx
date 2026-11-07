@@ -411,6 +411,8 @@ export default function CloudSyncPage() {
         </Card>
       )}
 
+      {!masterOnlyNotice && (
+        <>
       {/* Sync Execution & Progress Card */}
       <Card className="border-primary/20 bg-card shadow-sm">
         <CardHeader className="pb-3">
@@ -766,6 +768,9 @@ export default function CloudSyncPage() {
           </div>
         </CardContent>
       </Card>
+
+        </>
+      )}
 
       {/* Record Payload Inspector Dialog */}
       <Dialog open={!!inspectRecord} onOpenChange={(open) => !open && setInspectRecord(null)}>
