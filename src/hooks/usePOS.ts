@@ -514,6 +514,10 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       || userProfile.isSuperAdmin === true
       || userProfile.role === 'Admin'
       || userProfile.role === 'Super Admin';
+    if (paymentMethod === 'Credit' && !customer?.id) {
+      toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before completing a credit sale.' });
+      throw new Error('A registered customer is required for credit sales.');
+    }
     if (paymentMethod === 'Credit' && !isAdminIdentity
       && !userProfile.permissions?.includes('create:credit_sales')) {
       toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
