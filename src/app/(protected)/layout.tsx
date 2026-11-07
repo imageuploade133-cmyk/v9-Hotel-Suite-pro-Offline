@@ -133,6 +133,9 @@ const DEFAULT_HOUSEKEEPING_STATUSES = {
   'Do Not Disturb': { href: '/status/do-not-disturb', icon: BellOff, permission: PagePermission.MANAGE_ROOM_STATUS }
 };
 
+const isNavigationItemActive = (pathname: string, href: string) =>
+  pathname === href || pathname.startsWith(`${href.replace(/\\/$/, '')}/`);
+
 const NavLink = ({
   item,
   isCollapsed,
@@ -141,7 +144,7 @@ const NavLink = ({
   isCollapsed: boolean;
 }) => {
   const pathname = usePathname();
-  const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard');
+  const isActive = isNavigationItemActive(pathname, item.href);
 
   const Icon = item.icon;
 
@@ -167,6 +170,7 @@ const NavLink = ({
           <TooltipTrigger asChild>
             <Link
               href={item.href}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 justify-start px-3 py-2 transition-all rounded-lg',
                 isActive
@@ -193,6 +197,7 @@ const NavLink = ({
   return (
     <Link
       href={item.href}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'flex items-center gap-3 justify-start px-3 py-2 transition-all rounded-lg',
         isActive
@@ -219,10 +224,12 @@ export default function ProtectedLayout({
   const { branches, currentBranchId, currentBranch, selectBranch, isBranchMode, isGlobalMode, userAccessibleBranches, isRestrictedToBranch, getCollectionPath } = useBranch();
   const { toast, dismiss } = useToast();
   const router = useRouter();
+  const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [showCelebration, setShowCelebration] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const mobileScrollAreaRef = React.useRef<HTMLDivElement>(null);
 
   const firestore = useFirestore();
 
@@ -348,6 +355,44 @@ export default function ProtectedLayout({
       clearTimeout(scrollTimeout);
     };
   }, []);
+
+  // On mobile, reopen the drawer at the current page's navigation item.
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const root = mobileScrollAreaRef.current;
+    const viewport = root?.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
+    if (!root || !viewport) return;
+
+    const frame = requestAnimationFrame(() => {
+      const activeItem =
+        root.querySelector<HTMLElement>('[data-mobile-nav-exact="true"]')
+        || root.querySelector<HTMLElement>('[data-mobile-nav-active="true"]');
+
+      if (activeItem) {
+        const viewportRect = viewport.getBoundingClientRect();
+        const activeRect = activeItem.getBoundingClientRect();
+        const centeredScrollTop = viewport.scrollTop
+          + activeRect.top
+          - viewportRect.top
+          - (viewport.clientHeight - activeRect.height) / 2;
+        viewport.scrollTo({ top: Math.max(0, centeredScrollTop), behavior: 'auto' });
+      } else {
+        const savedScrollTop = localStorage.getItem('mobileSidebarScrollTop');
+        if (savedScrollTop) viewport.scrollTop = Number.parseInt(savedScrollTop, 10) || 0;
+      }
+    });
+
+    const handleMobileScroll = () => {
+      localStorage.setItem('mobileSidebarScrollTop', String(viewport.scrollTop));
+    };
+    viewport.addEventListener('scroll', handleMobileScroll, { passive: true });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener('scroll', handleMobileScroll);
+    };
+  }, [mobileMenuOpen, pathname]);
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/website`;
@@ -800,7 +845,7 @@ export default function ProtectedLayout({
                     <span className="text-lg font-bold text-foreground">v9 Hotel Suite Pro</span>
                   </Link>
                 </SheetHeader>
-                <ScrollArea className="min-h-0 flex-1">
+                <ScrollArea ref={mobileScrollAreaRef} className="min-h-0 flex-1">
                   {/* Branch Selector in Mobile Slide Menu */}
                   {(userAccessibleBranches.length > 0 || isGlobalMode) && (
                     <div className="border-b px-4 py-3">
@@ -864,13 +909,22 @@ export default function ProtectedLayout({
                         key={item.href}
                         href={item.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:py-2"
+                        aria-current={isNavigationItemActive(pathname, item.href) ? 'page' : undefined}
+                        data-mobile-nav-active={isNavigationItemActive(pathname, item.href) ? 'true' : undefined}
+                        data-mobile-nav-exact={pathname === item.href ? 'true' : undefined}
+                        className={cn(
+                          "flex min-w-0 items-center gap-3 rounded-xl border px-3 py-3 transition-colors sm:py-2",
+                          isNavigationItemActive(pathname, item.href)
+                            ? "border-primary/30 bg-primary text-primary-foreground font-semibold shadow-sm"
+                            : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                        )}
                       >
                         {typeof item.icon === 'string' ? <NavIcon iconName={item.icon} /> : <item.icon className="h-5 w-5" />}
                         <span className="min-w-0 flex-1 break-words">{item.label}</span>
                         {item.notificationCount && item.notificationCount > 0 && (
                           <Badge variant={'destructive'} className="ml-auto rounded-full blinking-red-badge">{item.notificationCount}</Badge>
                         )}
+                        {isNavigationItemActive(pathname, item.href) && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
                       </Link>
                     ))}
                   </nav>

@@ -43,12 +43,53 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, loading, children, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
+  ({ className, variant, size, asChild = false, loading, children, onClick, ...props }, ref) => {
+    const [autoLoading, setAutoLoading] = React.useState(false);
+    const [promiseLoading, setPromiseLoading] = React.useState(false);
+    const loadingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isLoading = Boolean(loading || autoLoading);
+    const isDisabled = Boolean(loading || props.disabled || promiseLoading);
 
-    const childContent = loading ? (
+    const clearAutoLoading = React.useCallback(() => {
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setAutoLoading(false);
+      setPromiseLoading(false);
+    }, []);
+
+    React.useEffect(() => {
+      return () => {
+        if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      };
+    }, []);
+
+    const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+      if (isDisabled || autoLoading) return;
+
+      setAutoLoading(true);
+      try {
+        // Preserve the original handler. If it returns a promise, keep the
+        // loading indicator visible until the action completes.
+        const result = onClick?.(event) as unknown;
+        if (result && typeof (result as { then?: unknown }).then === "function") {
+          setPromiseLoading(true);
+          Promise.resolve(result).then(clearAutoLoading, clearAutoLoading);
+        } else {
+          // Synchronous actions receive brief feedback without changing their
+          // normal click or form-submit behavior.
+          loadingTimerRef.current = setTimeout(clearAutoLoading, 500);
+        }
+      } catch (error) {
+        clearAutoLoading();
+        throw error;
+      }
+    };
+
+    const childContent = isLoading ? (
       <>
-        <Loader2 className="animate-spin" />
+        <Loader2 className="animate-spin" aria-hidden="true" />
         {children}
       </>
     ) : (
@@ -59,31 +100,36 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ? { '--primary-hover-bg': props.style['--primary-hover'] }
       : {};
 
-
     if (asChild) {
       return (
         <Slot
-          className={cn(buttonVariants({ variant, size, className }))}
+          className={cn(buttonVariants({ variant, size, className }), promiseLoading && "pointer-events-none")}
           ref={ref}
           {...props}
-          style={{...props.style, ...hoverStyle}}
+          onClick={handleClick}
+          aria-busy={isLoading || undefined}
+          aria-disabled={isDisabled || undefined}
+          tabIndex={isDisabled ? -1 : props.tabIndex}
+          style={{ ...props.style, ...hoverStyle }}
         >
           {childContent}
         </Slot>
-      )
+      );
     }
 
     return (
-      <Comp
+      <button
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        disabled={loading || props.disabled}
         {...props}
-        style={{...props.style, ...hoverStyle}}
+        onClick={handleClick}
+        disabled={isDisabled}
+        aria-busy={isLoading || undefined}
+        style={{ ...props.style, ...hoverStyle }}
       >
         {childContent}
-      </Comp>
-    )
+      </button>
+    );
   }
 )
 Button.displayName = "Button"
