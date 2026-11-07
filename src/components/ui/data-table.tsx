@@ -453,9 +453,9 @@ export function DataTable<TData, TValue>({
     || (!!preferenceScope && columnPreferencesLoadedFor !== preferenceScope)
 
   return (
-     <div className="flex flex-col h-full rounded-lg border">
-        <div className="flex items-center justify-between p-4 border-b">
-             <div className="relative w-full max-w-sm">
+     <div className="flex h-full min-w-0 w-full flex-col rounded-lg border">
+        <div className="flex min-w-0 flex-col gap-3 border-b p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+             <div className="relative w-full min-w-0 sm:max-w-sm">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 {filterColumn && (
                     <Input
@@ -467,11 +467,11 @@ export function DataTable<TData, TValue>({
                     />
                 )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
                 {children && children(table)}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="ml-auto" disabled={isColumnMenuLoading}>
+                        <Button variant="outline" className="ml-auto w-full sm:w-auto" disabled={isColumnMenuLoading}>
                         {isColumnMenuLoading ? "Loading columns..." : "Columns"}
                         </Button>
                     </DropdownMenuTrigger>
@@ -507,7 +507,7 @@ export function DataTable<TData, TValue>({
                 </DropdownMenu>
             </div>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="min-w-0 flex-1 overflow-auto">
             <Table>
             <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -564,14 +564,15 @@ export function DataTable<TData, TValue>({
             </Table>
         </div>
         {isPaginated && (
-            <div className="flex items-center justify-end space-x-2 py-4 border-t px-4">
-                <div className="flex-1 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-3 sm:flex-nowrap sm:space-x-2 sm:px-4 sm:py-4">
+                <div className="w-full min-w-0 text-sm text-muted-foreground sm:flex-1">
                     {table.getFilteredSelectedRowModel().rows.length} of{" "}
                     {table.getFilteredRowModel().rows.length} row(s) selected.
                 </div>
                 <Button
                     variant="outline"
                     size="sm"
+                    className="min-w-[5.5rem] flex-1 sm:flex-none"
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
@@ -580,6 +581,7 @@ export function DataTable<TData, TValue>({
                 <Button
                     variant="outline"
                     size="sm"
+                    className="min-w-[5.5rem] flex-1 sm:flex-none"
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >

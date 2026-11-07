@@ -10,14 +10,14 @@ interface TopHeaderProps {
 
 export function TopHeader({ icon, name, description }: TopHeaderProps) {
     return (
-        <div className="flex items-center gap-4">
-          <div className="text-primary">{icon}</div>
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div className="shrink-0 text-primary [&>svg]:h-8 [&>svg]:w-8 sm:[&>svg]:h-10 sm:[&>svg]:w-10">{icon}</div>
           <div>
-            <h1 className="text-4xl font-bold tracking-tight">
+            <h1 className="break-words text-2xl font-bold tracking-tight sm:text-4xl">
               {name}
             </h1>
             {description && (
-                <p className="text-muted-foreground">
+                <p className="text-sm text-muted-foreground sm:text-base">
                     {description}
                 </p>
             )}
