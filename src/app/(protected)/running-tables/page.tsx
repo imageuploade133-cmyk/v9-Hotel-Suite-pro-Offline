@@ -107,11 +107,12 @@ function RunningTablesPage() {
   const [returnSale, setReturnSale] = React.useState<HeldSale | null>(null);
   const [selectedUserId, setSelectedUserId] = React.useState<string>('all');
 
+  const currentUserUid = userProfile?.uid || userProfile?.id || null;
   const assertOwnRunningTable = React.useCallback((sale: Pick<HeldSale, 'heldByUid'>) => {
-    if (isPosStaff && sale.heldByUid !== userProfile?.uid) {
+    if (isPosStaff && (!currentUserUid || sale.heldByUid !== currentUserUid)) {
       throw new Error('You can only access your own running tables.');
     }
-  }, [isPosStaff, userProfile?.uid]);
+  }, [isPosStaff, currentUserUid]);
 
   // Date filters
   const [returnsDateRange, setReturnsDateRange] = React.useState<DateRange | undefined>();
@@ -234,14 +235,14 @@ function RunningTablesPage() {
     if (!firestore) return null;
     const constraints: QueryConstraint[] = [];
     if (isPosStaff) {
-      if (!userProfile?.uid) return null;
-      constraints.push(where('heldByUid', '==', userProfile.uid));
+      if (!currentUserUid) return null;
+      constraints.push(where('heldByUid', '==', currentUserUid));
     } else if (selectedUserId !== 'all') {
       constraints.push(where('heldByUid', '==', selectedUserId));
     }
     constraints.push(orderBy('heldAt', 'desc'));
     return query(collection(firestore, getCollectionPath('heldSales')), ...constraints);
-  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, userProfile?.uid]);
+  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
 
@@ -265,7 +266,7 @@ function RunningTablesPage() {
 
     // Filter credit sales for current user
     const myCreditSales = heldSales.filter(sale =>
-      sale.isCreditSale === true && sale.heldByUid === userProfile?.uid
+      sale.isCreditSale === true && sale.heldByUid === currentUserUid
     );
     const myCreditSalesCount = myCreditSales.length;
     const myCreditSalesAmount = myCreditSales.reduce((sum, sale) =>
@@ -275,7 +276,7 @@ function RunningTablesPage() {
     );
 
     return { totalTables, printedTables, totalAmount, myCreditSalesCount, myCreditSalesAmount };
-  }, [heldSales, userProfile]);
+  }, [heldSales, currentUserUid]);
 
   // Calculate refund stats from running tables
   const refundStats = React.useMemo(() => {
