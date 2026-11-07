@@ -15,6 +15,7 @@ import {
   setDoc,
   updateDoc,
   getDocs,
+  getDocsFromCache,
   query,
   where,
 } from 'firebase/firestore';
@@ -508,7 +509,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     });
   };
 
-  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string, applyExcessToOutstanding = false): Promise<StockSale> => {
+  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string, applyExcessToOutstanding = false, totalTenderedAmount?: number): Promise<StockSale> => {
     if (!firestore || !userProfile) throw new Error('System not ready.');
     const isAdminIdentity = userProfile.isFirebaseOnlyAdmin === true
       || userProfile.isSuperAdmin === true
@@ -538,9 +539,20 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         query(paymentCollection, where('customerId', '==', customer.id)),
         ...(customer.email ? [query(paymentCollection, where('guestEmail', '==', customer.email))] : []),
       ];
+      const readWithCacheFallback = async (target: any) => {
+        try {
+          return await getDocs(target);
+        } catch (onlineError) {
+          try {
+            return await getDocsFromCache(target);
+          } catch {
+            throw onlineError;
+          }
+        }
+      };
       const [salesSnapshots, paymentSnapshots] = await Promise.all([
-        Promise.all(salesQueries.map(getDocs)),
-        Promise.all(paymentQueries.map(getDocs)),
+        Promise.all(salesQueries.map(readWithCacheFallback)),
+        Promise.all(paymentQueries.map(readWithCacheFallback)),
       ]);
       const salesById = new Map<string, StockSale>();
       salesSnapshots.forEach(snapshot => snapshot.docs.forEach(saleDoc => {
@@ -581,7 +593,10 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         unallocatedRepayments -= used;
       }
       const outstandingBefore = orderedBalances.reduce((sum, entry) => sum + entry.outstanding, 0);
-      const tendered = Math.max(0, Number(initialPaymentAmount) || 0);
+      if (Number(customer.outstandingBalance) > 0.01 && outstandingBefore + 0.01 < Number(customer.outstandingBalance)) {
+        throw new Error('The customer credit ledger could not be fully verified from the current connection or offline cache. Please reconnect and retry; no sale has been recorded.');
+      }
+      const tendered = Math.max(0, Number(totalTenderedAmount ?? initialPaymentAmount) || 0);
       const salePayment = Math.min(total, tendered);
       let remainingToAllocate = applyExcessToOutstanding ? Math.min(Math.max(0, tendered - total), outstandingBefore) : 0;
       const allocations: { saleDocumentId: string; saleId: string; amount: number }[] = [];
