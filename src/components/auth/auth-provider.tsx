@@ -127,8 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const offData = await offRes.json();
           if (offData.success && offData.user) {
             const u = offData.user;
+            const offlineUid = u.uid || `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
             const offlineUser = {
-              uid: u.uid || `offline_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              uid: offlineUid,
               email: u.email || email,
               displayName: u.name || email.split('@')[0],
               photoURL: u.photoURL || null,
@@ -139,6 +140,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
               try {
                 localStorage.setItem('app_active_offline_session', JSON.stringify(offlineUser));
+                // The Master Server response includes the cached role and permissions.
+                // Save them locally before the protected layout starts resolving access.
+                if (u.role || Array.isArray(u.permissions)) {
+                  const staffProfile = {
+                    id: offlineUid,
+                    uid: offlineUid,
+                    email: u.email || email,
+                    name: u.name || email.split('@')[0],
+                    role: u.role || 'Staff',
+                    permissions: Array.isArray(u.permissions) ? u.permissions : [],
+                    assignedBranches: Array.isArray(u.assignedBranches) ? u.assignedBranches : [],
+                    isActive: u.isActive !== false,
+                  };
+                  const existingUsers = JSON.parse(localStorage.getItem('app_cached_staff_users') || '[]');
+                  const users = Array.isArray(existingUsers) ? existingUsers.filter((item: any) =>
+                    item && item.uid !== offlineUid && item.id !== offlineUid &&
+                    item.email?.toLowerCase() !== staffProfile.email.toLowerCase()
+                  ) : [];
+                  users.push(staffProfile);
+                  localStorage.setItem('app_cached_staff_users', JSON.stringify(users));
+                  localStorage.setItem(`app_account_type_${offlineUid}`, 'staff');
+                }
               } catch {}
             }
             return { user: offlineUser };
