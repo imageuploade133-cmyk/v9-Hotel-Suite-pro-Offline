@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { useUser } from '@/contexts/user-context';
@@ -70,6 +70,7 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [pointOfSales, setPointOfSales] = useState<PointOfSale[]>([]);
   const [currentPosId, setCurrentPosId] = useState<string | null>(null);
+  const initializedAdminUidRef = useRef<string | null>(null);
 
   // Active branches (visible only)
   const activeBranches = useMemo(() => {
@@ -116,7 +117,12 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   useEffect(() => {
-    if (!userProfile) return;
+    if (!userProfile) {
+      // A later login, including the same account, must start from its default branch.
+      initializedAdminUidRef.current = null;
+      return;
+    }
+    if (isLoadingBranches) return;
 
     const savedBranchId = localStorage.getItem('currentBranchId');
     const assignedBranches = Array.isArray(userProfile.assignedBranches)
@@ -124,6 +130,8 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
       : [];
 
     if (assignedBranches.length > 0) {
+      // Keep the existing staff behaviour: restore only a branch explicitly assigned
+      // to this staff account, otherwise use the first assigned branch.
       const validSavedBranch = savedBranchId && savedBranchId !== 'global'
         && assignedBranches.includes(savedBranchId);
       const nextBranchId = validSavedBranch ? savedBranchId : assignedBranches[0];
@@ -133,9 +141,35 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     if (canAccessAllBranches) {
-      const nextBranchId = savedBranchId || 'global';
+      const adminUid = userProfile.uid || userProfile.id || 'admin';
+      // Initialize the administrator's branch once per authenticated app session.
+      // Manual branch changes then remain in effect until the next login.
+      if (initializedAdminUidRef.current === adminUid) return;
+      initializedAdminUidRef.current = adminUid;
+
+      // The project's default branch is the oldest active/visible branch by createdAt.
+      // Use a stable ID fallback for legacy branch records without createdAt.
+      const defaultBranch = [...activeBranches].sort((a, b) => {
+        const getCreatedAt = (branch: Branch) => {
+          const value: any = branch.createdAt;
+          if (value && typeof value.toMillis === 'function') return value.toMillis();
+          if (value instanceof Date) return value.getTime();
+          if (typeof value === 'string' || typeof value === 'number') {
+            const parsed = new Date(value).getTime();
+            return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+          }
+          return Number.MAX_SAFE_INTEGER;
+        };
+        const timeDifference = getCreatedAt(a) - getCreatedAt(b);
+        return timeDifference || a.id.localeCompare(b.id);
+      })[0];
+
+      // If no active branch exists yet, retain the safe global fallback.
+      const nextBranchId = defaultBranch?.id || 'global';
       setCurrentBranchId(nextBranchId);
       localStorage.setItem('currentBranchId', nextBranchId);
+      setCurrentPosId(null);
+      localStorage.removeItem('currentPosId');
       return;
     }
 
@@ -144,7 +178,7 @@ export const BranchProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('currentBranchId');
     setCurrentPosId(null);
     localStorage.removeItem('currentPosId');
-  }, [userProfile, canAccessAllBranches]);
+  }, [userProfile, canAccessAllBranches, activeBranches, isLoadingBranches]);
 
   // Load saved POS selection
   useEffect(() => {
