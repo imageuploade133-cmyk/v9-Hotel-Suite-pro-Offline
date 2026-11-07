@@ -331,7 +331,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                 <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="initial-payment">Initial Payment (Optional)</Label>
-                      <Input id="initial-payment" type="number" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)} />
+                      <Input id="initial-payment" type="number" min="0" max={total} step="0.01" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
                   </div>
                   {amountPaid > 0 && (
                         <Select onValueChange={setInitialPaymentMethod} value={initialPaymentMethod}>
