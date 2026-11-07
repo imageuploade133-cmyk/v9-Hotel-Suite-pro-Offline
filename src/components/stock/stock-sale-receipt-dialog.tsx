@@ -360,14 +360,14 @@ export function StockSaleReceiptDialog({
                       <>
                         {sale.initialPaymentAmount != null && sale.initialPaymentAmount > 0 && (
                           <div className="flex justify-between text-sm">
-                            <span>Initial Payment:</span>
+                            <span>Applied to This Sale:</span>
                             <span>{formatCurrency(sale.initialPaymentAmount)}</span>
                           </div>
                         )}
                         {sale.totalTenderedAmount != null && (
                           <>
                             <div className="flex justify-between text-sm"><span>Total Amount Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
-                            <div className="flex justify-between text-sm"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount || 0)}</span></div>
+                            
                             <div className="flex justify-between text-sm"><span>Outstanding on This Sale:</span><span>{formatCurrency(Math.max(0, sale.totalAmount - (sale.initialPaymentAmount || 0)))}</span></div>
                             {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-sm text-green-700"><span>Applied to Previous Credit:</span><span>-{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
                             {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-sm"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
@@ -463,7 +463,7 @@ export function StockSaleReceiptDialog({
                   )}
                   <p className="font-semibold uppercase">{sale.paymentMethod}</p>
                   <p className="font-bold text-lg">
-                    Amount Paid:{' '}
+                    Applied to This Sale:{' '}
                     {formatCurrency(sale.paymentMethod === 'Credit' ? (sale.initialPaymentAmount || 0) : sale.totalAmount)}
                   </p>
                 </div>
@@ -475,7 +475,7 @@ export function StockSaleReceiptDialog({
                     {sale.totalTenderedAmount != null && (
                       <>
                         <div className="flex justify-between text-xs"><span>Total Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
-                        <div className="flex justify-between text-xs"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount || 0)}</span></div>
+                        
                         {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-xs"><span>Applied to Previous Credit:</span><span>{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
                         {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-xs"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
                       </>
