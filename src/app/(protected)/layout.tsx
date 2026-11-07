@@ -375,15 +375,16 @@ export default function ProtectedLayout({
     || isPosAssignedStaff
     || finalPermissions.includes(PagePermission.VIEW_RUNNING_TABLES)
     || finalPermissions.includes(PagePermission.MANAGE_RUNNING_TABLES);
+  const runningTablesUid = userProfile?.uid || userProfile?.id || null;
   const runningTablesNotificationQuery = React.useMemo(() => {
     if (!firestore || !hasRunningTablesAccess) return null;
     const heldSalesCollection = collection(firestore, getCollectionPath('heldSales'));
     return isPosAssignedStaff
-      ? (userProfile?.uid
-          ? query(heldSalesCollection, where('heldByUid', '==', userProfile.uid))
+      ? (runningTablesUid
+          ? query(heldSalesCollection, where('heldByUid', '==', runningTablesUid))
           : null)
       : query(heldSalesCollection);
-  }, [firestore, getCollectionPath, hasRunningTablesAccess, isPosAssignedStaff, userProfile?.uid]);
+  }, [firestore, getCollectionPath, hasRunningTablesAccess, isPosAssignedStaff, runningTablesUid]);
   const handleRunningTablesCount = React.useCallback((data: HeldSale[]) => {
     setRunningTablesCount(data.length);
   }, []);
