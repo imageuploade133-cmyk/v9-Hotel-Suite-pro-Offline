@@ -785,24 +785,26 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
           await ledgerBatch.commit();
 
-          // Mirror the committed ledger to the Local Master store for LAN/offline devices.
-          for (const mutation of ledgerMutations) {
+          // Mirror the complete committed ledger to the Local Master in one request.
+          if (ledgerMutations.length > 0) {
             try {
               const response = await fetch('/api/lan-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  collectionName: mutation.collectionName,
-                  docId: mutation.docId,
-                  action: 'set',
-                  data: mutation.data,
+                  mutations: ledgerMutations.map(mutation => ({
+                    collectionName: mutation.collectionName,
+                    docId: mutation.docId,
+                    action: 'set',
+                    data: mutation.data,
+                  })),
                 }),
               });
               if (!response.ok) {
-                console.warn('[POS] LAN ledger sync returned a non-success response:', mutation.collectionName, mutation.docId, response.status);
+                console.warn('[POS] LAN ledger batch sync returned a non-success response:', response.status);
               }
             } catch (syncError) {
-              console.warn('[POS] LAN ledger sync failed; Firestore batch is already committed:', syncError);
+              console.warn('[POS] LAN ledger batch sync failed; Firestore batch is already committed:', syncError);
             }
           }
 
