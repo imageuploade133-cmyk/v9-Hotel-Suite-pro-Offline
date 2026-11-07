@@ -245,10 +245,16 @@ export function DataTable<TData, TValue>({
 
     const localPreference = readLocalColumnVisibility(currentUserUid, tableId, columnIds)
     const profilePreferences = userProfile?.uiPreferences as Record<string, any> | undefined
-    const currentProfilePreference = profilePreferences?.tableColumnVisibility?.[tableId]
-      ?? (tableId === "running-tables-table"
-        ? profilePreferences?.runningTablesColumnVisibility
-        : undefined)
+    const currentProfileVisibility = profilePreferences?.tableColumnVisibility?.[tableId]
+    const currentProfileUpdatedAt = profilePreferences?.tableColumnVisibilityUpdatedAt?.[tableId]
+    const currentProfilePreference = currentProfileVisibility
+      ? {
+          visibility: currentProfileVisibility,
+          updatedAt: typeof currentProfileUpdatedAt === "number" ? currentProfileUpdatedAt : 0,
+        }
+      : (tableId === "running-tables-table"
+          ? profilePreferences?.runningTablesColumnVisibility
+          : undefined)
     const profilePreference = parseStoredColumnVisibility(currentProfilePreference, columnIds)
 
     const initialPreference = profilePreference && (
@@ -257,8 +263,12 @@ export function DataTable<TData, TValue>({
       ? profilePreference
       : localPreference
 
-    setInternalColumnVisibility(initialPreference?.visibility || {})
+    const loadedVisibility = initialPreference?.visibility || {}
+    setInternalColumnVisibility(loadedVisibility)
     setColumnVisibilityUpdatedAt(initialPreference?.updatedAt || 0)
+    if (columnVisibility !== undefined) {
+      onColumnVisibilityChange?.(loadedVisibility)
+    }
 
     const finishLoading = () => {
       if (!cancelled) setColumnPreferencesLoadedFor(preferenceScope)
@@ -283,6 +293,9 @@ export function DataTable<TData, TValue>({
         )) {
           setInternalColumnVisibility(remotePreference.visibility)
           setColumnVisibilityUpdatedAt(remotePreference.updatedAt)
+          if (columnVisibility !== undefined) {
+            onColumnVisibilityChange?.(remotePreference.visibility)
+          }
         } else if (localPreference && (
           !remotePreference || localPreference.updatedAt > remotePreference.updatedAt
         )) {
@@ -290,6 +303,9 @@ export function DataTable<TData, TValue>({
           // Queue it for synchronization when Firestore becomes reachable.
           setInternalColumnVisibility(localPreference.visibility)
           setColumnVisibilityUpdatedAt(localPreference.updatedAt)
+          if (columnVisibility !== undefined) {
+            onColumnVisibilityChange?.(localPreference.visibility)
+          }
           setColumnVisibilityDirty(true)
         }
       }).catch(error => {
@@ -314,6 +330,8 @@ export function DataTable<TData, TValue>({
     firestore,
     userProfile?.id,
     userProfile?.uiPreferences,
+    columnVisibility,
+    onColumnVisibilityChange,
   ])
 
   // Persist a change immediately on this device and debounce the profile write
