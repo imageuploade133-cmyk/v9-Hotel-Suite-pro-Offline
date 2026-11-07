@@ -220,7 +220,7 @@ export function MenuProductCardSettingsForm() {
         <div className="grid gap-2 sm:grid-cols-[1fr_220px] sm:items-center">
           <div className="space-y-1">
             <Label htmlFor="menu-button-color" className="font-medium">Product button color</Label>
-            <p className="text-sm text-muted-foreground">Changes the Add to Cart and Place Order buttons in the menu ordering screen.</p>
+            <p className="text-sm text-muted-foreground">Applies to Add to Cart buttons in Point of Sale and Add to Cart / Place Order buttons in the online menu.</p>
           </div>
           <div className="flex items-center gap-2">
             <Input
