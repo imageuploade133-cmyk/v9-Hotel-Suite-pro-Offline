@@ -84,7 +84,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     const customerEmails = new Set(allCustomers.map(c => c.email).filter(Boolean));
 
     const relevantSales = allSales.filter(s => (s.customerId && customerIds.has(s.customerId)) || (s.customerEmail && customerEmails.has(s.customerEmail)));
-    const relevantCreditPayments = allCreditPayments.filter(p => p.guestEmail && customerEmails.has(p.guestEmail));
+    const relevantCreditPayments = allCreditPayments.filter(p => (p.customerId && customerIds.has(p.customerId)) || (p.guestEmail && customerEmails.has(p.guestEmail)));
 
     return allCustomers.map(customer => {
         const customerSales = relevantSales.filter(s => s.customerId === customer.id || (customer.email && s.customerEmail === customer.email));
