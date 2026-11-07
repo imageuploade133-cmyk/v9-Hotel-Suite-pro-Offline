@@ -635,6 +635,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "heldSales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "heldByUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "heldAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

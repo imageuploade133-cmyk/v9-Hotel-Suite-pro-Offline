@@ -71,13 +71,25 @@ function RunningTablesPage() {
   const { hasPermission } = usePermissions();
   const { userProfile } = useUser();
 
-  // Check if user has permission to view Running Tables
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const hasPosAccess = hasPermission(PagePermission.VIEW_POS)
+    || hasPermission(PagePermission.PROCESS_SALES);
+  // POS staff are granted personal Running Tables access, never a coworker-wide view.
+  const isPosStaff = !isAdminIdentity && hasPosAccess;
+
+  // Check access after permissions and identity have resolved.
   React.useEffect(() => {
-    if (!hasPermission(PagePermission.VIEW_RUNNING_TABLES) && !hasPermission(PagePermission.MANAGE_RUNNING_TABLES)) {
+    if (
+      !hasPermission(PagePermission.VIEW_RUNNING_TABLES)
+      && !hasPermission(PagePermission.MANAGE_RUNNING_TABLES)
+      && !isPosStaff
+    ) {
       router.push('/dashboard');
-      return;
     }
-  }, [hasPermission, router]);
+  }, [hasPermission, isPosStaff, router]);
   const currency = settings?.currency || 'USD';
 
   const [reloadCounter, setReloadCounter] = React.useState(0);
@@ -94,6 +106,12 @@ function RunningTablesPage() {
   const [showReturnItemDialog, setShowReturnItemDialog] = React.useState(false);
   const [returnSale, setReturnSale] = React.useState<HeldSale | null>(null);
   const [selectedUserId, setSelectedUserId] = React.useState<string>('all');
+
+  const assertOwnRunningTable = React.useCallback((sale: Pick<HeldSale, 'heldByUid'>) => {
+    if (isPosStaff && sale.heldByUid !== userProfile?.uid) {
+      throw new Error('You can only access your own running tables.');
+    }
+  }, [isPosStaff, userProfile?.uid]);
 
   // Date filters
   const [returnsDateRange, setReturnsDateRange] = React.useState<DateRange | undefined>();
@@ -126,17 +144,17 @@ function RunningTablesPage() {
 
   // Fetch staff members for filter
   const staffQuery = React.useMemo(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, 'users'), orderBy('name'));
-  }, [firestore]);
+  }, [firestore, isPosStaff]);
 
   const { data: staffMembers, isLoading: areStaffLoading } = useCollection<UserProfile>(staffQuery);
 
   // Fetch stock returns for refund stats (all, for stats)
   const returnsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, getCollectionPath('stockReturns')), orderBy('returnedAt', 'desc'));
-  }, [firestore, reloadCounter, getCollectionPath]);
+  }, [firestore, reloadCounter, getCollectionPath, isPosStaff]);
 
   const { data: allStockReturns, isLoading: areAllReturnsLoading } = useCollection<StockReturn>(returnsQuery);
 
@@ -146,7 +164,7 @@ function RunningTablesPage() {
 
   // Fetch paginated returns for display
   const paginatedReturnsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
       orderBy('returnedAt', 'desc'),
       limit(returnsPageSize)
@@ -159,7 +177,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('stockReturns')), ...constraints);
-  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath]);
+  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath, isPosStaff]);
 
   const { data: paginatedReturns, isLoading: areReturnsLoading } = useCollection<StockReturn>(paginatedReturnsQuery);
 
@@ -173,9 +191,9 @@ function RunningTablesPage() {
 
   // Fetch docket history (deleted/reset tables) for stats
   const docketHistoryQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, getCollectionPath('docketHistory')), orderBy('actionAt', 'desc'));
-  }, [firestore, reloadCounter, getCollectionPath]);
+  }, [firestore, reloadCounter, getCollectionPath, isPosStaff]);
 
   const { data: allDocketHistories, isLoading: areAllHistoryLoading } = useCollection<DocketHistory>(docketHistoryQuery);
 
@@ -185,7 +203,7 @@ function RunningTablesPage() {
 
   // Fetch paginated docket history for display
   const paginatedHistoryQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
       orderBy('actionAt', 'desc'),
       limit(historyPageSize)
@@ -198,7 +216,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('docketHistory')), ...constraints);
-  }, [firestore, historyDirection, historyPageSize, getCollectionPath]);
+  }, [firestore, historyDirection, historyPageSize, getCollectionPath, isPosStaff]);
 
   const { data: paginatedHistories, isLoading: isHistoryLoading } = useCollection<DocketHistory>(paginatedHistoryQuery);
 
@@ -210,15 +228,20 @@ function RunningTablesPage() {
     }
   }, [paginatedHistories]);
 
-  // Held sales query with optional user filter
+  // POS staff can query only their own held sales at the Firestore query level.
+  // Administrators and existing non-POS table viewers retain the existing all-users filter.
   const heldSalesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const constraints: QueryConstraint[] = [orderBy('heldAt', 'desc')];
-    if (selectedUserId !== 'all') {
+    const constraints: QueryConstraint[] = [];
+    if (isPosStaff) {
+      if (!userProfile?.uid) return null;
+      constraints.push(where('heldByUid', '==', userProfile.uid));
+    } else if (selectedUserId !== 'all') {
       constraints.push(where('heldByUid', '==', selectedUserId));
     }
+    constraints.push(orderBy('heldAt', 'desc'));
     return query(collection(firestore, getCollectionPath('heldSales')), ...constraints);
-  }, [firestore, reloadCounter, selectedUserId, getCollectionPath]);
+  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, userProfile?.uid]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
 
@@ -399,6 +422,7 @@ function RunningTablesPage() {
         }
 
         const saleData = heldSaleDoc.data() as HeldSale;
+        assertOwnRunningTable(saleData);
         const totalAmount = saleData.cart.reduce((sum, item) =>
           sum + ((item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0)), 0
         );
@@ -559,7 +583,11 @@ function RunningTablesPage() {
 
     try {
       const saleRef = doc(firestore, getCollectionPath('heldSales'), selectedSale.id);
-      const updatedCart = selectedSale.cart.map(item => ({
+      const latestSaleDoc = await getDoc(saleRef);
+      if (!latestSaleDoc.exists()) throw new Error('Running table not found.');
+      const latestSale = latestSaleDoc.data() as HeldSale;
+      assertOwnRunningTable(latestSale);
+      const updatedCart = latestSale.cart.map(item => ({
         ...item,
         printedQuantity: 0,
       }));
@@ -580,6 +608,7 @@ function RunningTablesPage() {
     if (!firestore || !saleToPrint) return;
     const saleRef = doc(firestore, getCollectionPath('heldSales'), saleToPrint.id);
     try {
+      assertOwnRunningTable(saleToPrint);
       const updatedCart = saleToPrint.cart.map(item => ({
         ...item,
         printedQuantity: item.sellQuantity,
@@ -619,6 +648,7 @@ function RunningTablesPage() {
     if (!firestore || !unprintedSale) return;
     const saleRef = doc(firestore, getCollectionPath('heldSales'), unprintedSale.id);
     try {
+      assertOwnRunningTable(unprintedSale);
       // CRITICAL: Fetch the LATEST document from Firestore to avoid using stale local state
       const saleDoc = await getDoc(saleRef);
       if (!saleDoc.exists()) {
@@ -717,6 +747,7 @@ function RunningTablesPage() {
         }
 
         const saleData = heldSaleDoc.data() as HeldSale;
+        assertOwnRunningTable(saleData);
 
         // Update cart - remove returned items or reduce quantities
         const updatedCart = saleData.cart.map(item => {
@@ -1011,7 +1042,7 @@ function RunningTablesPage() {
   const hasUnprintedItems = (selectedSale?.cart || []).some(item => (item.printedQuantity || 0) < item.sellQuantity);
   const isBilledToRoom = !!selectedSale?.linkedBillId;
 
-  if (isLoading || areStaffLoading) {
+  if (isLoading || (areStaffLoading && !isPosStaff)) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-64" />
@@ -1047,7 +1078,7 @@ function RunningTablesPage() {
       />
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isPosStaff ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-4`}>
         <StatCard
           title="Total Running Tables"
           value={stats.totalTables}
@@ -1073,18 +1104,20 @@ function RunningTablesPage() {
           description={formatCurrency(stats.myCreditSalesAmount)}
           className="border-amber-500"
         />
-        <StatCard
-          title="Total Refunds"
-          value={formatCurrency(refundStats.totalRefundAmount)}
-          icon={Undo2}
-          description={`${refundStats.totalRefundCount} refund transaction(s)`}
-          className="border-destructive"
-        />
+        {!isPosStaff && (
+          <StatCard
+            title="Total Refunds"
+            value={formatCurrency(refundStats.totalRefundAmount)}
+            icon={Undo2}
+            description={`${refundStats.totalRefundCount} refund transaction(s)`}
+            className="border-destructive"
+          />
+        )}
       </div>
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={`grid w-full ${isPosStaff ? 'grid-cols-2' : 'grid-cols-4'}`}>
           <TabsTrigger value="active" className="flex items-center gap-2">
             <List className="h-4 w-4" />
             Active Tables
@@ -1099,22 +1132,26 @@ function RunningTablesPage() {
               <Badge variant="secondary" className="ml-1 bg-amber-100 text-amber-800 border-amber-300">{stats.myCreditSalesCount}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            History Dockets
-            {(allDocketHistories || []).length > 0 && (
-              <Badge variant="secondary" className="ml-1">{allDocketHistories?.length || 0}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="returns" className="flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Returns & Resets
-            {((allStockReturns?.filter(r => r.source === 'RunningTable') || []).length + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)) > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {(allStockReturns?.filter(r => r.source === 'RunningTable').length || 0) + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)}
-              </Badge>
-            )}
-          </TabsTrigger>
+          {!isPosStaff && (
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              History Dockets
+              {(allDocketHistories || []).length > 0 && (
+                <Badge variant="secondary" className="ml-1">{allDocketHistories?.length || 0}</Badge>
+              )}
+            </TabsTrigger>
+          )}
+          {!isPosStaff && (
+            <TabsTrigger value="returns" className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Returns & Resets
+              {((allStockReturns?.filter(r => r.source === 'RunningTable') || []).length + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)) > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {(allStockReturns?.filter(r => r.source === 'RunningTable').length || 0) + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Active Tables Tab */}
@@ -1123,31 +1160,33 @@ function RunningTablesPage() {
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <CardTitle>All Running Tables</CardTitle>
+                  <CardTitle>{isPosStaff ? 'My Running Tables' : 'All Running Tables'}</CardTitle>
                   <CardDescription>
-                    View and manage all running tables. You can reset, delete, return items, or mark items as unprinted for re-printing.
+                    {isPosStaff ? 'View your own active running tables and their current status.' : 'View and manage all running tables. You can reset, delete, return items, or mark items as unprinted for re-printing.'}
                   </CardDescription>
                 </div>
-                <Select
-                  value={selectedUserId}
-                  onValueChange={setSelectedUserId}
-                  disabled={areStaffLoading}
-                >
-                  <SelectTrigger className="w-full sm:w-[220px]">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <SelectValue placeholder="Filter by user..." />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    {allStaffMembers.map((staff) => (
-                      <SelectItem key={staff.uid} value={staff.uid}>
-                        {staff.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!isPosStaff && (
+                  <Select
+                    value={selectedUserId}
+                    onValueChange={setSelectedUserId}
+                    disabled={areStaffLoading}
+                  >
+                    <SelectTrigger className="w-full sm:w-[220px]">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <SelectValue placeholder="Filter by user..." />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      {allStaffMembers.map((staff) => (
+                        <SelectItem key={staff.uid} value={staff.uid}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1156,8 +1195,8 @@ function RunningTablesPage() {
                   icon={List}
                   title="No Running Tables"
                   description={
-                    selectedUserId === 'all'
-                      ? 'There are no running tables at the moment.'
+                    isPosStaff || selectedUserId === 'all'
+                      ? (isPosStaff ? 'You do not have any active running tables.' : 'There are no running tables at the moment.')
                       : 'No running tables found for the selected user.'
                   }
                   className="py-12"
@@ -1268,7 +1307,7 @@ function RunningTablesPage() {
         </TabsContent>
 
         {/* History Dockets Tab */}
-        <TabsContent value="history" className="mt-4">
+        <TabsContent value="history" className="mt-4" hidden={isPosStaff}>
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1409,10 +1448,11 @@ function RunningTablesPage() {
               )}
             </CardContent>
           </Card>
+
         </TabsContent>
 
         {/* Returns & Resets Tab */}
-        <TabsContent value="returns" className="mt-4">
+        <TabsContent value="returns" className="mt-4" hidden={isPosStaff}>
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1654,6 +1694,7 @@ function RunningTablesPage() {
               )}
             </CardContent>
           </Card>
+
         </TabsContent>
       </Tabs>
 
@@ -1757,20 +1798,24 @@ function RunningTablesPage() {
                   </TooltipContent>
                 )}
               </Tooltip>
-              <Button
-                variant="secondary"
-                className="w-full justify-start"
-                onClick={() => setShowResetConfirm(true)}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" /> Reset Table
-              </Button>
-              <Button
-                variant="destructive"
-                className="w-full justify-start"
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Delete Table
-              </Button>
+              {hasPermission(PagePermission.MANAGE_RUNNING_TABLES) && (
+                <>
+                <Button
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={() => setShowResetConfirm(true)}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" /> Reset Table
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Table
+                </Button>
+                </>
+              )}
             </div>
           ) : showDeleteConfirm ? (
             <div className="py-4">
@@ -1878,4 +1923,4 @@ function RunningTablesPage() {
   );
 }
 
-export default withAuth(RunningTablesPage, PagePermission.MANAGE_RUNNING_TABLES);
+export default withAuth(RunningTablesPage, PagePermission.VIEW_RUNNING_TABLES);

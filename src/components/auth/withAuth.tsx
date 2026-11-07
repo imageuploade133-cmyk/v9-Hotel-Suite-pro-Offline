@@ -46,6 +46,17 @@ export default function withAuth<P extends object>(
 
     let hasRequiredPermission = requiredPermission ? finalPermissions.includes(requiredPermission) : true;
 
+    // POS-assigned staff may open Running Tables; the page itself scopes them
+    // to their own held sales and hides management-only sections/actions.
+    const isPosRunningTablesRoute = pathname === '/running-tables';
+    const hasPosRunningTablesAccess = isPosRunningTablesRoute && (
+      finalPermissions.includes(PagePermission.VIEW_POS)
+      || finalPermissions.includes(PagePermission.PROCESS_SALES)
+    );
+    if (hasPosRunningTablesAccess) {
+      hasRequiredPermission = true;
+    }
+
     // If it's a custom room status page (format: view:custom_status_name) and the user doesn't have the specific permission,
     // check if they have the general `manage:room_status` permission.
     // Only apply this to dynamic custom status permissions, not to standard view: permissions
