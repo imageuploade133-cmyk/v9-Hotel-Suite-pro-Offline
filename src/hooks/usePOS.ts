@@ -419,7 +419,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 name: name,
                 cart: combinedItems.map(i => ({...i})),
                 customer: customer?.id ? { id: customer.id, name: customer.name || "Walk-in Customer" } : { name: name || "Walk-in Customer" },
-                heldByUid: userProfile.uid,
+                heldByUid: currentUid,
                 heldByName: userProfile.name,
                 heldAt: serverTimestamp() as any,
                 printStatus: 'pending',
