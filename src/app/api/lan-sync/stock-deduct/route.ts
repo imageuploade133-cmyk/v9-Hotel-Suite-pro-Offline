@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lanStore } from '@/lib/lan-sync/lan-store';
+import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'Local stock deduction is available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const body = await req.json();
     const { items, salePayload, paymentPayload } = body;
