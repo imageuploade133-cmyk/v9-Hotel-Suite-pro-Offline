@@ -37,6 +37,7 @@ const MIN_MOBILE_COLUMNS = 1;
 const MAX_MOBILE_COLUMNS = 3;
 
 function normalizeGridColumns(value: unknown, min: number, max: number, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.round(parsed)));
@@ -310,7 +311,7 @@ export function MenuProductCardSettingsForm() {
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground">{desktopColumns} {desktopColumns === 1 ? 'card' : 'cards'} across each row</p>
+              <p className="text-[11px] text-muted-foreground">{desktopColumns} {desktopColumns === 1 ? 'card' : 'cards'} across each row · Default: 2</p>
             </div>
 
             <div className="space-y-2">
@@ -331,9 +332,10 @@ export function MenuProductCardSettingsForm() {
                   ))}
                 </div>
               </div>
-              <p className="text-center text-[11px] text-muted-foreground">{mobileColumns} {mobileColumns === 1 ? 'card' : 'cards'} across each row</p>
+              <p className="text-center text-[11px] text-muted-foreground">{mobileColumns} {mobileColumns === 1 ? 'card' : 'cards'} across each row · Default: 2</p>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">Your new layout is applied to Point of Sale after you select Save Product Card Settings.</p>
         </div>
 
         <div className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -415,7 +417,7 @@ export function MenuProductCardSettingsForm() {
       <CardFooter className="flex flex-wrap justify-between gap-3 border-t px-6 py-4">
         <Button type="button" variant="outline" onClick={handleReset} disabled={isBusy}>
           <RotateCcw className="mr-2 h-4 w-4" />
-          Reset Preview
+          Reset to defaults
         </Button>
         <Button type="button" onClick={handleSave} disabled={isBusy}>
           {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
