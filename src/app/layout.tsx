@@ -1,9 +1,20 @@
 
 import './globals.css';
+import type { Viewport } from 'next';
 import { Providers } from './providers';
 import { DynamicStyles } from '@/components/theme/dynamic-styles';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppInstallProvider } from '@/contexts/app-install-context';
+
+// Explicit responsive viewport configuration. Keep user scaling enabled for
+// pinch zoom and accessibility while preventing legacy mobile layout sizing.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+};
 
 export const metadata = {
   title: 'v9 Hotel Suite Pro',
