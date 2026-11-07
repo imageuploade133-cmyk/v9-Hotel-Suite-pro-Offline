@@ -314,9 +314,18 @@ export function DataTable<TData, TValue>({
         }
       }).catch(error => {
         console.warn(`[DataTable:${tableId}] Could not load saved column preferences:`, error)
+        if (localPreference) {
+          // Keep the local layout and queue it for synchronization after
+          // connectivity is restored.
+          setColumnVisibilityDirty(true)
+        }
       }).finally(finishLoading)
     } else {
-      if (profilePreference && localPreference && localPreference.updatedAt > profilePreference.updatedAt) {
+      if (localPreference && (
+        !profilePreference || localPreference.updatedAt > profilePreference.updatedAt
+      )) {
+        // Preserve a locally saved offline layout and synchronize it after the
+        // user's profile is available instead of leaving it on this device only.
         setColumnVisibilityDirty(true)
       }
       finishLoading()
