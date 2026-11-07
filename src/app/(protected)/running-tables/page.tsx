@@ -79,8 +79,6 @@ function RunningTablesPage() {
     || hasPermission(PagePermission.PROCESS_SALES);
   // POS staff are granted personal Running Tables access, never a coworker-wide view.
   const isPosStaff = !isAdminIdentity && hasPosAccess;
-  const canManageAllRunningTables = !isPosStaff
-    && hasPermission(PagePermission.MANAGE_RUNNING_TABLES);
 
   // Check access after permissions and identity have resolved.
   React.useEffect(() => {
@@ -140,17 +138,17 @@ function RunningTablesPage() {
 
   // Fetch staff members for filter
   const staffQuery = React.useMemo(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, 'users'), orderBy('name'));
-  }, [firestore]);
+  }, [firestore, isPosStaff]);
 
   const { data: staffMembers, isLoading: areStaffLoading } = useCollection<UserProfile>(staffQuery);
 
   // Fetch stock returns for refund stats (all, for stats)
   const returnsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, getCollectionPath('stockReturns')), orderBy('returnedAt', 'desc'));
-  }, [firestore, reloadCounter, getCollectionPath]);
+  }, [firestore, reloadCounter, getCollectionPath, isPosStaff]);
 
   const { data: allStockReturns, isLoading: areAllReturnsLoading } = useCollection<StockReturn>(returnsQuery);
 
@@ -160,7 +158,7 @@ function RunningTablesPage() {
 
   // Fetch paginated returns for display
   const paginatedReturnsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
       orderBy('returnedAt', 'desc'),
       limit(returnsPageSize)
@@ -173,7 +171,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('stockReturns')), ...constraints);
-  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath]);
+  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath, isPosStaff]);
 
   const { data: paginatedReturns, isLoading: areReturnsLoading } = useCollection<StockReturn>(paginatedReturnsQuery);
 
@@ -187,9 +185,9 @@ function RunningTablesPage() {
 
   // Fetch docket history (deleted/reset tables) for stats
   const docketHistoryQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     return query(collection(firestore, getCollectionPath('docketHistory')), orderBy('actionAt', 'desc'));
-  }, [firestore, reloadCounter, getCollectionPath]);
+  }, [firestore, reloadCounter, getCollectionPath, isPosStaff]);
 
   const { data: allDocketHistories, isLoading: areAllHistoryLoading } = useCollection<DocketHistory>(docketHistoryQuery);
 
@@ -199,7 +197,7 @@ function RunningTablesPage() {
 
   // Fetch paginated docket history for display
   const paginatedHistoryQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
       orderBy('actionAt', 'desc'),
       limit(historyPageSize)
@@ -212,7 +210,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('docketHistory')), ...constraints);
-  }, [firestore, historyDirection, historyPageSize, getCollectionPath]);
+  }, [firestore, historyDirection, historyPageSize, getCollectionPath, isPosStaff]);
 
   const { data: paginatedHistories, isLoading: isHistoryLoading } = useCollection<DocketHistory>(paginatedHistoryQuery);
 
