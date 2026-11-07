@@ -21,17 +21,32 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
-    await Promise.all(names.map((name) => {
-      // Only remove caches owned by this app. Preserve audio and unrelated
-      // application caches rather than clearing the browser's entire cache.
-      if (
-        (name.startsWith('hotel-suite-pro-') && name !== CACHE_NAME) ||
-        LEGACY_CACHE_NAMES.has(name)
-      ) {
-        return caches.delete(name);
+    const legacyNames = names.filter((name) =>
+      (name.startsWith('hotel-suite-pro-') && name !== CACHE_NAME) ||
+      LEGACY_CACHE_NAMES.has(name)
+    );
+    const currentCache = await caches.open(CACHE_NAME);
+
+    // Migrate previously cached pages and hashed assets before removing the
+    // old cache. This prevents an SW update from unexpectedly wiping assets
+    // that an existing hotel device relies on while offline.
+    for (const legacyName of legacyNames) {
+      const legacyCache = await caches.open(legacyName);
+      const requests = await legacyCache.keys();
+      for (const request of requests) {
+        try {
+          if (!(await currentCache.match(request))) {
+            const response = await legacyCache.match(request);
+            if (response) await currentCache.put(request, response);
+          }
+        } catch (error) {
+          // A single non-cloneable or expired entry must not block activation.
+          console.warn('Could not migrate cached asset:', request.url, error);
+        }
       }
-      return Promise.resolve(false);
-    }));
+    }
+
+    await Promise.all(legacyNames.map((name) => caches.delete(name)));
     await self.clients.claim();
   })());
 });
