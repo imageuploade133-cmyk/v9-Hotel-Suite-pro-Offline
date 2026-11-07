@@ -422,26 +422,23 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     }
     if (isProcessing) return;
 
-    // A restored running table may contain only the customer's ID and name.
-    // Refresh the ledger in that case so the excess-payment prompt uses a real balance.
-    if (customer.outstandingBalance == null) {
-      setIsProcessing(true);
-      try {
-        const financialCustomers = await getCustomerFinancials();
-        const latestCustomer = financialCustomers.find(entry => entry.id === customer.id);
-        if (!latestCustomer) {
-          throw new Error('Could not load this customer’s credit balance. Please retry before creating the credit sale.');
-        }
-        setCustomer({ ...customer, ...latestCustomer });
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Customer Balance Unavailable', description: error.message || 'Could not verify the customer’s outstanding balance.' });
-        setIsProcessing(false);
-        return;
+    // Always refresh the ledger before opening credit mode. A restored running table
+    // may carry only a customer ID/name, and an existing selection may have a stale balance.
+    setIsProcessing(true);
+    try {
+      const financialCustomers = await getCustomerFinancials();
+      const latestCustomer = financialCustomers.find(entry => entry.id === customer.id);
+      if (!latestCustomer) {
+        throw new Error('This customer is not available in the POS customer directory. Select a registered POS customer before creating a credit sale.');
       }
+      setCustomer({ ...customer, ...latestCustomer });
+      setStartPaymentInCreditMode(true);
+      setIsPaymentOpen(true);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Customer Balance Unavailable', description: error.message || 'Could not verify the customer’s outstanding balance.' });
+    } finally {
       setIsProcessing(false);
     }
-    setStartPaymentInCreditMode(true);
-    setIsPaymentOpen(true);
   };
 
   const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string, applyExcessToOutstanding = false, totalTenderedAmount?: number) => {
