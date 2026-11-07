@@ -107,6 +107,12 @@ function RunningTablesPage() {
   const [returnSale, setReturnSale] = React.useState<HeldSale | null>(null);
   const [selectedUserId, setSelectedUserId] = React.useState<string>('all');
 
+  const assertOwnRunningTable = React.useCallback((sale: Pick<HeldSale, 'heldByUid'>) => {
+    if (isPosStaff && sale.heldByUid !== userProfile?.uid) {
+      throw new Error('You can only access your own running tables.');
+    }
+  }, [isPosStaff, userProfile?.uid]);
+
   // Date filters
   const [returnsDateRange, setReturnsDateRange] = React.useState<DateRange | undefined>();
   const [historyDateRange, setHistoryDateRange] = React.useState<DateRange | undefined>();
@@ -576,7 +582,11 @@ function RunningTablesPage() {
 
     try {
       const saleRef = doc(firestore, getCollectionPath('heldSales'), selectedSale.id);
-      const updatedCart = selectedSale.cart.map(item => ({
+      const latestSaleDoc = await getDoc(saleRef);
+      if (!latestSaleDoc.exists()) throw new Error('Running table not found.');
+      const latestSale = latestSaleDoc.data() as HeldSale;
+      assertOwnRunningTable(latestSale);
+      const updatedCart = latestSale.cart.map(item => ({
         ...item,
         printedQuantity: 0,
       }));
@@ -597,6 +607,7 @@ function RunningTablesPage() {
     if (!firestore || !saleToPrint) return;
     const saleRef = doc(firestore, getCollectionPath('heldSales'), saleToPrint.id);
     try {
+      assertOwnRunningTable(saleToPrint);
       const updatedCart = saleToPrint.cart.map(item => ({
         ...item,
         printedQuantity: item.sellQuantity,
@@ -636,6 +647,7 @@ function RunningTablesPage() {
     if (!firestore || !unprintedSale) return;
     const saleRef = doc(firestore, getCollectionPath('heldSales'), unprintedSale.id);
     try {
+      assertOwnRunningTable(unprintedSale);
       // CRITICAL: Fetch the LATEST document from Firestore to avoid using stale local state
       const saleDoc = await getDoc(saleRef);
       if (!saleDoc.exists()) {
@@ -734,6 +746,7 @@ function RunningTablesPage() {
         }
 
         const saleData = heldSaleDoc.data() as HeldSale;
+        assertOwnRunningTable(saleData);
 
         // Update cart - remove returned items or reduce quantities
         const updatedCart = saleData.cart.map(item => {
