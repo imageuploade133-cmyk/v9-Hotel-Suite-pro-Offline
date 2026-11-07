@@ -424,7 +424,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     setIsPaymentOpen(true);
   };
 
-  const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string) => {
+  const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string, applyExcessToOutstanding = false, totalTenderedAmount?: number) => {
     if (paymentMethod === 'Credit' && !customer?.id) {
       toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before completing a credit sale.' });
       return;
@@ -539,7 +539,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     } else {
         setIsProcessing(true);
         try {
-          const newSale = await processSale(total, paymentMethod, paymentStatus, context, initialPaymentAmount, initialPaymentMethod);
+          const newSale = await processSale(total, paymentMethod, paymentStatus, context, initialPaymentAmount, initialPaymentMethod, applyExcessToOutstanding, totalTenderedAmount);
           toast({
             variant: 'success',
             title: 'Sale Completed',
