@@ -101,11 +101,20 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     booking: Booking | null;
   } | null>(null);
 
-  // Fetch all held sales to check for existing bill-to-room tables
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const currentUserUid = userProfile?.uid || userProfile?.id || null;
+
+  // Keep Bill-to-Room lookup scoped to the signed-in staff member; admins retain
+  // the full lookup so their existing cross-user merge workflow is unchanged.
   const allHeldSalesQuery = React.useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, getCollectionPath('heldSales')));
-  }, [firestore, getCollectionPath]);
+    if (!firestore || !userProfile) return null;
+    const baseQuery = collection(firestore, getCollectionPath('heldSales'));
+    if (isAdminIdentity) return query(baseQuery);
+    return currentUserUid ? query(baseQuery, where('heldByUid', '==', currentUserUid)) : null;
+  }, [firestore, getCollectionPath, isAdminIdentity, currentUserUid, userProfile]);
   const { data: allHeldSales } = useCollection<HeldSale>(allHeldSalesQuery);
 
   const reloadProducts = (externalReloadProducts || 0) + internalReloadProducts;
@@ -113,12 +122,24 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
 
   React.useEffect(() => {
     if (!firestore) return;
-    const q = query(collection(firestore, getCollectionPath("heldSales")));
+    const heldSalesCollection = collection(firestore, getCollectionPath("heldSales"));
+    const q = isAdminIdentity
+      ? query(heldSalesCollection)
+      : currentUserUid
+        ? query(heldSalesCollection, where('heldByUid', '==', currentUserUid))
+        : null;
+    if (!q) {
+      setHeldSalesCount(0);
+      return;
+    }
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setHeldSalesCount(snapshot.size);
+    }, (error) => {
+      console.error('[POS Running Tables] Failed to subscribe to owned tables:', error);
+      setHeldSalesCount(0);
     });
     return () => unsubscribe();
-  }, [firestore, getCollectionPath]);
+  }, [firestore, getCollectionPath, isAdminIdentity, currentUserUid]);
 
   // Track active bookings count
   React.useEffect(() => {
@@ -362,7 +383,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
             sourceType: i.sourceType
           })),
           customer: { id: booking?.id || '', name: booking?.guestName || "Walk-in Customer" },
-          heldByUid: userProfile?.uid,
+          heldByUid: currentUserUid,
           heldByName: userProfile?.name,
           linkedBillId: billRef.id,
         };
@@ -476,7 +497,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
                     sourceType: i.sourceType
                 })),
                 customer: { id: booking?.id || '', name: booking?.guestName || "Walk-in Customer" },
-                heldByUid: userProfile?.uid,
+                heldByUid: currentUserUid,
                 heldByName: userProfile?.name,
                 linkedBillId: billRef.id,
               };
@@ -594,7 +615,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
                             name: name,
                             cart: cartItemsBeforeHold,
                             customer: customer?.id ? { id: customer.id, name: customer.name || 'Walk-in Customer' } : { name: name || 'Walk-in Customer' },
-                            heldByUid: userProfile?.uid || '',
+                            heldByUid: currentUserUid || '',
                             heldByName: userProfile?.name || 'Staff',
                             heldAt: new Date() as any,
                             printStatus: 'pending',
