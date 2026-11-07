@@ -365,8 +365,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             or(...staffFilters)
           );
 
-          const [uidDocument, matchingStaffDocuments] = await Promise.race([
-            Promise.all([
+          const [uidDocumentResult, matchingStaffResult] = await Promise.race([
+            Promise.allSettled([
               getDocFromServer(doc(firestore, 'users', user.uid)),
               getDocsFromServer(staffMatchesQuery),
             ]),
@@ -378,17 +378,27 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             }),
           ]);
 
-          cloudLookupCompleted = true;
+          // A failure in one lookup must not discard a successful UID document
+          // read. Only treat "no profile found" as authoritative when both
+          // server lookups completed successfully.
+          const uidDocument = uidDocumentResult.status === 'fulfilled'
+            ? uidDocumentResult.value
+            : null;
+          const matchingStaffDocuments = matchingStaffResult.status === 'fulfilled'
+            ? matchingStaffResult.value
+            : null;
+          cloudLookupCompleted = !!uidDocument && !!matchingStaffDocuments;
+
           const matchingProfiles = new Map<string, UserProfile>();
 
-          if (uidDocument.exists()) {
+          if (uidDocument?.exists()) {
             matchingProfiles.set(uidDocument.id, {
               id: uidDocument.id,
               ...uidDocument.data(),
             } as UserProfile);
           }
 
-          matchingStaffDocuments.forEach((staffDocument) => {
+          matchingStaffDocuments?.forEach((staffDocument) => {
             matchingProfiles.set(staffDocument.id, {
               id: staffDocument.id,
               ...staffDocument.data(),
