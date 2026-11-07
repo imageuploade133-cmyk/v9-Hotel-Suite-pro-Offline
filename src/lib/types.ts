@@ -413,7 +413,8 @@ export interface Payment {
   originalPaymentId?: string;
   customerId?: string;
   sourceSaleId?: string;
-  allocationSource?: 'POS_CHANGE';
+  allocationSource?: 'POS_CHANGE' | 'POS_ADVANCE' | 'POS_ADVANCE_APPLIED';
+  sourceAdvancePaymentId?: string;
 }
 
 export interface BillItem {
