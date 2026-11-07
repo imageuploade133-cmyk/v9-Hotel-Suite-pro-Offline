@@ -125,6 +125,42 @@ const findStaffProfile = (users: unknown, uid: string, email?: string | null): U
   ) || null;
 };
 
+const cacheStaffProfile = (profile: UserProfile) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = readCachedStaffUsers();
+    const identity = profile.uid || profile.id;
+    const next = current.filter(item =>
+      item && item.uid !== identity && item.id !== identity &&
+      item.email?.toLowerCase() !== profile.email?.toLowerCase()
+    );
+    next.push(profile);
+    localStorage.setItem('app_cached_staff_users', JSON.stringify(next));
+    firestoreCache.set(CacheKeys.collection('users'), next, CacheTTL.LONG);
+  } catch {
+    // Storage failures must never block authentication.
+  }
+};
+
+const syncStaffProfileToMaster = (profile: UserProfile) => {
+  if (typeof window === 'undefined' || !isLocalMasterHost()) return;
+  void fetch('/api/auth/offline-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'cache_user',
+      user: {
+        uid: profile.uid || profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: profile.role,
+        permissions: profile.permissions || [],
+        assignedBranches: profile.assignedBranches || [],
+      },
+    }),
+  }).catch(() => {});
+};
+
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
