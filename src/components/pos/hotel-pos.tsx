@@ -79,6 +79,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
 
   const [activeTab, setActiveTab] = React.useState('new-sale');
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
+  const [startPaymentInCreditMode, setStartPaymentInCreditMode] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [isHoldOpen, setIsHoldOpen] = React.useState(false);
   const [saleToPrint, setSaleToPrint] = React.useState<StockSale | null>(null);
@@ -410,7 +411,24 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     }
   };
 
+  const handleOpenCreditSale = () => {
+    if (!canCreateCreditSales) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
+      return;
+    }
+    if (!customer?.id) {
+      toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before starting a credit sale.' });
+      return;
+    }
+    setStartPaymentInCreditMode(true);
+    setIsPaymentOpen(true);
+  };
+
   const handleProcessSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', initialPaymentAmount?: number, initialPaymentMethod?: string, billToRoomBookingId?: string) => {
+    if (paymentMethod === 'Credit' && !customer?.id) {
+      toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before completing a credit sale.' });
+      return;
+    }
     if (paymentMethod === 'Bill to Room') {
         const bookingId = billToRoomBookingId || customer?.id;
         if (!bookingId) {
@@ -528,6 +546,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
             description: `Sale has been successfully processed.`,
           });
           setIsPaymentOpen(false);
+          setStartPaymentInCreditMode(false);
           setSaleToPrint(newSale);
           onSaleAction();
         } catch (error) {
@@ -781,8 +800,12 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
               <div className="flex items-center">
                 <List className="mr-2 h-4 w-4" /> Running Tables
                {heldSalesCount > 0 && (
-                <div className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                <div
+                  className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-red-700 bg-red-600 px-2 py-0.5 text-xs font-bold tabular-nums text-white shadow-sm motion-safe:animate-pulse motion-reduce:animate-none"
+                  role="status"
+                  aria-label={`${heldSalesCount} running tables`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
                   {heldSalesCount}
                 </div>
               )}
@@ -904,7 +927,9 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
                     onUpdateQuantity={updateQuantity}
                     onClearCart={clearCart}
                     onHold={() => setIsHoldOpen(true)}
-                    onPay={() => setIsPaymentOpen(true)}
+                    onPay={() => { setStartPaymentInCreditMode(false); setIsPaymentOpen(true); }}
+                    onCreditSale={handleOpenCreditSale}
+                    canCreateCreditSales={canCreateCreditSales && context === 'pos'}
                     isRestored={!!pos.restoredSaleId}
                     onApplyDiscount={pos.applyDiscount}
                     removeDiscount={pos.removeDiscount}
@@ -928,7 +953,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
       </Tabs>
       <PaymentDialog
         isOpen={isPaymentOpen}
-        onClose={() => setIsPaymentOpen(false)}
+        onClose={() => { setIsPaymentOpen(false); setStartPaymentInCreditMode(false); }}
         cart={cart}
         activeRunningItems={activeRunningItems}
         customer={customer}
@@ -937,6 +962,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
         discount={pos.discount}
         allowBillToRoom={true}
         canCreateCreditSales={canCreateCreditSales}
+        startInCreditMode={startPaymentInCreditMode}
       />
       <HoldSaleDialog
         isOpen={isHoldOpen}
