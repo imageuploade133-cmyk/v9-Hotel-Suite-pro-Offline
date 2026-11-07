@@ -422,6 +422,7 @@ function RunningTablesPage() {
         }
 
         const saleData = heldSaleDoc.data() as HeldSale;
+        assertOwnRunningTable(saleData);
         const totalAmount = saleData.cart.reduce((sum, item) =>
           sum + ((item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0)), 0
         );
@@ -1799,7 +1800,7 @@ function RunningTablesPage() {
                   </TooltipContent>
                 )}
               </Tooltip>
-              {!isPosStaff && hasPermission(PagePermission.MANAGE_RUNNING_TABLES) && (
+              {hasPermission(PagePermission.MANAGE_RUNNING_TABLES) && (
                 <>
                 <Button
                   variant="secondary"
