@@ -17,6 +17,7 @@ import { TagManagement } from '@/components/settings/tag-management';
 import { CreditSaleBankAccountForm } from '@/components/settings/credit-sale-bank-account-form';
 import { EbulkSmsSettingsForm } from '@/components/settings/ebulk-sms-settings-form';
 import { GoogleAppsScriptSettingsForm } from '@/components/settings/google-apps-script-settings-form';
+import { MenuProductCardSettingsForm } from '@/components/settings/menu-product-card-settings-form';
 
 function SettingsPage2() {
   return (
@@ -31,6 +32,7 @@ function SettingsPage2() {
       <DailyReportSettingsForm />
       <CreditSaleBankAccountForm />
       <EbulkSmsSettingsForm />
+      <MenuProductCardSettingsForm />
 
       <Card>
         <CardHeader>
