@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 import { getDb } from '@/lib/firebase';
 import { doc, setDoc, updateDoc, deleteDoc, getDoc, DocumentData } from 'firebase/firestore';
 
@@ -6,6 +7,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'Local LAN queue synchronization is available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const db = getDb();
@@ -111,6 +115,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'Local LAN queue status is available only on the Local Master Server.' }, { status: 503 });
+  }
   const { lanStore } = await import('@/lib/lan-sync/lan-store');
   return NextResponse.json({ success: true, summary: lanStore.getStateSummary() });
 }
