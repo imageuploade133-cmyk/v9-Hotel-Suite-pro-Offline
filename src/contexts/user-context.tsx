@@ -435,27 +435,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       if (!matchedProfile || !isLocalMasterHost()) {
         let lookupTimeout: ReturnType<typeof setTimeout> | undefined;
         try {
-          const staffFilters = [
-            where('uid', '==', user.uid),
-            where('id', '==', user.uid),
-          ];
-          const exactEmail = user.email?.trim();
-          const normalizedEmail = exactEmail?.toLowerCase();
-          if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
-          if (normalizedEmail && normalizedEmail !== exactEmail) {
-            staffFilters.push(where('email', '==', normalizedEmail));
-          }
-
-          const staffMatchesQuery = query(
-            collection(firestore, 'users'),
-            or(...staffFilters)
-          );
-
-          const [uidDocumentResult, matchingStaffResult] = await Promise.race([
-            Promise.allSettled([
-              getDocFromServer(doc(firestore, 'users', user.uid)),
-              getDocsFromServer(staffMatchesQuery),
-            ]),
+          // Most staff profiles use the Firebase UID as their document ID.
+          // Resolve that common case with one lightweight document read first;
+          // only perform a collection query for legacy email/custom-ID records.
+          const uidDocument = await Promise.race([
+            getDocFromServer(doc(firestore, 'users', user.uid)),
             new Promise<never>((_, reject) => {
               lookupTimeout = setTimeout(
                 () => reject(new Error('Firestore staff lookup timed out')),
@@ -464,38 +448,38 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             }),
           ]);
 
-          const uidDocument = uidDocumentResult.status === 'fulfilled'
-            ? uidDocumentResult.value
-            : null;
-          const matchingStaffDocuments = matchingStaffResult.status === 'fulfilled'
-            ? matchingStaffResult.value
-            : null;
-          const serverLookupCompleted = !!uidDocument && !!matchingStaffDocuments;
-
-          const matchingProfiles = new Map<string, UserProfile>();
-          if (uidDocument?.exists()) {
-            matchingProfiles.set(uidDocument.id, {
+          if (uidDocument.exists()) {
+            const uidProfile = {
               id: uidDocument.id,
               ...uidDocument.data(),
-            } as UserProfile);
-          }
-          matchingStaffDocuments?.forEach((staffDocument) => {
-            matchingProfiles.set(staffDocument.id, {
+            } as UserProfile;
+            matchedProfile = findStaffProfile([uidProfile], user.uid, user.email);
+            cloudLookupCompleted = true;
+          } else {
+            const staffFilters = [
+              where('uid', '==', user.uid),
+              where('id', '==', user.uid),
+            ];
+            const exactEmail = user.email?.trim();
+            const normalizedEmail = exactEmail?.toLowerCase();
+            if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
+            if (normalizedEmail && normalizedEmail !== exactEmail) {
+              staffFilters.push(where('email', '==', normalizedEmail));
+            }
+
+            const matchingStaff = await getDocsFromServer(query(
+              collection(firestore, 'users'),
+              or(...staffFilters)
+            ));
+            const matches = matchingStaff.docs.map(staffDocument => ({
               id: staffDocument.id,
               ...staffDocument.data(),
-            } as UserProfile);
-          });
-
-          const cloudProfile = findStaffProfile(
-            Array.from(matchingProfiles.values()),
-            user.uid,
-            user.email
-          );
-          if (cloudProfile) matchedProfile = cloudProfile;
-          if (serverLookupCompleted) {
+            } as UserProfile));
+            matchedProfile = findStaffProfile(matches, user.uid, user.email);
             cloudLookupCompleted = true;
-            setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
           }
+
+          setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
         } catch {
           // Retain the last verified assignment if cloud access is unavailable.
         } finally {
