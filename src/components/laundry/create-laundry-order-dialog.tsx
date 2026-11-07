@@ -151,13 +151,13 @@ export function CreateLaundryOrderDialog({ isOpen, onClose, onSubmit }: CreateLa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="flex h-[100dvh] w-screen max-h-none max-w-none flex-col gap-3 overflow-hidden rounded-none p-3 sm:h-[90dvh] sm:max-h-[min(90dvh,54rem)] sm:max-w-5xl sm:rounded-xl sm:p-6">
+      <DialogContent className="mobile-fullscreen-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col gap-3 overflow-hidden rounded-none p-3 sm:h-[90dvh] sm:max-h-[min(90dvh,54rem)] sm:max-w-5xl sm:rounded-xl sm:p-6">
         <DialogHeader className="shrink-0 space-y-1">
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl"><WashingMachine className="h-5 w-5 text-primary" /> New Laundry Order</DialogTitle>
           <DialogDescription>Select the guest's room, add laundry services, review the total and create the order.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form id="laundry-order-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(9rem,0.85fr)_minmax(0,1.15fr)] gap-3 overflow-hidden pt-1 md:grid-cols-2 md:grid-rows-1 md:gap-5 md:pt-3">
+          <form id="laundry-order-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="mobile-fullscreen-dialog-laundry-body grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(9rem,0.85fr)_minmax(0,1.15fr)] gap-3 overflow-hidden pt-1 md:grid-cols-2 md:grid-rows-1 md:gap-5 md:pt-3">
              {/* Left Column: Available Services */}
              <section className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-xl border bg-muted/30 p-3 sm:gap-3 sm:p-4">
                 <div className="flex shrink-0 items-center justify-between gap-2"><div><h3 className="font-semibold">Available services</h3><p className="text-xs text-muted-foreground">Choose items to add to this order</p></div><Badge variant="secondary">{filteredLaundryItems.length} services</Badge></div>

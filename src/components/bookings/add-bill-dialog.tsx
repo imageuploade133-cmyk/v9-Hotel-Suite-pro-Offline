@@ -375,14 +375,14 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+        <DialogContent className="mobile-fullscreen-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle>Add to Room Bill: Room {booking.roomNumber}</DialogTitle>
             <DialogDescription>
               Select items from the menu to add to the guest's bill.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden pt-2 md:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] md:grid-rows-1 md:gap-6 md:pt-4">
+          <div className="mobile-fullscreen-dialog-room-bill-body grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden pt-2 md:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] md:grid-rows-1 md:gap-6 md:pt-4">
             <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
               <Tabs value={mainTab} onValueChange={handleMainTabChange} className="flex-1 flex flex-col">
                 <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto">
@@ -474,7 +474,7 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
               </div>
             </div>
           </div>
-          <DialogFooter className="shrink-0 border-t pt-3 sm:pt-4">
+          <DialogFooter className="mobile-fullscreen-dialog-footer shrink-0 border-t pt-3 pb-[env(safe-area-inset-bottom)] sm:pt-4 sm:pb-0">
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
             <Button onClick={handleConfirm} disabled={isSaving || cart.length === 0}>
                 <ButtonIcon className="mr-2 h-4 w-4" />
