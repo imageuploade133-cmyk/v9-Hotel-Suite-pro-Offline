@@ -16,8 +16,9 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Minus, Trash2, User, Bed, Search, ShoppingCart } from 'lucide-react';
+import { WashingMachine, Plus, Minus, Trash2, Bed, Search, ShoppingCart } from 'lucide-react';
 import type { LaundryOrder, Booking, LaundryServiceItem } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
@@ -171,7 +172,11 @@ export function CreateLaundryOrderDialog({ isOpen, onClose, onSubmit }: CreateLa
                 </div>
                 <ScrollArea className="min-h-0 min-w-0 flex-1 -mx-3 sm:-mx-4">
                     <div className="space-y-2 px-3 sm:px-4">
-                        {filteredLaundryItems.map(item => (
+                        {filteredLaundryItems.length === 0 ? (
+                          <div className="rounded-lg border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
+                            {searchTerm ? 'No services match your search.' : 'No laundry services are configured yet.'}
+                          </div>
+                        ) : filteredLaundryItems.map(item => (
                             <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background p-2.5 sm:p-3">
                                 <div>
                                     <p className="truncate text-sm font-medium">{item.name}</p>
@@ -255,7 +260,7 @@ export function CreateLaundryOrderDialog({ isOpen, onClose, onSubmit }: CreateLa
             </section>
           </form>
         </Form>
-        <DialogFooter className="shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end sm:pt-4">
+        <DialogFooter className="shrink-0 flex-col-reverse gap-2 border-t pb-[env(safe-area-inset-bottom)] pt-3 sm:flex-row sm:justify-end sm:pb-0 sm:pt-4">
           <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onClose} disabled={isSaving}>Cancel</Button>
           <Button type="submit" form="laundry-order-form" className="w-full sm:w-auto" loading={isSaving} disabled={isSaving}>Create Laundry Order · {formatCurrency(totalPrice)}</Button>
         </DialogFooter>
