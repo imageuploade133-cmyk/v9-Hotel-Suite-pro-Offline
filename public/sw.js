@@ -44,6 +44,12 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (request.headers.has('range')) return;
 
+  // Keep audio offline support in its dedicated cache.
+  if (/\\.(mp3|wav|ogg)$/i.test(url.pathname)) {
+    event.respondWith(handleAudioRequest(request));
+    return;
+  }
+
   // APIs must always attempt the live/local server first. Never cache writes
   // or API data as generic static assets.
   if (url.pathname.startsWith('/api/')) {
