@@ -24,6 +24,7 @@ import type { CartItem, Customer, StockItem, StockSale, HeldSale, UserProfile, P
 import { useToast } from './use-toast';
 import { useBranch } from '@/contexts/branch-context';
 import { getNewDocumentData } from '@/lib/branch-helpers';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 
 interface UsePOSProps {
   userProfile: UserProfile | null;
@@ -42,6 +43,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const firestore = useFirestore();
   const branchContext = useBranch();
   const { getCollectionPath } = branchContext;
+  const { data: globalStockSales, isLoading: isLoadingGlobalStockSales } = useGlobalCollectionData<StockSale>('stockSales');
 
   const applyDiscount = (type: 'percentage' | 'amount', value: number) => {
     setDiscount({ type, value });
@@ -573,6 +575,16 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         ...paymentCollections.map(readLanCollection),
       ]);
       const salesById = new Map<string, StockSale>();
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalStockSales) {
+          throw new Error('Customer credit history is still loading. Please wait a moment and retry.');
+        }
+        globalStockSales.forEach(sale => {
+          if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+            salesById.set(sale.id, sale);
+          }
+        });
+      }
       salesSnapshots.forEach(snapshot => snapshot.docs.forEach(saleDoc => {
         const sale = { ...saleDoc.data(), id: saleDoc.id } as StockSale;
         if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
@@ -940,7 +952,14 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         ...Array.from(new Set(['payments', getCollectionPath('payments')])).map(readCollection),
       ]);
       const allPayments = [...new Map(paymentGroups.flat().map(payment => [payment.id, payment])).values()] as Payment[];
-      const sales = allSales as StockSale[];
+      const salesMap = new Map<string, StockSale>((allSales as StockSale[]).map(sale => [sale.id, sale]));
+      if (branchContext.isGlobalMode) {
+        if (isLoadingGlobalStockSales) {
+          throw new Error('Customer credit history is still loading. Please retry in a moment.');
+        }
+        globalStockSales.forEach(sale => salesMap.set(sale.id, sale));
+      }
+      const sales = [...salesMap.values()];
 
       return (customers as Customer[]).map(customer => {
         const customerSales = sales.filter(sale =>
@@ -975,7 +994,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       console.error("Error fetching customer financials: ", error);
       return [];
     }
-  }, [firestore, getCollectionPath]);
+  }, [firestore, getCollectionPath, branchContext.isGlobalMode, globalStockSales, isLoadingGlobalStockSales]);
 
   return {
     cart,
