@@ -48,6 +48,13 @@ type TransactionWithPayments = (StockSale | StockReturn) & {
 export function HistorySection({ searchTerm }: HistorySectionProps) {
   const { user, userProfile } = useUser();
   const firestore = useFirestore();
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const currentUserUid = userProfile?.uid || user?.uid || userProfile?.id || null;
+  // Never fall back to an unrestricted query while the staff identity is loading.
+  const noUserMatchUid = '__NO_POS_TRANSACTION_OWNER__';
   const { settings } = useSettings();
   const { toast } = useToast();
   const { getCollectionPath, isGlobalMode } = useBranch();
@@ -66,30 +73,47 @@ export function HistorySection({ searchTerm }: HistorySectionProps) {
   const [itemsToReturn, setItemsToReturn] = React.useState<Record<string, number>>({});
   const [refundSearchTerm, setRefundSearchTerm] = React.useState('');
 
-  // Branch mode queries
+  // Recent Transactions is a personal POS view for staff. Apply ownership at
+  // the Firestore query level (not only in the rendered table) so another
+  // employee's sales and refunds are never loaded into a staff session.
+  // Admins retain the existing all-users history.
+  const salesOwnerConstraint = React.useMemo(
+    () => isAdminIdentity
+      ? [orderBy('soldAt', 'desc'), limit(50)]
+      : [where('soldByUid', '==', currentUserUid || noUserMatchUid)],
+    [isAdminIdentity, currentUserUid]
+  );
+  const returnsOwnerConstraint = React.useMemo(
+    () => isAdminIdentity
+      ? [orderBy('returnedAt', 'desc'), limit(50)]
+      : [where('returnedByUid', '==', currentUserUid || noUserMatchUid)],
+    [isAdminIdentity, currentUserUid]
+  );
+
+  // Branch mode queries. Staff queries intentionally avoid combining owner
+  // filters with orderBy so existing Firestore installations do not require
+  // new composite indexes; combinedData sorts the result locally below.
   const branchSalesQuery = React.useMemo(() => {
     return !isGlobalMode && firestore
       ? query(
           collection(firestore, getCollectionPath('stockSales')),
-          orderBy('soldAt', 'desc'),
-          limit(50)
+          ...salesOwnerConstraint
         )
       : null;
-  }, [firestore, isGlobalMode, getCollectionPath, reloadCounter]);
+  }, [firestore, isGlobalMode, getCollectionPath, reloadCounter, salesOwnerConstraint]);
 
   const branchReturnsQuery = React.useMemo(() => {
     return !isGlobalMode && firestore
       ? query(
           collection(firestore, getCollectionPath('stockReturns')),
-          orderBy('returnedAt', 'desc'),
-          limit(50)
+          ...returnsOwnerConstraint
         )
       : null;
-  }, [firestore, isGlobalMode, getCollectionPath, reloadCounter]);
+  }, [firestore, isGlobalMode, getCollectionPath, reloadCounter, returnsOwnerConstraint]);
 
-  // Global mode queries
-  const globalSalesResult = useGlobalCollectionData<StockSale>('stockSales', [orderBy('soldAt', 'desc')]);
-  const globalReturnsResult = useGlobalCollectionData<StockReturn>('stockReturns', [orderBy('returnedAt', 'desc')]);
+  // Global mode queries use the same ownership constraints across accessible branches.
+  const globalSalesResult = useGlobalCollectionData<StockSale>('stockSales', salesOwnerConstraint);
+  const globalReturnsResult = useGlobalCollectionData<StockReturn>('stockReturns', returnsOwnerConstraint);
 
   const branchSalesResult = useCollection<StockSale>(branchSalesQuery);
   const branchReturnsResult = useCollection<StockReturn>(branchReturnsQuery);
@@ -100,8 +124,11 @@ export function HistorySection({ searchTerm }: HistorySectionProps) {
 
   const creditPaymentsQuery = React.useMemo(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'payments'), where('type', '==', 'Credit Repayment'));
-  }, [firestore, reloadCounter]);
+    const paymentsCollection = collection(firestore, getCollectionPath('payments'));
+    return isAdminIdentity
+      ? query(paymentsCollection, where('type', '==', 'Credit Repayment'))
+      : query(paymentsCollection, where('createdByUid', '==', currentUserUid || noUserMatchUid));
+  }, [firestore, getCollectionPath, reloadCounter, isAdminIdentity, currentUserUid]);
 
   const { data: creditPayments, isLoading: arePaymentsLoading } = useCollection<Payment>(creditPaymentsQuery);
 
@@ -221,7 +248,9 @@ export function HistorySection({ searchTerm }: HistorySectionProps) {
     return sorted.map((t) => {
       if (t.type === 'Sale' && t.paymentMethod === 'Credit') {
         const sale = t as StockSale;
-        const repaymentsForSale = (creditPayments || []).filter((p) => p.bookingId === sale.id);
+        const repaymentsForSale = (creditPayments || []).filter((p) =>
+          p.type === 'Credit Repayment' && p.bookingId === sale.id
+        );
         const totalRepaid = repaymentsForSale.reduce((sum, p) => sum + p.amount, 0);
         return { ...t, amountPaid: totalRepaid + (sale.initialPaymentAmount || 0) };
       }
