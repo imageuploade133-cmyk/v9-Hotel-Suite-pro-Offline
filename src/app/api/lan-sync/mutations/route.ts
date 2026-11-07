@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lanStore } from '@/lib/lan-sync/lan-store';
+import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'LAN mutation history is available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const url = new URL(req.url);
     const filter = url.searchParams.get('filter'); // 'all', 'pending', 'synced', 'failed'
@@ -50,6 +54,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'LAN mutation updates are available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const body = await req.json();
     const { action, ids, id, error } = body;
