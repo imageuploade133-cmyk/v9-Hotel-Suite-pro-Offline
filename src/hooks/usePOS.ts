@@ -936,7 +936,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       const [customers, allSales, ...paymentGroups] = await Promise.all([
         readCollection(getCollectionPath('posCustomers')),
         readCollection(getCollectionPath('stockSales')),
-        ...new Set(['payments', getCollectionPath('payments')]).values().map(readCollection),
+        ...Array.from(new Set(['payments', getCollectionPath('payments')])).map(readCollection),
       ]);
       const allPayments = [...new Map(paymentGroups.flat().map(payment => [payment.id, payment])).values()] as Payment[];
       const sales = allSales as StockSale[];
