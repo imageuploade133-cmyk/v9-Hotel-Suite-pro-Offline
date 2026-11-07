@@ -134,7 +134,7 @@ const DEFAULT_HOUSEKEEPING_STATUSES = {
 };
 
 const isNavigationItemActive = (pathname: string, href: string) =>
-  pathname === href || pathname.startsWith(`${href.replace(/\\/$/, '')}/`);
+  pathname === href || pathname.startsWith(href.endsWith('/') ? href : `${href}/`);
 
 const NavLink = ({
   item,
