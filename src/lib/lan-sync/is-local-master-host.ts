@@ -5,11 +5,6 @@
 export function isLocalMasterHost(): boolean {
   if (typeof window === 'undefined') return false;
 
-  // If the browser reports offline, LAN mode is mandatory
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return true;
-  }
-
   const hostname = window.location.hostname.toLowerCase().replace(/^\[|\]$/g, '');
 
   if (
@@ -35,6 +30,7 @@ export function isLocalMasterHost(): boolean {
     }
   }
 
-  // Also enable in AI Studio dev environment for seamless offline simulation
-  return true;
+  // Public hosts (including Vercel deployments) are not Local Master Servers.
+  // Being offline in the browser does not mean a local LAN server exists.
+  return false;
 }
