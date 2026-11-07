@@ -103,7 +103,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     setIsDeleting(true);
     try {
         await deleteHeldSale(actionsSale);
-        toast({ variant: 'success', title: 'Running Table Deleted', description: 'The table was deleted and any associated items were handled.' });
+        toast({ variant: 'success', title: 'Run Table Deleted', description: 'The table was deleted and any associated items were handled.' });
         setReloadCounter(c => c + 1);
         onDelete();
     } catch(e: any) {
@@ -264,7 +264,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     return (
       <EmptyState
         icon={List}
-        title="No Running Tables"
+        title="No Active Tables"
         description="Tables that are currently active will appear here."
       />
     );
@@ -432,9 +432,9 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     <>
         <Card>
              <CardHeader>
-                <CardTitle>Running Tables</CardTitle>
+                <CardTitle>Run Table</CardTitle>
                 <CardDescription>
-                    These are tables that are currently active. Add more items to continue, or delete them to return items to stock.
+                    Your active tables appear here. Add more items to continue, or delete a table to return its items to stock.
                 </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

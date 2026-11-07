@@ -36,7 +36,7 @@ export function HoldSaleDialog({ isOpen, onClose, onConfirm, isProcessing, custo
         toast({
             variant: 'destructive',
             title: 'Table Name Required',
-            description: 'Please enter a name for the table before adding to running tables.',
+            description: 'Please enter a name for the table before saving it.',
         });
         return;
     }
@@ -49,17 +49,17 @@ export function HoldSaleDialog({ isOpen, onClose, onConfirm, isProcessing, custo
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isUpdate ? 'Update Running Table' : 'Add to Running Table'}</DialogTitle>
+          <DialogTitle>{isUpdate ? 'Update Run Table' : 'Add to Run Table'}</DialogTitle>
           <DialogDescription>
             {isUpdate
-              ? `This will update the running table for "${customerName}".`
+              ? `This will update the active table for "${customerName}".`
               : 'This will save the current cart.'}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
             {isGenericWalkIn ? (
                 <p className="text-sm text-center text-muted-foreground p-4 bg-muted rounded-md">
-                    To add to running tables, please enter a name or identifier (like "Table 5") in the customer panel first.
+                    To add to active tables, please enter a name or identifier (like "Table 5") in the customer panel first.
                 </p>
             ) : (
                 <div className="space-y-2">

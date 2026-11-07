@@ -815,12 +815,12 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
             </TabsTrigger>
             <TabsTrigger value="on-hold-sales" className="relative">
               <div className="flex items-center">
-                <List className="mr-2 h-4 w-4" /> Running Tables
+                <List className="mr-2 h-4 w-4" /> Run Table
                {heldSalesCount > 0 && (
                 <div
                   className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-red-700 bg-red-600 px-2 py-0.5 text-xs font-bold tabular-nums text-white shadow-sm motion-safe:animate-pulse motion-reduce:animate-none"
                   role="status"
-                  aria-label={`${heldSalesCount} running tables`}
+                  aria-label={`${heldSalesCount} active ${heldSalesCount === 1 ? "table" : "tables"}`}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
                   {heldSalesCount}

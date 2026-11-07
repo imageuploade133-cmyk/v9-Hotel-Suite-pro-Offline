@@ -97,7 +97,7 @@ const DialogHeader = ({
   <div
     data-slot="dialog-header"
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left pr-12",
+      "flex w-full flex-col space-y-1.5 text-center sm:text-left",
       className
     )}
     {...props}
@@ -128,7 +128,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     data-slot="dialog-title"
-    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+    className={cn("w-full px-12 text-center text-lg font-semibold leading-none tracking-tight sm:w-auto sm:px-0 sm:text-left", className)}
     {...props}
   />
 ))

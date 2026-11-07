@@ -115,7 +115,7 @@ const HeldSaleSkeleton = () => (
     setIsDeleting(true);
     try {
         await pos.deleteHeldSale(saleToDelete);
-        toast({ variant: 'success', title: 'Running Table Deleted', description: 'The table was deleted and any associated items were handled.' });
+        toast({ variant: 'success', title: 'Run Table Deleted', description: 'The table was deleted and any associated items were handled.' });
         setReloadCounter(c => c + 1);
         onDelete();
     } catch(e: any) {
@@ -261,7 +261,7 @@ const HeldSaleSkeleton = () => (
     return (
       <EmptyState
         icon={List}
-        title="No Running Tables"
+        title="No Active Tables"
         description="Tables that are currently active will appear here."
       />
     );
