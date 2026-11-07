@@ -385,7 +385,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    let isCancelled = false;
+
     let profileLookupStarted = false;
     const loadProfile = async () => {
       if (profileLookupStarted) return;
