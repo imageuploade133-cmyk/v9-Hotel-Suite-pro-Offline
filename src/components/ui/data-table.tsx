@@ -52,6 +52,7 @@ interface DataTableProps<TData, TValue> {
   columnVisibility?: VisibilityState
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>
   columnLabels?: Record<string, string>
+  columnVisibilityLoading?: boolean
   rowSelection?: RowSelectionState
   onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>
   emptyStateTitle?: string
@@ -75,6 +76,7 @@ export function DataTable<TData, TValue>({
   columnVisibility,
   onColumnVisibilityChange,
   columnLabels,
+  columnVisibilityLoading = false,
   rowSelection = {},
   onRowSelectionChange = () => {},
   emptyStateTitle = "No Results Found",
@@ -143,8 +145,8 @@ export function DataTable<TData, TValue>({
                 {children && children(table)}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="ml-auto">
-                        Columns
+                        <Button variant="outline" className="ml-auto" disabled={columnVisibilityLoading}>
+                        {columnVisibilityLoading ? "Loading columns..." : "Columns"}
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
