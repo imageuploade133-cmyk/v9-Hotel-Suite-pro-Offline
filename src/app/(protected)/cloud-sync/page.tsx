@@ -143,10 +143,14 @@ export default function CloudSyncPage() {
 
   React.useEffect(() => {
     void loadMutations();
+  }, [loadMutations]);
+
+  React.useEffect(() => {
     // Stop polling when this app is served by a cloud/serverless deployment.
     // The user can still retry manually after opening the Local Master URL.
+    if (masterOnlyNotice) return;
     const interval = setInterval(() => {
-      if (!masterOnlyNotice) void loadMutations();
+      void loadMutations();
     }, 10000);
     return () => clearInterval(interval);
   }, [loadMutations, masterOnlyNotice]);
