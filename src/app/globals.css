@@ -862,7 +862,7 @@
  * constrained modal on wider CSS viewports (including some mobile zoom states).
  * Scope this override to these dialogs only; desktop mouse layouts are unchanged.
  */
-@media (pointer: coarse) and (max-width: 1024px) {
+@media (pointer: coarse) and (hover: none) {
   [data-dialog-content].mobile-fullscreen-dialog {
     position: fixed !important;
     inset: 0 !important;
