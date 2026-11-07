@@ -114,6 +114,27 @@ function RunningTablesPage() {
     }
   }, [isPosStaff, currentUserUid]);
 
+  // Sensitive return actions require BOTH the relevant permission and ownership
+  // of the exact running table. Administrators retain their existing authority.
+  const canActOnRunningTable = React.useCallback((
+    sale: Pick<HeldSale, 'heldByUid'> | null | undefined,
+    permission: PagePermission
+  ) => {
+    if (!sale) return false;
+    const ownsSale = isAdminIdentity || (!!currentUserUid && sale.heldByUid === currentUserUid);
+    return ownsSale && (isAdminIdentity || hasPermission(permission));
+  }, [isAdminIdentity, currentUserUid, hasPermission]);
+
+  const notifyActionDenied = React.useCallback((reason: 'permission' | 'ownership') => {
+    toast({
+      variant: 'destructive',
+      title: 'Action Not Allowed',
+      description: reason === 'ownership'
+        ? 'You can only perform this action on a running table assigned to your account.'
+        : 'You do not have permission to perform this action.',
+    });
+  }, [toast]);
+
   // Date filters
   const [returnsDateRange, setReturnsDateRange] = React.useState<DateRange | undefined>();
   const [historyDateRange, setHistoryDateRange] = React.useState<DateRange | undefined>();
@@ -594,7 +615,10 @@ function RunningTablesPage() {
       const latestSaleDoc = await getDoc(saleRef);
       if (!latestSaleDoc.exists()) throw new Error('Running table not found.');
       const latestSale = latestSaleDoc.data() as HeldSale;
-      assertOwnRunningTable(latestSale);
+      if (!canActOnRunningTable(latestSale, PagePermission.MANAGE_RUNNING_TABLES)) {
+        notifyActionDenied(isAdminIdentity || hasPermission(PagePermission.MANAGE_RUNNING_TABLES) ? 'ownership' : 'permission');
+        throw new Error('You are not authorized to return this table to unprinted status.');
+      }
       const updatedCart = latestSale.cart.map(item => ({
         ...item,
         printedQuantity: 0,
@@ -606,7 +630,9 @@ function RunningTablesPage() {
       setReloadCounter(c => c + 1);
       handleCloseDialog();
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Error Unprinting Items', description: e.message });
+      if (!String(e?.message || '').includes('not authorized')) {
+        toast({ variant: 'destructive', title: 'Error Unprinting Items', description: e.message });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -755,7 +781,13 @@ function RunningTablesPage() {
         }
 
         const saleData = heldSaleDoc.data() as HeldSale;
-        assertOwnRunningTable(saleData);
+        if (!canActOnRunningTable(saleData, PagePermission.PROCESS_SALE_REFUNDS)) {
+          throw new Error(
+            isAdminIdentity || hasPermission(PagePermission.PROCESS_SALE_REFUNDS)
+              ? 'You can only return items from a running table assigned to your account.'
+              : 'You do not have permission to process returns from running tables.'
+          );
+        }
 
         // Update cart - remove returned items or reduce quantities
         const updatedCart = saleData.cart.map(item => {
@@ -1048,6 +1080,8 @@ function RunningTablesPage() {
 
   const hasPrintedItems = (selectedSale?.cart || []).some(item => (item.printedQuantity || 0) > 0);
   const hasUnprintedItems = (selectedSale?.cart || []).some(item => (item.printedQuantity || 0) < item.sellQuantity);
+  const canReturnSelectedItems = canActOnRunningTable(selectedSale, PagePermission.PROCESS_SALE_REFUNDS);
+  const canUnprintSelectedItems = canActOnRunningTable(selectedSale, PagePermission.MANAGE_RUNNING_TABLES);
   const isBilledToRoom = !!selectedSale?.linkedBillId;
 
   if (isLoading || (areStaffLoading && !isPosStaff)) {
@@ -1772,19 +1806,21 @@ function RunningTablesPage() {
               <Button
                 variant="outline"
                 className="w-full justify-start text-orange-600 hover:text-orange-700"
+                className={cn("w-full justify-start text-orange-600 hover:text-orange-700", !canReturnSelectedItems && "opacity-50")}
                 onClick={() => {
-                  if (!hasPermission(PagePermission.PROCESS_SALE_REFUNDS)) {
-                    toast({
-                      variant: 'destructive',
-                      title: 'Permission Denied',
-                      description: 'You do not have permission to process returns from running tables.',
-                    });
+                  if (!canReturnSelectedItems) {
+                    notifyActionDenied(
+                      isAdminIdentity || hasPermission(PagePermission.PROCESS_SALE_REFUNDS)
+                        ? 'ownership'
+                        : 'permission'
+                    );
                     return;
                   }
+                  setReturnSale(selectedSale);
                   setShowActionsDialog(false);
                   setShowReturnItemDialog(true);
-                  }}
-                  >
+                }}
+              >
                 <Undo className="mr-2 h-4 w-4" /> Return Items
               </Button>
               <Tooltip>
@@ -1792,17 +1828,31 @@ function RunningTablesPage() {
                   <div className="w-full">
                     <Button
                       variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => setShowUnprintConfirm(true)}
-                      disabled={!hasPrintedItems}
+                      className={cn("w-full justify-start", !canUnprintSelectedItems && "opacity-50")}
+                      onClick={() => {
+                        if (!canUnprintSelectedItems) {
+                          notifyActionDenied(
+                            isAdminIdentity || hasPermission(PagePermission.MANAGE_RUNNING_TABLES)
+                              ? 'ownership'
+                              : 'permission'
+                          );
+                          return;
+                        }
+                        if (!hasPrintedItems) {
+                          toast({ variant: 'destructive', title: 'Nothing to Return', description: 'This table has no printed items to return to unprinted.' });
+                          return;
+                        }
+                        setShowUnprintConfirm(true);
+                      }}
+                      disabled={!hasPrintedItems || isProcessing}
                     >
                       <Undo className="mr-2 h-4 w-4" /> Return to Unprinted
                     </Button>
                   </div>
                 </TooltipTrigger>
-                {!hasPrintedItems && (
+                {(!hasPrintedItems || !canUnprintSelectedItems) && (
                   <TooltipContent>
-                    <p>No printed items to return to unprinted.</p>
+                    <p>{!canUnprintSelectedItems ? 'You need table ownership and Manage Running Tables permission.' : 'No printed items to return to unprinted.'}</p>
                   </TooltipContent>
                 )}
               </Tooltip>
@@ -1866,7 +1916,15 @@ function RunningTablesPage() {
                 </Button>
                 <Button
                   variant={showDeleteConfirm ? 'destructive' : 'default'}
-                  onClick={showDeleteConfirm ? handleDeleteSale : showResetConfirm ? handleResetSale : handleUnprintItems}
+                  onClick={() => {
+                    if (showUnprintConfirm && !canActOnRunningTable(selectedSale, PagePermission.MANAGE_RUNNING_TABLES)) {
+                      notifyActionDenied(isAdminIdentity || hasPermission(PagePermission.MANAGE_RUNNING_TABLES) ? 'ownership' : 'permission');
+                      return;
+                    }
+                    if (showDeleteConfirm) handleDeleteSale();
+                    else if (showResetConfirm) handleResetSale();
+                    else handleUnprintItems();
+                  }}
                   disabled={isProcessing}
                   loading={isProcessing}
                 >
