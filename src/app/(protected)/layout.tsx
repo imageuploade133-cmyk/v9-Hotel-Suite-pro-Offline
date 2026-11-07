@@ -776,7 +776,7 @@ export default function ProtectedLayout({
 
         <div
           className={cn(
-            'flex flex-col transition-all duration-300',
+            'flex min-w-0 w-full max-w-full flex-col transition-all duration-300',
             isCollapsed ? 'sm:pl-20' : 'sm:pl-64'
           )}
         >
@@ -1029,7 +1029,7 @@ export default function ProtectedLayout({
               </DropdownMenu>
             </div>
           </header>
-          <main className="min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto p-3 sm:p-6 lg:p-8">
+          <main className="min-w-0 w-full max-w-full flex-1 overflow-x-clip overflow-y-auto p-3 sm:p-6 lg:p-8">
             <FinancialProvider>
               {children}
             </FinancialProvider>
