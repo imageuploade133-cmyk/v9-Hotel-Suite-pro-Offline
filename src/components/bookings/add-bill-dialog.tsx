@@ -375,36 +375,36 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Add to Room Bill: Room {booking.roomNumber}</DialogTitle>
             <DialogDescription>
               Select items from the menu to add to the guest's bill.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-6 flex-1 min-h-0 pt-4">
-            <div className="flex flex-col gap-4 min-h-0">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden pt-2 md:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] md:grid-rows-1 md:gap-6 md:pt-4">
+            <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
               <Tabs value={mainTab} onValueChange={handleMainTabChange} className="flex-1 flex flex-col">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="restaurant">Restaurant Menu</TabsTrigger>
-                  <TabsTrigger value="laundry">Laundry</TabsTrigger>
-                  <TabsTrigger value="services">Services &amp; Charges</TabsTrigger>
+                <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto">
+                  <TabsTrigger className="shrink-0 whitespace-nowrap" value="restaurant">Restaurant Menu</TabsTrigger>
+                  <TabsTrigger className="shrink-0 whitespace-nowrap" value="laundry">Laundry</TabsTrigger>
+                  <TabsTrigger className="shrink-0 whitespace-nowrap" value="services">Services &amp; Charges</TabsTrigger>
                 </TabsList>
-                <TabsContent value="restaurant" className="flex-1 flex flex-col mt-4 gap-4 overflow-hidden">
+                <TabsContent value="restaurant" className="mt-2 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden data-[state=inactive]:hidden md:mt-4 md:gap-4">
                   {areMenusLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                     </div>
                   ) : (
-                    <Tabs value={activeMenuTab} onValueChange={setActiveMenuTab} className="flex-1 flex flex-col">
-                      <div className="flex items-center gap-4">
-                        <TabsList>
+                    <Tabs value={activeMenuTab} onValueChange={setActiveMenuTab} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                        <TabsList className="w-max max-w-full flex-nowrap overflow-x-auto">
                           {menus?.map(menu => (
-                            <TabsTrigger key={menu.id} value={menu.id}>{menu.name}</TabsTrigger>
+                            <TabsTrigger key={menu.id} value={menu.id} className="shrink-0 whitespace-nowrap">{menu.name}</TabsTrigger>
                           ))}
                         </TabsList>
-                        <div className="relative flex-1">
+                        <div className="relative min-w-0 flex-1">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
                             placeholder="Search menu items..."
@@ -414,7 +414,7 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
                           />
                         </div>
                       </div>
-                      <ScrollArea className="flex-1 mt-4">
+                      <ScrollArea className="mt-2 min-h-0 flex-1 md:mt-4">
                         {menus?.map(menu => (
                           <TabsContent key={menu.id} value={menu.id}>
                             <MenuTabContent menuId={menu.id} searchTerm={searchTerm} onAddToCart={addToCart} />
@@ -424,21 +424,21 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
                     </Tabs>
                   )}
                 </TabsContent>
-                <TabsContent value="laundry" className="mt-4">
+                <TabsContent value="laundry" className="mt-2 min-h-0 flex-1 overflow-y-auto md:mt-4">
                     <LaundryTabContent onAddToCart={addToCart} />
                 </TabsContent>
-                <TabsContent value="services" className="mt-4">
+                <TabsContent value="services" className="mt-2 min-h-0 flex-1 overflow-y-auto md:mt-4">
                     <ServiceTabContent onAddToCart={addToCart} />
                 </TabsContent>
               </Tabs>
             </div>
 
-            <div className="flex flex-col gap-4 border rounded-lg p-4 bg-muted/50">
+            <div className="flex min-h-0 min-w-0 max-h-[30dvh] flex-col gap-2 overflow-hidden rounded-lg border bg-muted/50 p-3 md:max-h-none md:gap-4 md:p-4">
               <h3 className="font-semibold text-lg text-center flex items-center justify-center gap-2">
                 <ShoppingCart className="h-5 w-5"/>
                 Current Bill
               </h3>
-              <ScrollArea className="flex-1">
+              <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-4 pr-4 -mr-4">
                     {cart.length === 0 ? (
                         <p className="text-center text-muted-foreground pt-10">No items added yet.</p>
@@ -474,7 +474,7 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
               </div>
             </div>
           </div>
-          <DialogFooter className="pt-4 border-t">
+          <DialogFooter className="shrink-0 border-t pt-3 sm:pt-4">
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
             <Button onClick={handleConfirm} disabled={isSaving || cart.length === 0}>
                 <ButtonIcon className="mr-2 h-4 w-4" />
