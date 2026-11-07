@@ -31,7 +31,7 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import type { Role } from '@/lib/types';
-import { PagePermission, STANDALONE_PERMISSIONS } from '@/lib/permissions';
+import { PagePermission, STANDALONE_PERMISSIONS, POS_PERMISSION_GUIDANCE } from '@/lib/permissions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -85,6 +85,8 @@ function EditRolePageContent({ role }: { role: Role }) {
     const availablePermissions = useMemo(() => getAvailablePermissions(isGlobalRole), [isGlobalRole]);
 
     // Filter permission groups to show only available permissions
+    const selectedPermissionIds = form.watch('permissions') || [];
+
     const filteredPermissionGroups = useMemo(() => {
         return dynamicPermissionGroups
             .map(group => ({
@@ -365,6 +367,33 @@ function EditRolePageContent({ role }: { role: Role }) {
                                                     </p>
                                                 </div>
                                             )}
+                                            <div className="mb-4 space-y-3 rounded-lg border bg-muted/30 p-3 sm:p-4">
+                                                <div className="flex items-start gap-2">
+                                                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                                    <div>
+                                                        <p className="text-sm font-semibold">POS permission guide</p>
+                                                        <p className="text-xs text-muted-foreground">These indicators update as you select permissions. They explain exactly what each sensitive POS permission controls.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid gap-2 sm:grid-cols-2">
+                                                    {POS_PERMISSION_GUIDANCE.map((item) => {
+                                                        const enabled = selectedPermissionIds.includes(item.id);
+                                                        return (
+                                                            <div key={item.id} className="rounded-md border bg-background p-3">
+                                                                <div className="mb-1 flex items-center justify-between gap-2">
+                                                                    <p className="text-sm font-medium">{item.label}</p>
+                                                                    <span className={enabled
+                                                                        ? "shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                                                        : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"}>
+                                                                        {enabled ? "Enabled" : "Not assigned"}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                             <Accordion type="multiple" className="w-full" value={openAccordions} onValueChange={setOpenAccordions}>
                                                 {filteredPermissionGroups.map((group) => (
                                                     <AccordionItem value={group.id} key={group.id}>
