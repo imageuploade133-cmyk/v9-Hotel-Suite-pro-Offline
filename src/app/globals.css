@@ -854,3 +854,48 @@
     text-size-adjust: 100%;
   }
 }
+
+
+/*
+ * Keep the two redesigned order-entry dialogs truly edge-to-edge on touch
+ * devices. Tailwind's sm: dialog utilities can otherwise switch to a centered,
+ * constrained modal on wider CSS viewports (including some mobile zoom states).
+ * Scope this override to these dialogs only; desktop mouse layouts are unchanged.
+ */
+@media (pointer: coarse) and (max-width: 1024px) {
+  [data-dialog-content].mobile-fullscreen-dialog {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    translate: none !important;
+    overflow: hidden !important;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  [data-dialog-content].mobile-fullscreen-dialog-laundry-body,
+  [data-dialog-content].mobile-fullscreen-dialog-room-bill-body {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
+  }
+
+  [data-dialog-content].mobile-fullscreen-dialog .mobile-fullscreen-dialog-footer {
+    flex-shrink: 0 !important;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+  }
+}
