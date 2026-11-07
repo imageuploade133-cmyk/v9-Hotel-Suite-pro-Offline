@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 
 // This route reads/writes the local filesystem-backed LAN database.
 export const runtime = 'nodejs';
@@ -11,6 +12,9 @@ function isLocalMasterRequest(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'LAN synchronization is available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const { searchParams } = new URL(req.url);
@@ -38,6 +42,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return NextResponse.json({ success: false, code: 'LAN_MASTER_ONLY', message: 'LAN synchronization is available only on the Local Master Server.' }, { status: 503 });
+  }
   try {
     const { lanStore } = await import('@/lib/lan-sync/lan-store');
     const body = await req.json();

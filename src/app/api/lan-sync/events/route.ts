@@ -1,10 +1,17 @@
 import { NextRequest } from 'next/server';
 import { lanStore, StoreEvent } from '@/lib/lan-sync/lan-store';
+import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (!isLocalMasterServerRuntime()) {
+    return new Response(JSON.stringify({ success: false, code: 'LAN_MASTER_ONLY', message: 'LAN event streaming is available only on the Local Master Server.' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
   const encoder = new TextEncoder();
 
   let cleanupListener: (() => void) | null = null;
