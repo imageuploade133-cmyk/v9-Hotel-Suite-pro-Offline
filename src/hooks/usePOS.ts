@@ -739,7 +739,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                   guestName: saleData.customerName,
                   guestEmail: saleData.customerEmail || null,
                   amount: amountPaid,
-                  paymentMethod: paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod as any,
+                  paymentMethod: (paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod) as any,
                   status: 'Paid',
                   transactionDate: new Date(),
                   type: 'POS',
@@ -890,6 +890,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             createdSale = await executeSaleWrites();
           }
         } catch (trxErr) {
+          if (paymentMethod === 'Credit') {
+            // Do not replay a credit sale after a partial write failure; retrying with new IDs
+            // could create duplicate sales or duplicate repayments.
+            throw trxErr;
+          }
           console.warn('[POS Offline Mode] Transaction failed/offline. Executing direct local sale writes:', trxErr);
           createdSale = await executeSaleWrites();
         }
