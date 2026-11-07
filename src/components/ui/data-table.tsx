@@ -490,12 +490,11 @@ export function DataTable<TData, TValue>({
                             const fallbackLabel = typeof column.columnDef.header === "string"
                                 ? column.columnDef.header
                                 : column.id.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, value => value.toUpperCase());
+                            // Let Radix handle its select event so the checkbox toggles correctly.
                             return (
                             <DropdownMenuCheckboxItem
                                 key={column.id}
                                 checked={column.getIsVisible()}
-                                // Do not prevent the Radix checkbox item's select event:
-                                // Radix uses that event internally to toggle checked state.
                                 onCheckedChange={(value) =>
                                     column.toggleVisibility(value === true)
                                 }
