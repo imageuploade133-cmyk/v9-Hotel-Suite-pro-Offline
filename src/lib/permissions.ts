@@ -97,6 +97,30 @@ export enum PagePermission {
   VIEW_MANAGEMENT = 'view:management',
 }
 
+/** Plain-language explanations for the POS actions most commonly confused when assigning staff roles. */
+export const POS_PERMISSION_GUIDANCE = [
+  {
+    id: PagePermission.CREATE_CREDIT_SALES,
+    label: 'Create Credit Sales',
+    description: 'Allows the user to select On Credit when completing a POS sale. This does not automatically grant access to manage every user\'s credit accounts.',
+  },
+  {
+    id: PagePermission.MANAGE_CREDIT_SALES,
+    label: 'View & Manage Credit Sales',
+    description: 'Allows access to the Credit Sales page to review credit accounts and record repayments.',
+  },
+  {
+    id: PagePermission.PROCESS_SALE_REFUNDS,
+    label: 'Refund / Return Items',
+    description: 'Allows the user to process refunds and return items from a running table. Staff can only act on tables they are allowed to manage.',
+  },
+  {
+    id: PagePermission.MANAGE_RUNNING_TABLES,
+    label: 'Return to Unprinted',
+    description: 'Allows the user to return printed running-table items to the unprinted list. Staff ownership checks still apply.',
+  },
+] as const;
+
 export const STANDALONE_PERMISSIONS = new Set([
   // These permissions can be assigned individually and are not part of a larger group on the UI
   PagePermission.MANAGE_OWN_PROFILE,
@@ -142,7 +166,7 @@ export const PERMISSION_GROUPS = [
       { id: PagePermission.VIEW_POS, description: 'Access the Point of Sale interface' },
       { id: PagePermission.PROCESS_SALES, description: 'Process new sales transactions' },
       { id: PagePermission.APPLY_DISCOUNTS, description: 'Apply discounts to sales' },
-      { id: PagePermission.PROCESS_SALE_REFUNDS, description: 'Issue refunds for payments and sales' },
+      { id: PagePermission.PROCESS_SALE_REFUNDS, description: 'Process sales refunds and use Return Items on eligible running tables' },
       { id: PagePermission.RETURN_DOCKET, description: 'Process return dockets and issue refunds for returned items' },
       { id: PagePermission.MANAGE_CREDIT_SALES, description: 'View and manage credit sales and repayments' },
       { id: PagePermission.CREATE_CREDIT_SALES, description: 'Create new POS sales using the On Credit payment method' },
@@ -153,7 +177,7 @@ export const PERMISSION_GROUPS = [
       { id: PagePermission.MANAGE_POS_SETTINGS, description: 'Customize POS receipt and invoice settings' },
       { id: PagePermission.MANAGE_POS_CATEGORIES, description: 'Manage categories for POS products and services' },
       { id: PagePermission.VIEW_RUNNING_TABLES, description: 'View running tables and sales data' },
-      { id: PagePermission.MANAGE_RUNNING_TABLES, description: 'Reset, delete, and manage running tables' },
+      { id: PagePermission.MANAGE_RUNNING_TABLES, description: 'Manage running tables, including Return to Unprinted on eligible tables' },
     ],
   },
   {
