@@ -67,13 +67,25 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
   const [showReturnItemDialog, setShowReturnItemDialog] = React.useState(false);
   const [returnSale, setReturnSale] = React.useState<HeldSale | null>(null);
 
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const hasPosAccess = hasPermission(PagePermission.VIEW_POS)
+    || hasPermission(PagePermission.PROCESS_SALES);
+  const isPosStaff = !isAdminIdentity && hasPosAccess;
+  const currentUserUid = userProfile?.uid || userProfile?.id || null;
+
   const heldSalesQuery = React.useMemo(() => {
     if (!firestore || !userProfile) return null;
-
     const baseQuery = collection(firestore, getCollectionPath('heldSales'));
-    // All POS users can see all running tables in their active branch
+    // POS staff see only their own running tables; administrators keep the all-table view.
+    if (isPosStaff) {
+      if (!currentUserUid) return null;
+      return query(baseQuery, where('heldByUid', '==', currentUserUid), orderBy('heldAt', 'desc'));
+    }
     return query(baseQuery, orderBy('heldAt', 'desc'));
-  }, [firestore, reloadCounter, userProfile, getCollectionPath]);
+  }, [firestore, reloadCounter, userProfile, getCollectionPath, isPosStaff, currentUserUid]);
 
   const { data: heldSales, isLoading } = useCollection<HeldSale>(heldSalesQuery);
 
