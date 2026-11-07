@@ -51,6 +51,24 @@ const roleSchema = z.object({
 
 type RoleFormValues = z.infer<typeof roleSchema>;
 
+// Turn permission IDs into short, readable labels while keeping common acronyms intact.
+function getPermissionLabel(permissionId: string, groupId?: string): string {
+    if (groupId === 'custom_statuses') return 'View Custom Room Status';
+    const dynamicLabels: Record<string, string> = {
+        'view:inventory:': 'View Inventory Space',
+        'pos:inventory:': 'Access Inventory in POS',
+        'sales:inventory:': 'View Inventory Sales',
+        'customers:inventory:': 'Manage Inventory Customers',
+        'alerts:inventory:': 'View Inventory Alerts',
+    };
+    const dynamicPrefix = Object.keys(dynamicLabels).find(prefix => permissionId.startsWith(prefix));
+    if (dynamicPrefix) return dynamicLabels[dynamicPrefix];
+
+    const acronymLabels: Record<string, string> = { pos: 'POS', kot: 'KOT', qr: 'QR', api: 'API', sms: 'SMS', otp: 'OTP' };
+    return permissionId.split(':').flatMap(part => part.split(/[_-]+/)).filter(Boolean)
+        .map(word => acronymLabels[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 export default function CreateRolePage() {
     const [isLoading, setIsLoading] = React.useState(false);
     const { toast } = useToast();
@@ -350,14 +368,19 @@ export default function CreateRolePage() {
                                                                                 }}
                                                                             />
                                                                         </FormControl>
-                                                                        <div className="space-y-1 leading-none">
-                                                                            <FormLabel className="font-normal flex items-center gap-2">
-                                                                                {item.description}
+                                                                        <div className="space-y-1.5">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <FormLabel className="font-medium">{getPermissionLabel(item.id, group.id)}</FormLabel>
                                                                                 <Tooltip delayDuration={300}>
-                                                                                    <TooltipTrigger><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                                                                                    <TooltipContent><p>{tooltipText}</p></TooltipContent>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <button type="button" aria-label={tooltipText} className="inline-flex text-muted-foreground hover:text-foreground">
+                                                                                            <Info className="h-3.5 w-3.5" />
+                                                                                        </button>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent><p className="max-w-xs">{tooltipText}</p></TooltipContent>
                                                                                 </Tooltip>
-                                                                            </FormLabel>
+                                                                            </div>
+                                                                            <p className="text-xs leading-relaxed text-muted-foreground">{item.description || 'Controls whether this staff member can use this feature.'}</p>
                                                                         </div>
                                                                     </FormItem>
                                                                 )}
