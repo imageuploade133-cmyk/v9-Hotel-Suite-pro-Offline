@@ -30,9 +30,10 @@ interface PaymentDialogProps {
   discount: { type: 'percentage' | 'amount'; value: number } | null;
   allowBillToRoom?: boolean;
   canCreateCreditSales?: boolean;
+  startInCreditMode?: boolean;
 }
 
-export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], customer, onConfirm, isProcessing, discount, allowBillToRoom = false, canCreateCreditSales = false }: PaymentDialogProps) {
+export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], customer, onConfirm, isProcessing, discount, allowBillToRoom = false, canCreateCreditSales = false, startInCreditMode = false }: PaymentDialogProps) {
   const { settings } = useSettings();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -72,14 +73,14 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
 
   React.useEffect(() => {
     if (isOpen) {
-      setPaymentMethod('');
+      setPaymentMethod(startInCreditMode ? 'Credit' : '');
       setInitialPaymentMethod('Cash');
-      setAmountPaid(total);
+      setAmountPaid(startInCreditMode ? 0 : total);
       setPaymentTab('pay-now');
       setSelectedBookingId(customer?.id || '');
       setRoomSearchTerm('');
     }
-  }, [isOpen, total, customer?.id]);
+  }, [isOpen, total, customer?.id, startInCreditMode]);
 
   React.useEffect(() => {
     if (!allowBillToRoom) return;
@@ -125,6 +126,10 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
     }
 
     if (paymentMethod === 'Credit') {
+        if (!Number.isFinite(amountPaid) || amountPaid < 0 || amountPaid > total) {
+          toast({ variant: 'destructive', title: 'Invalid Initial Payment', description: 'The initial payment must be between zero and the total sale amount.' });
+          return;
+        }
         const initialPayment = amountPaid > 0 ? amountPaid : undefined;
         await onConfirm(total, paymentMethod, 'Credit', initialPayment, initialPayment ? initialPaymentMethod : undefined);
     } else if (paymentMethod === 'Bill to Room') {
@@ -166,7 +171,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
-          <DialogTitle>Process Payment</DialogTitle>
+          <DialogTitle>{paymentMethod === 'Credit' ? 'Complete Credit Sale' : 'Process Payment'}</DialogTitle>
           <DialogDescription>Total amount due is {formatCurrency(total)}</DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 min-h-0">
@@ -196,20 +201,26 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                 <TabsTrigger value="bill-to-room">Bill to Room</TabsTrigger>
               </TabsList>
               <TabsContent value="pay-now" className="space-y-4">
-                <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
-                  <SelectTrigger>
-                      <div className="flex items-center gap-2">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <SelectValue placeholder="Select Payment Method" />
-                      </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods?.map((method: any) => (
-                      <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
-                    ))}
-                    <SelectItem value="Credit" className={!canCreateCreditSales ? "opacity-50 text-muted-foreground" : ""}>On Credit {!canCreateCreditSales ? "(Permission required)" : ""}</SelectItem>
-                  </SelectContent>
-                </Select>
+                {paymentMethod !== 'Credit' ? (
+                  <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
+                    <SelectTrigger>
+                        <div className="flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                            <SelectValue placeholder="Select Payment Method" />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentMethods?.map((method: any) => (
+                        <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                    <p className="font-semibold">Credit sale for {customer?.name || 'selected customer'}</p>
+                    <p className="mt-1 text-xs">The unpaid amount will be added to this customer’s credit balance.</p>
+                  </div>
+                )}
 
                 {paymentMethod !== 'Credit' && paymentMethod !== 'Bill to Room' ? (
                     <div className="space-y-2">
@@ -223,7 +234,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                   <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="initial-payment">Initial Payment (Optional)</Label>
-                        <Input id="initial-payment" type="number" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)} />
+                        <Input id="initial-payment" type="number" min="0" max={total} step="0.01" value={amountPaid} placeholder="Enter any initial payment amount" onChange={(e) => setAmountPaid(e.target.value === "" ? 0 : Number(e.target.value))} />
                     </div>
                     {amountPaid > 0 && (
                           <Select onValueChange={setInitialPaymentMethod} value={initialPaymentMethod}>
@@ -287,20 +298,26 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             </Tabs>
           ) : (
             <>
-              <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
-                <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        <SelectValue placeholder="Select Payment Method" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods?.map((method: any) => (
-                    <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
-                  ))}
-                  <SelectItem value="Credit" className={!canCreateCreditSales ? "opacity-50 text-muted-foreground" : ""}>On Credit {!canCreateCreditSales ? "(Permission required)" : ""}</SelectItem>
-                </SelectContent>
-              </Select>
+              {paymentMethod !== 'Credit' ? (
+                <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
+                  <SelectTrigger>
+                      <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                          <SelectValue placeholder="Select Payment Method" />
+                      </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods?.map((method: any) => (
+                      <SelectItem key={method.id} value={method.name}>{method.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                  <p className="font-semibold">Credit sale for {customer?.name || 'selected customer'}</p>
+                  <p className="mt-1 text-xs">The unpaid amount will be added to this customer’s credit balance.</p>
+                </div>
+              )}
 
               {paymentMethod !== 'Credit' && paymentMethod !== 'Bill to Room' ? (
                   <div className="space-y-2">
