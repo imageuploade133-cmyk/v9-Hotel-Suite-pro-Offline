@@ -39,7 +39,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = React.useState('');
+  const [paymentMethod, setPaymentMethod] = React.useState(startInCreditMode ? 'Credit' : '');
   const [amountPaid, setAmountPaid] = React.useState<number>(0);
   const [initialPaymentMethod, setInitialPaymentMethod] = React.useState<string>('Cash');
   const [paymentTab, setPaymentTab] = React.useState<'pay-now' | 'bill-to-room'>('pay-now');
@@ -215,7 +215,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                 <TabsTrigger value="bill-to-room">Bill to Room</TabsTrigger>
               </TabsList>
               <TabsContent value="pay-now" className="space-y-4">
-                {paymentMethod !== 'Credit' ? (
+                {!startInCreditMode && paymentMethod !== 'Credit' ? (
                   <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                     <SelectTrigger>
                         <div className="flex items-center gap-2">
@@ -312,8 +312,8 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
             </Tabs>
           ) : (
             <>
-              {paymentMethod !== 'Credit' ? (
-                <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
+              {!startInCreditMode && paymentMethod !== 'Credit' ? (
+                  <Select onValueChange={handlePaymentMethodChange} value={paymentMethod}>
                   <SelectTrigger>
                       <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-muted-foreground" />
