@@ -113,7 +113,7 @@ import { AppBadgeUpdater } from '@/components/notifications/app-badge-updater';
 import { DailyReportTrigger } from '@/components/settings/daily-report-trigger';
 import { useFirestore, useCollection } from '@/firebase';
 import { query, collection, onSnapshot, where } from 'firebase/firestore';
-import type { Booking, Order, StockItem, GuestReport, LaundryOrder, Notification } from '@/lib/types';
+import type { Booking, Order, StockItem, GuestReport, LaundryOrder, Notification, HeldSale } from '@/lib/types';
 import { useAppInstall } from '@/contexts/app-install-context';
 import { useBranch } from '@/contexts/branch-context';
 import { FinancialProvider } from '@/contexts/financial-context';
@@ -216,7 +216,7 @@ export default function ProtectedLayout({
   const { settings, isLoading: areSettingsLoading } = useSettings();
   const { individualRoomsByStatus, roomStatusesData } = useRoomStatus();
   const { canInstall, triggerInstall } = useAppInstall();
-  const { branches, currentBranchId, currentBranch, selectBranch, isBranchMode, isGlobalMode, userAccessibleBranches, isRestrictedToBranch } = useBranch();
+  const { branches, currentBranchId, currentBranch, selectBranch, isBranchMode, isGlobalMode, userAccessibleBranches, isRestrictedToBranch, getCollectionPath } = useBranch();
   const { toast, dismiss } = useToast();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -233,6 +233,7 @@ export default function ProtectedLayout({
   const [newReportsCount, setNewReportsCount] = React.useState(0);
   const [stockAlertCount, setStockAlertCount] = React.useState(0);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = React.useState(0);
+  const [runningTablesCount, setRunningTablesCount] = React.useState(0);
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const guestReportToastId = React.useRef<string | null>(null);
@@ -360,6 +361,28 @@ export default function ProtectedLayout({
   // Use the centralized permission calculation. Unassigned Firebase accounts receive no permissions.
   const { permissions: contextPermissions } = useUser();
   const finalPermissions = contextPermissions || [];
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  const hasPosAccess = finalPermissions.includes(PagePermission.VIEW_POS)
+    || finalPermissions.includes(PagePermission.PROCESS_SALES);
+  const isPosAssignedStaff = !isAdminIdentity && hasPosAccess;
+
+  // Live count follows the same branch/POS collection path as the Running Tables page.
+  // Non-admin POS staff receive a user-scoped query so the badge never counts coworkers' tables.
+  const runningTablesNotificationQuery = React.useMemo(() => {
+    if (!firestore) return null;
+    if (!isAdminIdentity && !userProfile?.uid) return null;
+    const heldSalesCollection = collection(firestore, getCollectionPath('heldSales'));
+    return isAdminIdentity
+      ? query(heldSalesCollection)
+      : query(heldSalesCollection, where('heldByUid', '==', userProfile!.uid));
+  }, [firestore, getCollectionPath, isAdminIdentity, userProfile?.uid]);
+  const handleRunningTablesCount = React.useCallback((data: HeldSale[]) => {
+    setRunningTablesCount(data.length);
+  }, []);
+  useCollection<HeldSale>(runningTablesNotificationQuery, { onData: handleRunningTablesCount });
   const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
   const navGroups = React.useMemo(() => {
@@ -398,7 +421,7 @@ export default function ProtectedLayout({
       { href: '/pos', icon: ShoppingCart, label: 'Point of Sale', permission: PagePermission.VIEW_POS, requiredPermission: PagePermission.VIEW_POS },
       { href: '/my-sales-history', icon: History, label: 'My Sales History', permission: PagePermission.VIEW_MY_SALES_HISTORY, requiredPermission: PagePermission.VIEW_MY_SALES_HISTORY },
       { href: '/pos-customers', icon: Users, label: 'POS Customers', permission: PagePermission.MANAGE_POS_CUSTOMERS, requiredPermission: PagePermission.MANAGE_POS_CUSTOMERS },
-      { href: '/running-tables', icon: List, label: 'Running Tables', permission: PagePermission.VIEW_RUNNING_TABLES, requiredPermission: PagePermission.VIEW_RUNNING_TABLES },
+      { href: '/running-tables', icon: List, label: 'Running Tables', notificationCount: runningTablesCount, permission: PagePermission.VIEW_RUNNING_TABLES, requiredPermission: PagePermission.VIEW_RUNNING_TABLES },
       { href: '/product-sales', icon: TrendingUp, label: 'Product Sales', permission: PagePermission.VIEW_SALES_REPORTS, requiredPermission: PagePermission.VIEW_SALES_REPORTS },
       { href: '/sales-history', icon: TrendingUp, label: 'Sales History', permission: PagePermission.VIEW_SALES_REPORTS, requiredPermission: PagePermission.VIEW_SALES_REPORTS },
       { href: '/credit-sales', icon: CreditCard, label: 'Credit Sales', permission: PagePermission.MANAGE_CREDIT_SALES, requiredPermission: PagePermission.MANAGE_CREDIT_SALES },
@@ -555,7 +578,11 @@ export default function ProtectedLayout({
                 const isEnabled = (item as any).enabled === undefined || (item as any).enabled === true;
                 // Use requiredPermission if available, otherwise fall back to permission
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
-                const hasPerm = finalPermissions.includes(permissionId);
+                const hasPerm = finalPermissions.includes(permissionId)
+                  || (itemHref === '/running-tables' && (
+                    finalPermissions.includes(PagePermission.VIEW_POS)
+                    || finalPermissions.includes(PagePermission.PROCESS_SALES)
+                  ));
 
                 // If no permission is defined, allow access
                 if (!permissionId) {
@@ -575,7 +602,7 @@ export default function ProtectedLayout({
       })
       .filter(group => group.items.length > 0);
 
-  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, dynamicPermissionGroups, roomStatusesData, isBranchMode]);
+  }, [user, userProfile, individualRoomsByStatus, settings, newReservationsCount, newOrdersCount, newLaundryOrdersCount, newReportsCount, stockAlertCount, runningTablesCount, dynamicPermissionGroups, roomStatusesData, isBranchMode]);
 
   useEffect(() => {
     if (!authLoading && !user) {
