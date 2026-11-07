@@ -63,6 +63,9 @@
   html {
     @apply scroll-smooth;
     font-size: 16px;
+    /* Keep WebKit text metrics stable when the app/browser is zoomed. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   * {
     @apply border-border;
@@ -821,5 +824,33 @@
 
   main .page-responsive-actions {
     width: 100%;
+  }
+}
+
+
+/*
+ * Mobile browser input-focus and text-scaling safeguards.
+ *
+ * iOS Safari automatically zooms the page when a focused form control has a
+ * computed font size below 16px. Many Tailwind text-sm classes resolve below
+ * that threshold. Normalize editable controls on touch-sized viewports so
+ * focus never unexpectedly changes the page scale. This does not disable
+ * pinch-to-zoom or the user's browser accessibility zoom.
+ *
+ * A fixed text-adjust baseline also prevents WebKit from independently
+ * inflating/deflating text while the app's document zoom is applied, which
+ * otherwise makes text drift out of proportion to controls and layout.
+ */
+@media (max-width: 767px) {
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="hidden"]),
+    textarea,
+    select,
+    [contenteditable="true"],
+    [role="textbox"]
+  ) {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 }
