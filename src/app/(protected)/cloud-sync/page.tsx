@@ -79,6 +79,8 @@ export default function CloudSyncPage() {
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [selectedCollection, setSelectedCollection] = React.useState<string>('all');
   const [isOnline, setIsOnline] = React.useState<boolean>(true);
+  const [masterOnlyNotice, setMasterOnlyNotice] = React.useState<boolean>(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   // Sync Progress State
   const [isSyncing, setIsSyncing] = React.useState<boolean>(false);
@@ -110,34 +112,48 @@ export default function CloudSyncPage() {
   const loadMutations = React.useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/lan-sync/mutations?limit=1000');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setSummary(data.summary);
-          setMutations(data.mutations || []);
-        }
+      const res = await fetch('/api/lan-sync/mutations?limit=1000', {
+        cache: 'no-store',
+      });
+      const data = await res.json().catch(() => null);
+
+      // This endpoint reads the filesystem-backed queue on the Local Master
+      // Server. A cloud/serverless deployment intentionally cannot provide it.
+      if (data?.code === 'LAN_MASTER_ONLY') {
+        setMasterOnlyNotice(true);
+        setLoadError(null);
+        return;
       }
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || data?.error || 'Unable to retrieve local sync history.');
+      }
+
+      setMasterOnlyNotice(false);
+      setLoadError(null);
+      setSummary(data.summary);
+      setMutations(data.mutations || []);
     } catch (err) {
       console.error('Failed to load mutations:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Network Error',
-        description: 'Failed to retrieve sync status from the Master PC.',
-      });
+      setLoadError(err instanceof Error ? err.message : 'Failed to retrieve sync history.');
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   React.useEffect(() => {
-    loadMutations();
-    const interval = setInterval(loadMutations, 10000); // Poll every 10s
+    void loadMutations();
+    // Stop polling when this app is served by a cloud/serverless deployment.
+    // The user can still retry manually after opening the Local Master URL.
+    const interval = setInterval(() => {
+      if (!masterOnlyNotice) void loadMutations();
+    }, 10000);
     return () => clearInterval(interval);
-  }, [loadMutations]);
+  }, [loadMutations, masterOnlyNotice]);
 
   // Execute Synchronization with real-time 0-100% Progress Bar
   const handleExecuteSync = async () => {
+    if (masterOnlyNotice) return;
     if (!isOnline) {
       toast({
         variant: 'destructive',
@@ -332,7 +348,7 @@ export default function CloudSyncPage() {
           <Button
             size="sm"
             onClick={handleExecuteSync}
-            disabled={isSyncing || summary.pendingMutationsCount === 0 || !isOnline}
+            disabled={masterOnlyNotice || isSyncing || summary.pendingMutationsCount === 0 || !isOnline}
             className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <CloudUpload className={`h-4 w-4 ${isSyncing ? 'animate-bounce' : ''}`} />
@@ -340,6 +356,60 @@ export default function CloudSyncPage() {
           </Button>
         </div>
       </div>
+
+      {masterOnlyNotice && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="font-semibold text-foreground">Local Master Server Required</p>
+              <p className="text-sm text-muted-foreground">
+                Cloud Sync Center reads the offline mutation history stored on the Local Master
+                Server. This page is currently connected to a cloud/serverless server, which
+                cannot access that local queue.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Open Cloud Sync Center using the Local Master PC address (for example,
+                its localhost address on the Master PC or its LAN IP from a connected device).
+                Your local records and pending sync queue have not been deleted or changed.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => void loadMutations()}
+                disabled={loading}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Retry connection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loadError && !masterOnlyNotice && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-foreground">Unable to load sync history</p>
+              <p className="text-sm text-muted-foreground">{loadError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => void loadMutations()}
+                disabled={loading}
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sync Execution & Progress Card */}
       <Card className="border-primary/20 bg-card shadow-sm">
