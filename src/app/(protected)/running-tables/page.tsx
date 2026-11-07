@@ -142,9 +142,12 @@ function RunningTablesPage() {
   }, [hasPermission, isPosStaff, router]);
   const currency = settings?.currency || 'USD';
 
-  // Load this user's saved visibility before rendering the table. Staff preferences
-  // live on the existing profile document; Firebase-only Admin preferences use a
-  // profile-scoped subdocument so no staff record is accidentally created.
+  // Load this user's saved visibility before rendering the table. Staff and
+  // non-virtual admin profiles store preferences on their existing profile doc;
+  // Firebase-only Admins use a profile-scoped subdocument to avoid creating a
+  // staff record just to save a display preference.
+  const isVirtualFirebaseAdmin = userProfile?.isFirebaseOnlyAdmin === true;
+
   React.useEffect(() => {
     if (!currentUserUid) {
       setColumnVisibility(DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY);
@@ -156,22 +159,23 @@ function RunningTablesPage() {
     setColumnPreferencesLoadedForUid(null);
 
     const localPreferences = readRunningTablesColumnVisibility(currentUserUid);
-    const profilePreferences = !isAdminIdentity
+    const profilePreferences = !isVirtualFirebaseAdmin
       ? userProfile?.uiPreferences?.runningTablesColumnVisibility
       : undefined;
-    const initialPreferences = profilePreferences
+    const fallbackPreferences = profilePreferences
       ? normalizeRunningTablesColumnVisibility(profilePreferences)
       : (localPreferences || DEFAULT_RUNNING_TABLES_COLUMN_VISIBILITY);
 
-    setColumnVisibility(initialPreferences);
-    setColumnPreferencesLoadedForUid(currentUserUid);
+    // Show this device's last saved layout immediately while an Admin's profile
+    // preference document is being checked. Do not enable syncing until that
+    // check finishes, so defaults can never overwrite an existing remote layout.
+    setColumnVisibility(fallbackPreferences);
 
-    // Admin identities are virtual profiles, so their UI preferences are stored
-    // under users/{uid}/preferences/runningTables rather than users/{uid}.
-    if (isAdminIdentity && firestore) {
+    if (isVirtualFirebaseAdmin && firestore) {
       getDoc(doc(firestore, 'users', currentUserUid, 'preferences', 'runningTables'))
         .then(snapshot => {
-          if (!cancelled && snapshot.exists()) {
+          if (cancelled) return;
+          if (snapshot.exists()) {
             const data = snapshot.data();
             if (data.columnVisibility) {
               setColumnVisibility(normalizeRunningTablesColumnVisibility(data.columnVisibility));
@@ -180,7 +184,12 @@ function RunningTablesPage() {
         })
         .catch(error => {
           console.warn('[Running Tables] Could not load saved column preferences:', error);
+        })
+        .finally(() => {
+          if (!cancelled) setColumnPreferencesLoadedForUid(currentUserUid);
         });
+    } else {
+      setColumnPreferencesLoadedForUid(currentUserUid);
     }
 
     return () => {
@@ -188,9 +197,8 @@ function RunningTablesPage() {
     };
   }, [
     currentUserUid,
-    isAdminIdentity,
+    isVirtualFirebaseAdmin,
     firestore,
-    userProfile?.uiPreferences?.runningTablesColumnVisibility,
   ]);
 
   // Save locally immediately, then synchronize to this user's profile in the
@@ -211,7 +219,7 @@ function RunningTablesPage() {
     if (!firestore) return;
 
     const timeoutId = window.setTimeout(() => {
-      const write = isAdminIdentity
+      const write = isVirtualFirebaseAdmin
         ? setDoc(
             doc(firestore, 'users', currentUserUid, 'preferences', 'runningTables'),
             { columnVisibility: safeVisibility, updatedAt: new Date().toISOString() },
@@ -222,7 +230,7 @@ function RunningTablesPage() {
                 doc(firestore, 'users', userProfile.id),
                 { 'uiPreferences.runningTablesColumnVisibility': safeVisibility }
               )
-            : Promise.reject(new Error('The signed-in staff profile is not available.')));
+            : Promise.reject(new Error('The signed-in user profile is not available.')));
 
       write.catch(error => {
         console.warn('[Running Tables] Could not synchronize column preferences:', error);
@@ -235,7 +243,7 @@ function RunningTablesPage() {
     columnPreferencesLoadedForUid,
     currentUserUid,
     firestore,
-    isAdminIdentity,
+    isVirtualFirebaseAdmin,
     userProfile?.id,
   ]);
 
