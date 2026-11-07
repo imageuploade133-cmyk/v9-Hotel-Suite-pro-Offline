@@ -59,7 +59,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
         chronologicalTransactions.forEach(trans => {
             if (trans.transactionType === 'Sale' && (trans as StockSale).paymentMethod === 'Credit') {
                 currentBalance += (trans as StockSale).totalAmount - ((trans as StockSale).initialPaymentAmount || 0);
-            } else if (trans.transactionType === 'Payment') {
+            } else if (trans.transactionType === 'Payment' && (trans as Payment).type === 'Credit Repayment') {
                 currentBalance -= (trans as Payment).amount;
             } else if (trans.transactionType === 'Return') {
                 currentBalance -= (trans as StockReturn).totalRefundAmount;
@@ -95,7 +95,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                         amount = sale.totalAmount;
                         amountClass = 'text-foreground';
 
-                        const repayments = transactions.filter(p => p.transactionType === 'Payment' && p.bookingId === sale.id) as Payment[];
+                        const repayments = transactions.filter(p => p.transactionType === 'Payment' && (p as Payment).type === 'Credit Repayment' && p.bookingId === sale.id) as Payment[];
                         const totalPaidForSale = (sale.initialPaymentAmount || 0) + repayments.reduce((sum, p) => sum + p.amount, 0);
                         const balanceForSale = sale.totalAmount - totalPaidForSale;
                         const isCredit = sale.paymentMethod === 'Credit';
@@ -126,7 +126,7 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                     case 'Payment':
                         const payment = t as Payment;
                         icon = <CreditCard className="h-5 w-5 text-green-500" />;
-                        title = `Credit Repayment`;
+                        title = payment.allocationSource === 'POS_CHANGE' ? 'Previous Credit Balance Payment' : payment.type === 'Credit Repayment' ? 'Credit Repayment' : 'Sale Payment';
                         amount = -payment.amount;
                         amountClass = 'text-green-600';
                         break;
@@ -153,6 +153,9 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                                 <div>
                                     <p className="font-semibold">{title}</p>
                                     <p className="text-xs text-muted-foreground">{date ? format(date, 'PPp') : 'N/A'}</p>
+                                    {t.transactionType === 'Payment' && (t as Payment).notes && (
+                                      <p className="mt-1 text-xs text-muted-foreground">{(t as Payment).notes}</p>
+                                    )}
                                 </div>
                             </CollapsibleTrigger>
                              <div className="flex items-center gap-4">
@@ -254,7 +257,7 @@ function CustomerDetails({ customerData }: { customerData: any }) {
                 } else if (sale.initialPaymentAmount) {
                     paid += sale.initialPaymentAmount;
                 }
-            } else if (t.transactionType === 'Payment') {
+            } else if (t.transactionType === 'Payment' && (t as Payment).type === 'Credit Repayment') {
                 paid += (t as Payment).amount;
             } else if (t.transactionType === 'Return') {
                 returned += (t as StockReturn).totalRefundAmount;
@@ -280,16 +283,25 @@ function CustomerDetails({ customerData }: { customerData: any }) {
             setIsLoading(true);
             try {
                 const salesQuery = query(collection(firestore, getCollectionPath('stockSales')), where('customerId', '==', customer.id), orderBy('soldAt', 'desc'));
-                // Fetch all payment types (POS and Credit Repayment) for this customer's email
-                const paymentsQuery = query(collection(firestore, getCollectionPath('payments')), where('guestEmail', '==', customer.email), orderBy('transactionDate', 'desc'));
+                const paymentCollection = collection(firestore, 'payments');
+                const paymentQueries = [
+                  query(paymentCollection, where('customerId', '==', customer.id)),
+                  ...(customer.email ? [query(paymentCollection, where('guestEmail', '==', customer.email))] : []),
+                ];
                 const returnsQuery = query(collection(firestore, getCollectionPath('stockReturns')), where('customerId', '==', customer.id), orderBy('returnedAt', 'desc'));
 
-                const [salesSnap, paymentsSnap, returnsSnap] = await Promise.all([getDocs(salesQuery), getDocs(paymentsQuery), getDocs(returnsQuery)]);
+                const [salesSnap, paymentSnaps, returnsSnap] = await Promise.all([
+                  getDocs(salesQuery),
+                  Promise.all(paymentQueries.map(getDocs)),
+                  getDocs(returnsQuery),
+                ]);
 
                 const salesData: Transaction[] = salesSnap.docs.map(d => ({ ...(d.data() as StockSale), id: d.id, transactionType: 'Sale' }));
-                const paymentsData: Transaction[] = paymentsSnap.docs
-                    .map(d => ({ ...(d.data() as Payment), id: d.id, transactionType: 'Payment' }))
-                    .filter(p => p.type === 'POS' || p.type === 'Credit Repayment');
+                const uniquePayments = new Map<string, Payment>();
+                paymentSnaps.forEach(snapshot => snapshot.docs.forEach(d => uniquePayments.set(d.id, { ...(d.data() as Payment), id: d.id })));
+                const paymentsData: Transaction[] = [...uniquePayments.values()]
+                    .filter(p => p.type === 'POS' || p.type === 'Credit Repayment')
+                    .map(p => ({ ...p, transactionType: 'Payment' }));
                 const returnsData: Transaction[] = returnsSnap.docs.map(d => ({ ...(d.data() as StockReturn), id: d.id, transactionType: 'Return' } as unknown as Transaction));
 
 
