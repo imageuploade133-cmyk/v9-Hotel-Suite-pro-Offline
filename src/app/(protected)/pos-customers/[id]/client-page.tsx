@@ -33,6 +33,7 @@ import { writeBatch } from 'firebase/firestore';
 import type { CreditSale } from '@/app/(protected)/credit-sales/columns';
 import { usePOS } from '@/hooks/usePOS';
 import CustomerDetailsLoading from './loading';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 
 type Transaction = (StockSale | Payment | StockReturn) & { transactionType: 'Sale' | 'Payment' | 'Return' };
 
@@ -240,7 +241,9 @@ function CustomerDetails({ customerData }: { customerData: any }) {
     const { userProfile } = useUser();
     const { toast } = useToast();
     const { settings } = useSettings();
-    const { getCollectionPath } = useBranch();
+    const { getCollectionPath, isGlobalMode } = useBranch();
+    const { data: globalSales, isLoading: isGlobalSalesLoading } = useGlobalCollectionData<StockSale>('stockSales');
+    const { data: globalReturns, isLoading: isGlobalReturnsLoading } = useGlobalCollectionData<StockReturn>('stockReturns');
     const [transactions, setTransactions] = React.useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [isPayCreditOpen, setIsPayCreditOpen] = React.useState(false);
@@ -298,6 +301,7 @@ function CustomerDetails({ customerData }: { customerData: any }) {
                 setIsLoading(false);
                 return;
             }
+            if (isGlobalMode && (isGlobalSalesLoading || isGlobalReturnsLoading)) return;
             setIsLoading(true);
             try {
                 const salesQuery = query(collection(firestore, getCollectionPath('stockSales')), where('customerId', '==', customer.id), orderBy('soldAt', 'desc'));
@@ -311,18 +315,24 @@ function CustomerDetails({ customerData }: { customerData: any }) {
                 const returnsQuery = query(collection(firestore, getCollectionPath('stockReturns')), where('customerId', '==', customer.id), orderBy('returnedAt', 'desc'));
 
                 const [salesSnap, paymentSnaps, returnsSnap] = await Promise.all([
-                  getDocs(salesQuery),
+                  isGlobalMode ? Promise.resolve(null) : getDocs(salesQuery),
                   Promise.all(paymentQueries.map(getDocs)),
-                  getDocs(returnsQuery),
+                  isGlobalMode ? Promise.resolve(null) : getDocs(returnsQuery),
                 ]);
 
-                const salesData: Transaction[] = salesSnap.docs.map(d => ({ ...(d.data() as StockSale), id: d.id, transactionType: 'Sale' }));
+                const sourceSales = isGlobalMode
+                  ? globalSales.filter(sale => sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))
+                  : (salesSnap?.docs || []).map(d => ({ ...(d.data() as StockSale), id: d.id }));
+                const salesData: Transaction[] = sourceSales.map(sale => ({ ...sale, transactionType: 'Sale' }));
                 const uniquePayments = new Map<string, Payment>();
                 paymentSnaps.forEach(snapshot => snapshot.docs.forEach(d => uniquePayments.set(d.id, { ...(d.data() as Payment), id: d.id })));
                 const paymentsData: Transaction[] = [...uniquePayments.values()]
                     .filter(p => p.type === 'POS' || p.type === 'Credit Repayment')
                     .map(p => ({ ...p, transactionType: 'Payment' }));
-                const returnsData: Transaction[] = returnsSnap.docs.map(d => ({ ...(d.data() as StockReturn), id: d.id, transactionType: 'Return' } as unknown as Transaction));
+                const sourceReturns = isGlobalMode
+                  ? globalReturns.filter(ret => ret.customerId === customer.id)
+                  : (returnsSnap?.docs || []).map(d => ({ ...(d.data() as StockReturn), id: d.id }));
+                const returnsData: Transaction[] = sourceReturns.map(ret => ({ ...ret, transactionType: 'Return' } as unknown as Transaction));
 
 
                 const all = [...salesData, ...paymentsData, ...returnsData].sort((a, b) => {
@@ -341,7 +351,7 @@ function CustomerDetails({ customerData }: { customerData: any }) {
         };
 
         fetchTransactions();
-    }, [firestore, customer.id, customer.email, toast, reload]);
+    }, [firestore, customer.id, customer.email, toast, reload, getCollectionPath, isGlobalMode, globalSales, globalReturns, isGlobalSalesLoading, isGlobalReturnsLoading]);
 
     const handlePaymentSuccess = (data: { payment: Payment; customer: Customer; balance: number }) => {
         setIsPayCreditOpen(false);
