@@ -257,26 +257,28 @@ function StockManagementPage() {
 
   return (
     <>
-      <div className="h-full flex-col gap-6 flex">
-        <div className="flex items-center justify-between">
+      <div className="flex h-full min-w-0 w-full flex-col gap-4 sm:gap-6">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <TopHeader
             icon={<Package className="h-10 w-10" />}
             name={isBranchMode && currentBranch ? `${currentBranch.name} — Stock Management` : 'Global Stock Management'}
             description={isBranchMode && currentBranch ? `Isolated inventory for the ${currentBranch.name} branch.` : 'The main inventory shared across the default POS and all hotel services.'}
           />
-          <div className="flex items-center gap-2">
-            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
-             <Button variant="outline" onClick={() => setIsReportDialogOpen(true)}>
+          <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+              <DateRangePicker date={dateRange} onDateChange={setDateRange} className="w-full" />
+            </div>
+             <Button className="w-full min-w-0 justify-center whitespace-normal sm:w-auto" variant="outline" onClick={() => setIsReportDialogOpen(true)}>
               <MessageSquareText className="mr-2 h-4 w-4" />
               Send Report
             </Button>
-            <Button asChild>
+            <Button className="w-full min-w-0 justify-center whitespace-normal sm:w-auto" asChild>
               <Link href="/services">
                 <ConciergeBell className="mr-2 h-4 w-4" />
                 Manage Services & Foods
               </Link>
             </Button>
-            <Button onClick={() => { setSelectedItem(null); setIsItemFormOpen(true); }}>
+            <Button className="w-full min-w-0 justify-center whitespace-normal sm:w-auto" onClick={() => { setSelectedItem(null); setIsItemFormOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add New Stock Item
             </Button>
