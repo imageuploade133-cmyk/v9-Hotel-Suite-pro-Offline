@@ -161,6 +161,13 @@ const DEFAULT_PRODUCT_PAGE_SIZE = 6;
 const MIN_PRODUCT_PAGE_SIZE = 1;
 const MAX_PRODUCT_PAGE_SIZE = 48;
 
+function getProductGridColumns(value: unknown, fallback: number, maximum: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(1, Math.round(parsed)));
+}
+
 function getProductPageSize(value: unknown): number {
   if (value === undefined || value === null || value === '') return DEFAULT_PRODUCT_PAGE_SIZE;
   const parsed = Number(value);
@@ -194,6 +201,12 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
   const { getCollectionPath } = useBranch();
   const { settings } = useSettings();
   const pageSize = getProductPageSize(settings?.menuItemsPerPage);
+  const desktopGridColumns = getProductGridColumns(settings?.menuProductGridColumnsDesktop, 2, 6);
+  const mobileGridColumns = getProductGridColumns(settings?.menuProductGridColumnsMobile, 2, 3);
+  const productGridStyle = {
+    '--pos-product-grid-columns-mobile': mobileGridColumns,
+    '--pos-product-grid-columns-desktop': desktopGridColumns,
+  } as React.CSSProperties;
   const cardBorderEnabled = settings?.menuCardBorderEnabled !== false;
   const cardBorderColor = typeof settings?.menuCardBorderColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(settings.menuCardBorderColor)
     ? settings.menuCardBorderColor
@@ -415,11 +428,11 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
       <CardContent className="flex-1 p-3 overflow-hidden">
         <ScrollArea className="h-full">
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-1">
+            <div className="pos-product-card-grid grid gap-4 p-1" style={productGridStyle}>
                  {Array.from({ length: Math.min(pageSize, 10) }).map((_, i) => <Skeleton key={i} className="aspect-square" />)}
             </div>
           ) : paginatedItems && paginatedItems.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-1">
+            <div className="pos-product-card-grid grid gap-4 p-1" style={productGridStyle}>
               {paginatedItems.map(item => (
                 <ProductCard
                   key={item.id}

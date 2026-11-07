@@ -11,7 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Palette, Rows3, RotateCcw } from 'lucide-react';
+import { Loader2, Palette, Rows3, RotateCcw, Monitor, Smartphone, LayoutGrid } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { firestoreCache, CacheKeys, CacheTTL } from '@/lib/firestore-cache';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
@@ -20,7 +27,21 @@ const DEFAULTS = {
   menuCardBorderEnabled: true,
   menuCardBorderColor: '#E5E7EB',
   menuButtonColor: '#2563EB',
+  menuProductGridColumnsDesktop: 2,
+  menuProductGridColumnsMobile: 2,
 };
+
+const MIN_DESKTOP_COLUMNS = 1;
+const MAX_DESKTOP_COLUMNS = 6;
+const MIN_MOBILE_COLUMNS = 1;
+const MAX_MOBILE_COLUMNS = 3;
+
+function normalizeGridColumns(value: unknown, min: number, max: number, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
 
 const MIN_ITEMS_PER_PAGE = 1;
 const MAX_ITEMS_PER_PAGE = 48;
@@ -38,6 +59,8 @@ export function MenuProductCardSettingsForm() {
   const [borderEnabled, setBorderEnabled] = React.useState(DEFAULTS.menuCardBorderEnabled);
   const [borderColor, setBorderColor] = React.useState(DEFAULTS.menuCardBorderColor);
   const [buttonColor, setButtonColor] = React.useState(DEFAULTS.menuButtonColor);
+  const [desktopColumns, setDesktopColumns] = React.useState(DEFAULTS.menuProductGridColumnsDesktop);
+  const [mobileColumns, setMobileColumns] = React.useState(DEFAULTS.menuProductGridColumnsMobile);
   const [isSaving, setIsSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -48,6 +71,18 @@ export function MenuProductCardSettingsForm() {
     setBorderEnabled(settings?.menuCardBorderEnabled ?? DEFAULTS.menuCardBorderEnabled);
     setBorderColor(normalizeHexColor(settings?.menuCardBorderColor, DEFAULTS.menuCardBorderColor));
     setButtonColor(normalizeHexColor(settings?.menuButtonColor, DEFAULTS.menuButtonColor));
+    setDesktopColumns(normalizeGridColumns(
+      settings?.menuProductGridColumnsDesktop,
+      MIN_DESKTOP_COLUMNS,
+      MAX_DESKTOP_COLUMNS,
+      DEFAULTS.menuProductGridColumnsDesktop
+    ));
+    setMobileColumns(normalizeGridColumns(
+      settings?.menuProductGridColumnsMobile,
+      MIN_MOBILE_COLUMNS,
+      MAX_MOBILE_COLUMNS,
+      DEFAULTS.menuProductGridColumnsMobile
+    ));
   }, [settings]);
 
   const handleSave = async () => {
@@ -71,6 +106,18 @@ export function MenuProductCardSettingsForm() {
       menuCardBorderEnabled: borderEnabled,
       menuCardBorderColor: borderColor.toUpperCase(),
       menuButtonColor: buttonColor.toUpperCase(),
+      menuProductGridColumnsDesktop: normalizeGridColumns(
+        desktopColumns,
+        MIN_DESKTOP_COLUMNS,
+        MAX_DESKTOP_COLUMNS,
+        DEFAULTS.menuProductGridColumnsDesktop
+      ),
+      menuProductGridColumnsMobile: normalizeGridColumns(
+        mobileColumns,
+        MIN_MOBILE_COLUMNS,
+        MAX_MOBILE_COLUMNS,
+        DEFAULTS.menuProductGridColumnsMobile
+      ),
     };
 
     setIsSaving(true);
@@ -123,7 +170,7 @@ export function MenuProductCardSettingsForm() {
       toast({
         title: writeResult === 'synced' ? 'Product Card Settings Saved' : 'Settings Saved on This Device',
         description: writeResult === 'synced'
-          ? 'Your card layout, border and button colors have been updated.'
+          ? 'Your POS card layout, page size, border and button colors have been updated.'
           : 'Your settings are available locally and will synchronize with Firestore when the connection is restored.',
         variant: 'success',
       });
@@ -143,6 +190,8 @@ export function MenuProductCardSettingsForm() {
     setBorderEnabled(DEFAULTS.menuCardBorderEnabled);
     setBorderColor(DEFAULTS.menuCardBorderColor);
     setButtonColor(DEFAULTS.menuButtonColor);
+    setDesktopColumns(DEFAULTS.menuProductGridColumnsDesktop);
+    setMobileColumns(DEFAULTS.menuProductGridColumnsMobile);
   };
 
   const isBusy = settingsLoading || isSaving;
@@ -155,7 +204,7 @@ export function MenuProductCardSettingsForm() {
           <div>
             <CardTitle>Menu Product Card Display</CardTitle>
             <CardDescription>
-              Control how many menu products appear on each page and customize their card borders and action button.
+              Customize the Point of Sale product grid for desktop and mobile, choose how many products appear before pagination, and style card borders and buttons.
             </CardDescription>
           </div>
         </div>
@@ -165,7 +214,7 @@ export function MenuProductCardSettingsForm() {
           <div className="space-y-1">
             <Label htmlFor="menu-items-per-page" className="font-medium">Products per page</Label>
             <p className="text-sm text-muted-foreground">
-              Number of product cards to load and display before Previous / Next pagination is used. Choose between 1 and 48.
+              Total products shown on each POS page before Previous / Next is used. This is separate from the number of cards in each row. Choose between 1 and 48.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -182,6 +231,111 @@ export function MenuProductCardSettingsForm() {
               onBlur={() => setItemsPerPage(current => Math.min(MAX_ITEMS_PER_PAGE, Math.max(MIN_ITEMS_PER_PAGE, Math.round(Number(current) || DEFAULTS.menuItemsPerPage))))}
             />
           </div>
+        </div>
+
+        <div className="space-y-4 rounded-lg border p-4">
+          <div className="flex items-start gap-3">
+            <LayoutGrid className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">Point of Sale product grid</p>
+              <p className="text-sm text-muted-foreground">
+                Choose how many product cards fit across each row. Fewer columns make cards larger and easier to tap. These settings affect the POS product list only.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="pos-desktop-grid-columns" className="flex items-center gap-2 font-medium">
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+                Desktop cards per row
+              </Label>
+              <Select
+                value={String(desktopColumns)}
+                onValueChange={(value) => setDesktopColumns(normalizeGridColumns(value, MIN_DESKTOP_COLUMNS, MAX_DESKTOP_COLUMNS, DEFAULTS.menuProductGridColumnsDesktop))}
+                disabled={isBusy}
+              >
+                <SelectTrigger id="pos-desktop-grid-columns">
+                  <SelectValue placeholder="Choose desktop columns" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: MAX_DESKTOP_COLUMNS }, (_, index) => index + 1).map((count) => (
+                    <SelectItem key={count} value={String(count)}>
+                      {count} {count === 1 ? 'card' : 'cards'} per row
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Choose 1–6 cards per row on tablet/desktop-sized screens.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pos-mobile-grid-columns" className="flex items-center gap-2 font-medium">
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                Mobile cards per row
+              </Label>
+              <Select
+                value={String(mobileColumns)}
+                onValueChange={(value) => setMobileColumns(normalizeGridColumns(value, MIN_MOBILE_COLUMNS, MAX_MOBILE_COLUMNS, DEFAULTS.menuProductGridColumnsMobile))}
+                disabled={isBusy}
+              >
+                <SelectTrigger id="pos-mobile-grid-columns">
+                  <SelectValue placeholder="Choose mobile columns" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: MAX_MOBILE_COLUMNS }, (_, index) => index + 1).map((count) => (
+                    <SelectItem key={count} value={String(count)}>
+                      {count} {count === 1 ? 'card' : 'cards'} per row
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Choose 1–3 cards per row on smaller phone screens.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Monitor className="h-3.5 w-3.5" /> Desktop preview
+              </p>
+              <div
+                className="grid gap-1.5"
+                style={{ gridTemplateColumns: `repeat(${desktopColumns}, minmax(0, 1fr))` }}
+              >
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="min-w-0 rounded border bg-card p-1.5">
+                    <div className="aspect-square rounded-sm bg-primary/10" />
+                    <div className="mt-1 h-1.5 rounded-full bg-muted-foreground/25" />
+                    <div className="mt-1 h-1 rounded-full bg-primary/30" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">{desktopColumns} {desktopColumns === 1 ? 'card' : 'cards'} across each row · Default: 2</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Smartphone className="h-3.5 w-3.5" /> Mobile preview
+              </p>
+              <div className="mx-auto w-full max-w-[220px] rounded-lg border bg-background p-2">
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `repeat(${mobileColumns}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="min-w-0 rounded border bg-card p-1">
+                      <div className="aspect-square rounded-sm bg-primary/10" />
+                      <div className="mt-1 h-1 rounded-full bg-muted-foreground/25" />
+                      <div className="mt-1 h-1 rounded-full bg-primary/30" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-center text-[11px] text-muted-foreground">{mobileColumns} {mobileColumns === 1 ? 'card' : 'cards'} across each row · Default: 2</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Your new layout is applied to Point of Sale after you select Save Product Card Settings.</p>
         </div>
 
         <div className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -263,7 +417,7 @@ export function MenuProductCardSettingsForm() {
       <CardFooter className="flex flex-wrap justify-between gap-3 border-t px-6 py-4">
         <Button type="button" variant="outline" onClick={handleReset} disabled={isBusy}>
           <RotateCcw className="mr-2 h-4 w-4" />
-          Reset Preview
+          Reset to defaults
         </Button>
         <Button type="button" onClick={handleSave} disabled={isBusy}>
           {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
