@@ -42,7 +42,14 @@ const BACKUPS_DIR = path.join(DB_DIR, 'backups');
 let lastBackupTime = 0;
 const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // Snapshot backup every 1 hour
 
+function isServerlessRuntime(): boolean {
+  return process.env.VERCEL === '1'
+    || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME)
+    || Boolean(process.env.NOW_REGION);
+}
+
 function ensureDbDir(): void {
+  if (isServerlessRuntime()) return;
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
@@ -109,6 +116,14 @@ function maybeCreatePeriodicBackup(): void {
 }
 
 function loadState(): LanStoreState {
+  if (isServerlessRuntime()) {
+    return {
+      mutations: [],
+      collections: {},
+      lastCloudSync: null,
+      masterServerIp: null,
+    };
+  }
   ensureDbDir();
   if (fs.existsSync(DB_FILE)) {
     try {
@@ -136,6 +151,9 @@ function loadState(): LanStoreState {
 }
 
 function saveState(state: LanStoreState): void {
+  // Vercel/serverless filesystems are ephemeral and may be read-only.
+  // Never attempt to create .lan-data outside the Local Master Server.
+  if (isServerlessRuntime()) return;
   ensureDbDir();
   try {
     // Prevent unbounded memory growth over years of offline transactions
