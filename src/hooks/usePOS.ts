@@ -627,14 +627,28 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         }
       });
       const repayments = [...paymentsById.values()];
+      const advancePayments = repayments.filter(payment => payment.allocationSource === 'POS_ADVANCE');
+      const advanceApplications = repayments.filter(payment => !!payment.sourceAdvancePaymentId);
+      const advanceAppliedById = new Map<string, number>();
+      advanceApplications.forEach(payment => {
+        const sourceId = payment.sourceAdvancePaymentId!;
+        advanceAppliedById.set(sourceId, (advanceAppliedById.get(sourceId) || 0) + (Number(payment.amount) || 0));
+      });
+      const remainingAdvances = advancePayments
+        .map(payment => ({
+          paymentId: payment.id,
+          paymentMethod: payment.paymentMethod || initialPaymentMethod || 'Cash',
+          remaining: Math.max(0, (Number(payment.amount) || 0) - (advanceAppliedById.get(payment.id) || 0)),
+        }))
+        .filter(advance => advance.remaining > 0.01);
       const paidBySale = new Map<string, number>();
       const knownCreditSaleIds = new Set(salesById.keys());
       let unallocatedRepayments = 0;
-      repayments.forEach(payment => {
+      repayments.filter(payment => payment.allocationSource !== 'POS_ADVANCE').forEach(payment => {
         const amount = Number(payment.amount) || 0;
         if (payment.bookingId && knownCreditSaleIds.has(payment.bookingId)) {
           paidBySale.set(payment.bookingId, (paidBySale.get(payment.bookingId) || 0) + amount);
-        } else {
+        } else if (!payment.sourceAdvancePaymentId) {
           // Legacy repayments may not point to a sale that is present in this branch/cache.
           // Allocate those to the oldest open credit sale instead of silently losing them.
           unallocatedRepayments += amount;
@@ -661,9 +675,23 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       if (Number(customer.outstandingBalance) > 0.01 && outstandingBefore + 0.01 < Number(customer.outstandingBalance)) {
         throw new Error('The customer credit ledger could not be fully verified from the current connection or offline cache. Please reconnect and retry; no sale has been recorded.');
       }
+      const advanceAllocations: { saleDocumentId: string; saleId: string; amount: number; sourceAdvancePaymentId: string; paymentMethod: string }[] = [];
+      const availableAdvance = remainingAdvances.reduce((sum, advance) => sum + advance.remaining, 0);
+      for (const advance of remainingAdvances) {
+        for (const entry of orderedBalances) {
+          if (advance.remaining <= 0.01) break;
+          if (entry.outstanding <= 0) continue;
+          const amount = Math.min(entry.outstanding, advance.remaining);
+          advanceAllocations.push({ saleDocumentId: entry.sale.id, saleId: entry.sale.saleId, amount, sourceAdvancePaymentId: advance.paymentId, paymentMethod: advance.paymentMethod });
+          entry.outstanding -= amount;
+          advance.remaining -= amount;
+        }
+      }
+      const advanceAppliedToPrevious = advanceAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      const outstandingAfterAdvance = orderedBalances.reduce((sum, entry) => sum + entry.outstanding, 0);
       const tendered = Math.max(0, Number(totalTenderedAmount ?? initialPaymentAmount) || 0);
       const salePayment = Math.min(total, tendered);
-      let remainingToAllocate = applyExcessToOutstanding ? Math.min(Math.max(0, tendered - total), outstandingBefore) : 0;
+      let remainingToAllocate = applyExcessToOutstanding ? Math.min(Math.max(0, tendered - total), outstandingAfterAdvance) : 0;
       const allocations: { saleDocumentId: string; saleId: string; amount: number }[] = [];
       for (const entry of orderedBalances) {
         if (remainingToAllocate <= 0) break;
@@ -673,15 +701,18 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         remainingToAllocate -= amount;
       }
       const appliedToOutstanding = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
-      const newSaleOutstanding = Math.max(0, total - salePayment);
+      const advanceSourcesForNewSale = remainingAdvances.filter(advance => advance.remaining > 0.01).map(advance => ({ ...advance }));
+      const advanceRemainingAfterPrevious = advanceSourcesForNewSale.reduce((sum, advance) => sum + advance.remaining, 0);
+      const advanceToNewSale = Math.min(advanceRemainingAfterPrevious, Math.max(0, total - salePayment));
+      const newSaleOutstanding = Math.max(0, total - salePayment - advanceToNewSale);
+      const advanceCreated = applyExcessToOutstanding && Number(customer.outstandingBalance || 0) <= 0.01
+        ? Math.max(0, tendered - total - appliedToOutstanding)
+        : 0;
       return {
-        tendered,
-        salePayment,
-        outstandingBefore,
-        allocations,
-        appliedToOutstanding,
-        changeGiven: Math.max(0, tendered - total - appliedToOutstanding),
-        outstandingAfter: Math.max(0, outstandingBefore - appliedToOutstanding) + newSaleOutstanding,
+        tendered, salePayment, outstandingBefore, allocations, advanceAllocations, advanceToNewSale,
+        advanceSourcesForNewSale, advanceCreated, appliedToOutstanding,
+        changeGiven: Math.max(0, tendered - total - appliedToOutstanding - advanceCreated),
+        outstandingAfter: Math.max(0, outstandingBefore - advanceAppliedToPrevious - appliedToOutstanding) + newSaleOutstanding,
       };
     };
 
@@ -707,7 +738,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               })),
               totalAmount: total,
               paymentMethod: paymentMethod as any,
-              paymentStatus: (paymentMethod === 'Credit' && settlement && settlement.salePayment >= total ? 'Paid' : paymentStatus) as StockSale['paymentStatus'],
+              paymentStatus: (paymentMethod === 'Credit' && settlement && settlement.salePayment + settlement.advanceToNewSale >= total ? 'Paid' : paymentStatus) as StockSale['paymentStatus'],
               soldAt: new Date() as any,
               soldByUid: userProfile.uid,
               soldByName: userProfile.name,
@@ -770,6 +801,56 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             });
           }
 
+          if (settlement && settlement.advanceCreated > 0.01) {
+            const advanceAmount = settlement.advanceCreated;
+            if (advanceAmount > 0.01) {
+              const advanceRef = doc(collection(firestore, 'payments'));
+              const advanceData: Omit<Payment, 'id'> = {
+                guestName: saleData.customerName, guestEmail: saleData.customerEmail || null, customerId: customer?.id,
+                amount: advanceAmount, paymentMethod: (initialPaymentMethod || 'Cash') as any, status: 'Paid',
+                transactionDate: new Date(), type: 'Credit Repayment', createdByUid: userProfile.uid,
+                createdByName: userProfile.name, sourceSaleId: newSaleRef.id, allocationSource: 'POS_ADVANCE',
+                notes: `Customer chose to save excess from POS sale ${saleData.saleId} as advance credit.`,
+              };
+              ledgerBatch.set(advanceRef, advanceData);
+              ledgerMutations.push({ collectionName: 'payments', docId: advanceRef.id, data: advanceData });
+            }
+          }
+          if (settlement?.advanceAllocations.length) {
+            for (const allocation of settlement.advanceAllocations) {
+              const repaymentRef = doc(collection(firestore, 'payments'));
+              const repaymentData: Omit<Payment, 'id'> = {
+                bookingId: allocation.saleDocumentId, guestName: saleData.customerName, guestEmail: saleData.customerEmail || null,
+                customerId: customer?.id, amount: allocation.amount, paymentMethod: allocation.paymentMethod as any,
+                status: 'Paid', transactionDate: new Date(), type: 'Credit Repayment', createdByUid: userProfile.uid,
+                createdByName: userProfile.name, sourceSaleId: newSaleRef.id,
+                sourceAdvancePaymentId: allocation.sourceAdvancePaymentId, allocationSource: 'POS_ADVANCE_APPLIED',
+                notes: `Applied customer advance credit to previous credit sale ${allocation.saleId}.`,
+              };
+              ledgerBatch.set(repaymentRef, repaymentData);
+              ledgerMutations.push({ collectionName: 'payments', docId: repaymentRef.id, data: repaymentData });
+            }
+          }
+          if (settlement && settlement.advanceToNewSale > 0.01) {
+            let amountToApply = settlement.advanceToNewSale;
+            for (const source of settlement.advanceSourcesForNewSale) {
+              if (amountToApply <= 0.01) break;
+              const applied = Math.min(amountToApply, source.remaining);
+              if (applied <= 0) continue;
+              const repaymentRef = doc(collection(firestore, 'payments'));
+              const repaymentData: Omit<Payment, 'id'> = {
+                bookingId: newSaleRef.id, guestName: saleData.customerName, guestEmail: saleData.customerEmail || null,
+                customerId: customer?.id, amount: applied, paymentMethod: source.paymentMethod as any,
+                status: 'Paid', transactionDate: new Date(), type: 'Credit Repayment', createdByUid: userProfile.uid,
+                createdByName: userProfile.name, sourceSaleId: newSaleRef.id,
+                sourceAdvancePaymentId: source.paymentId, allocationSource: 'POS_ADVANCE_APPLIED',
+                notes: `Applied customer advance credit to new credit sale ${saleData.saleId}.`,
+              };
+              ledgerBatch.set(repaymentRef, repaymentData);
+              ledgerMutations.push({ collectionName: 'payments', docId: repaymentRef.id, data: repaymentData });
+              amountToApply -= applied;
+            }
+          }
           if (settlement?.allocations.length) {
             for (const allocation of settlement.allocations) {
               const repaymentRef = doc(collection(firestore, 'payments'));

@@ -92,11 +92,24 @@ export function CustomerList({
 
       const processedData = customers.map(customer => {
         const customerSales = allSales.filter(s => s.customerId === customer.id || (customer.email && s.customerEmail === customer.email));
-        const customerCreditPayments = allCreditPayments.filter(p => customer.email && p.guestEmail === customer.email);
+        const customerCreditPayments = allCreditPayments.filter(p =>
+          (p.customerId && p.customerId === customer.id) || (!!customer.email && p.guestEmail === customer.email)
+        );
 
         const totalSpent = customerSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
         const totalCreditSales = customerSales.filter(s => s.paymentMethod === 'Credit').reduce((sum, sale) => sum + sale.totalAmount - (sale.initialPaymentAmount || 0), 0);
-        const totalRepayments = customerCreditPayments.reduce((sum, p) => sum + p.amount, 0);
+        const advancePayments = customerCreditPayments.filter(p => p.allocationSource === 'POS_ADVANCE');
+        const advanceApplications = customerCreditPayments.filter(p => !!p.sourceAdvancePaymentId);
+        const appliedAdvanceById = new Map<string, number>();
+        advanceApplications.forEach(payment => {
+          const sourceId = payment.sourceAdvancePaymentId!;
+          appliedAdvanceById.set(sourceId, (appliedAdvanceById.get(sourceId) || 0) + payment.amount);
+        });
+        const availableAdvance = advancePayments.reduce((sum, payment) =>
+          sum + Math.max(0, payment.amount - (appliedAdvanceById.get(payment.id) || 0)), 0);
+        const totalRepayments = customerCreditPayments
+          .filter(p => p.allocationSource !== 'POS_ADVANCE')
+          .reduce((sum, p) => sum + p.amount, 0) + availableAdvance;
 
         const outstandingBalance = totalCreditSales - totalRepayments;
         const totalPaid = totalSpent - outstandingBalance;
