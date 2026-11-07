@@ -685,7 +685,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               })),
               totalAmount: total,
               paymentMethod: paymentMethod as any,
-              paymentStatus,
+              paymentStatus: (paymentMethod === 'Credit' && settlement && settlement.salePayment >= total ? 'Paid' : paymentStatus) as StockSale['paymentStatus'],
               soldAt: new Date() as any,
               soldByUid: userProfile.uid,
               soldByName: userProfile.name,
