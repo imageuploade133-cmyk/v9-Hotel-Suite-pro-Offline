@@ -44,7 +44,7 @@ export function HoldSaleDialog({ isOpen, onClose, onConfirm, isProcessing, custo
         toast({
             variant: 'destructive',
             title: 'Table Name Required',
-            description: 'Please enter a table name to add this to running tables.',
+            description: 'Please enter a table name before saving this table.',
         });
         return;
     }
@@ -55,10 +55,10 @@ export function HoldSaleDialog({ isOpen, onClose, onConfirm, isProcessing, custo
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isUpdate ? 'Update Running Table' : 'Add to Running Table'}</DialogTitle>
+          <DialogTitle>{isUpdate ? 'Update Run Table' : 'Add to Run Table'}</DialogTitle>
           <DialogDescription>
             {isUpdate
-              ? `This will update the running table for "${name}".`
+              ? `This will update the active table for "${name}".`
               : 'This will save the current cart as a running table. The cart will be cleared.'}
           </DialogDescription>
         </DialogHeader>

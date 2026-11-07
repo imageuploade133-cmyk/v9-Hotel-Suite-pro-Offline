@@ -73,7 +73,7 @@ const AlertDialogHeader = ({
   <div
     data-slot="alert-dialog-header"
     className={cn(
-      "flex flex-col space-y-2 text-center sm:text-left pr-12",
+      "flex w-full flex-col space-y-2 text-center sm:text-left",
       className
     )}
     {...props}
@@ -104,7 +104,7 @@ const AlertDialogTitle = React.forwardRef<
   <AlertDialogPrimitive.Title
     ref={ref}
     data-slot="alert-dialog-title"
-    className={cn("text-lg font-semibold", className)}
+    className={cn("w-full text-center text-lg font-semibold sm:w-auto sm:text-left", className)}
     {...props}
   />
 ))
