@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { useSettings } from '@/contexts/settings-context';
 import type { UnifiedItem, Customer } from '@/lib/types';
-import { Trash2, Plus, Minus, DollarSign, Percent, XCircle, List, Bell, BellRing } from 'lucide-react';
+import { Trash2, Plus, Minus, DollarSign, Percent, XCircle, List, Bell, BellRing, CreditCard } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ShoppingCart } from 'lucide-react';
 import {
@@ -36,6 +36,8 @@ interface CartProps {
   onClearCart: () => void;
   onHold: () => void;
   onPay: () => void;
+  onCreditSale: () => void;
+  canCreateCreditSales: boolean;
   isRestored: boolean;
   onApplyDiscount: (type: 'percentage' | 'amount', value: number) => void;
   removeDiscount: () => void;
@@ -68,6 +70,8 @@ export function Cart({
   onClearCart,
   onHold,
   onPay,
+  onCreditSale,
+  canCreateCreditSales,
   isRestored,
   onApplyDiscount,
   removeDiscount,
@@ -349,10 +353,25 @@ export function Cart({
                 <List className="mr-2 h-4 w-4" /> {isRestored ? 'Update Table' : 'Save Table'}
             </Button>
           </div>
-          <Button className="w-full" onClick={onPay}>
-            <DollarSign className="mr-2 h-4 w-4" />
-            Process Payment
-          </Button>
+          <div className="flex gap-2 mt-2">
+            {canCreateCreditSales && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                onClick={onCreditSale}
+                disabled={!hasAnyItems}
+                title="Create a credit sale for a selected registered customer"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Credit Sale
+              </Button>
+            )}
+            <Button className="flex-1" onClick={onPay} disabled={!hasAnyItems}>
+              <DollarSign className="mr-2 h-4 w-4" />
+              Process Payment
+            </Button>
+          </div>
         </CardFooter>
       )}
     </Card>
