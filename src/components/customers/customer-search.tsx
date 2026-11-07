@@ -88,7 +88,8 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
 
     return allCustomers.map(customer => {
         const customerSales = relevantSales.filter(s => s.customerId === customer.id || (customer.email && s.customerEmail === customer.email));
-        const customerCreditPayments = relevantCreditPayments.filter(p => p.customerId === customer.id || (!!customer.email && p.guestEmail === customer.email));
+        const customerSaleIds = new Set(customerSales.map(sale => sale.id));
+        const customerCreditPayments = relevantCreditPayments.filter(p => p.customerId === customer.id || (!!customer.email && p.guestEmail === customer.email) || (!!p.bookingId && customerSaleIds.has(p.bookingId)));
 
         const totalSpent = customerSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
         const totalCreditSales = customerSales.filter(s => s.paymentMethod === 'Credit').reduce((sum, sale) => sum + sale.totalAmount - (sale.initialPaymentAmount || 0), 0);
