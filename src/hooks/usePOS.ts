@@ -508,7 +508,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     });
   };
 
-  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string): Promise<StockSale> => {
+  const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string, applyExcessToOutstanding = false): Promise<StockSale> => {
     if (!firestore || !userProfile) throw new Error('System not ready.');
     const isAdminIdentity = userProfile.isFirebaseOnlyAdmin === true
       || userProfile.isSuperAdmin === true
@@ -526,10 +526,91 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
     const allItems = [...activeRunningItems, ...cart];
 
+    const loadCreditSettlement = async () => {
+      if (paymentMethod !== 'Credit' || !customer?.id) return null;
+      const salesCollection = collection(firestore, getCollectionPath('stockSales'));
+      const paymentCollection = collection(firestore, 'payments');
+      const salesQueries = [
+        query(salesCollection, where('customerId', '==', customer.id)),
+        ...(customer.email ? [query(salesCollection, where('customerEmail', '==', customer.email))] : []),
+      ];
+      const paymentQueries = [
+        query(paymentCollection, where('customerId', '==', customer.id)),
+        ...(customer.email ? [query(paymentCollection, where('guestEmail', '==', customer.email))] : []),
+      ];
+      const [salesSnapshots, paymentSnapshots] = await Promise.all([
+        Promise.all(salesQueries.map(getDocs)),
+        Promise.all(paymentQueries.map(getDocs)),
+      ]);
+      const salesById = new Map<string, StockSale>();
+      salesSnapshots.forEach(snapshot => snapshot.docs.forEach(saleDoc => {
+        const sale = { ...saleDoc.data(), id: saleDoc.id } as StockSale;
+        if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+          salesById.set(sale.id, sale);
+        }
+      }));
+      const paymentsById = new Map<string, Payment>();
+      paymentSnapshots.forEach(snapshot => snapshot.docs.forEach(paymentDoc => {
+        const payment = { ...paymentDoc.data(), id: paymentDoc.id } as Payment;
+        if (payment.type === 'Credit Repayment' && (payment.customerId === customer.id || (!!customer.email && payment.guestEmail === customer.email))) {
+          paymentsById.set(payment.id, payment);
+        }
+      }));
+      const repayments = [...paymentsById.values()];
+      const paidBySale = new Map<string, number>();
+      let unallocatedRepayments = 0;
+      repayments.forEach(payment => {
+        if (payment.bookingId) paidBySale.set(payment.bookingId, (paidBySale.get(payment.bookingId) || 0) + (Number(payment.amount) || 0));
+        else unallocatedRepayments += Number(payment.amount) || 0;
+      });
+      const orderedBalances = [...salesById.values()]
+        .sort((a, b) => {
+          const toMillis = (value: any) => value?.toDate ? value.toDate().getTime() : value instanceof Date ? value.getTime() : new Date(value || 0).getTime();
+          return toMillis(a.soldAt) - toMillis(b.soldAt);
+        })
+        .map(sale => ({
+          sale,
+          outstanding: Math.max(0, Number(sale.totalAmount || 0) - Number(sale.initialPaymentAmount || 0) - (paidBySale.get(sale.id) || 0)),
+        }));
+      // Older repayments without a sale reference still reduce the customer's total;
+      // apply them to the oldest open sale first so they are not counted twice.
+      for (const balance of orderedBalances) {
+        if (unallocatedRepayments <= 0) break;
+        const used = Math.min(balance.outstanding, unallocatedRepayments);
+        balance.outstanding -= used;
+        unallocatedRepayments -= used;
+      }
+      const outstandingBefore = orderedBalances.reduce((sum, entry) => sum + entry.outstanding, 0);
+      const tendered = Math.max(0, Number(initialPaymentAmount) || 0);
+      const salePayment = Math.min(total, tendered);
+      let remainingToAllocate = applyExcessToOutstanding ? Math.min(Math.max(0, tendered - total), outstandingBefore) : 0;
+      const allocations: { saleDocumentId: string; saleId: string; amount: number }[] = [];
+      for (const entry of orderedBalances) {
+        if (remainingToAllocate <= 0) break;
+        if (entry.outstanding <= 0) continue;
+        const amount = Math.min(entry.outstanding, remainingToAllocate);
+        allocations.push({ saleDocumentId: entry.sale.id, saleId: entry.sale.saleId, amount });
+        remainingToAllocate -= amount;
+      }
+      const appliedToOutstanding = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      const newSaleOutstanding = Math.max(0, total - salePayment);
+      return {
+        tendered,
+        salePayment,
+        outstandingBefore,
+        allocations,
+        appliedToOutstanding,
+        changeGiven: Math.max(0, tendered - total - appliedToOutstanding),
+        outstandingAfter: Math.max(0, outstandingBefore - appliedToOutstanding) + newSaleOutstanding,
+      };
+    };
+
     try {
         let createdSale: StockSale | null = null;
 
         const executeSaleWrites = async () => {
+          // Resolve the customer's live credit ledger before writing any part of this sale.
+          const settlement = await loadCreditSettlement();
           const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
           const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
@@ -546,14 +627,22 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               })),
               totalAmount: total,
               paymentMethod: paymentMethod as any,
-              paymentStatus,
+              paymentStatus: paymentMethod === 'Credit' && settlement && settlement.salePayment >= total ? 'Paid' : paymentStatus,
               soldAt: new Date() as any,
               soldByUid: userProfile.uid,
               soldByName: userProfile.name,
               customerId: customer?.id || null,
               customerName: customer?.name || 'Walk-in Customer',
               customerEmail: customer?.email || null,
-              initialPaymentAmount: initialPaymentAmount || null,
+              initialPaymentAmount: paymentMethod === 'Credit' ? (settlement?.salePayment || null) : (initialPaymentAmount || null),
+              ...(settlement ? {
+                totalTenderedAmount: settlement.tendered,
+                changeGiven: settlement.changeGiven,
+                excessAppliedToOutstanding: settlement.appliedToOutstanding,
+                customerOutstandingBalanceBefore: settlement.outstandingBefore,
+                customerOutstandingBalanceAfter: settlement.outstandingAfter,
+                appliedToPreviousSales: settlement.allocations,
+              } : {}),
               discountType: discount?.type || null,
               discountValue: discount?.value || null,
               context: context,
@@ -577,7 +666,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             });
           } catch {}
 
-          const amountPaid = paymentStatus === 'Paid' ? total : initialPaymentAmount;
+          const amountPaid = paymentMethod === 'Credit' ? (settlement?.salePayment || 0) : (paymentStatus === 'Paid' ? total : initialPaymentAmount);
           if (amountPaid && amountPaid > 0) {
               const paymentRef = doc(collection(firestore, 'payments'));
               const paymentData: Omit<Payment, 'id'> = {
@@ -585,10 +674,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                   guestName: saleData.customerName,
                   guestEmail: saleData.customerEmail || null,
                   amount: amountPaid,
-                  paymentMethod: paymentMethod === 'Credit' ? (initialPaymentAmount && initialPaymentAmount > 0 ? (initialPaymentMethod || 'Cash') : 'Credit') : paymentMethod as any,
+                  paymentMethod: paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod as any,
                   status: 'Paid',
                   transactionDate: new Date(),
                   type: 'POS',
+                  customerId: customer?.id || undefined,
                   createdByUid: userProfile.uid,
                   createdByName: userProfile.name,
                   items: saleData.items,
@@ -608,6 +698,36 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                   }),
                 });
               } catch {}
+          }
+
+          if (settlement?.allocations.length) {
+            for (const allocation of settlement.allocations) {
+              const repaymentRef = doc(collection(firestore, 'payments'));
+              const repaymentData: Omit<Payment, 'id'> = {
+                bookingId: allocation.saleDocumentId,
+                guestName: saleData.customerName,
+                guestEmail: saleData.customerEmail || null,
+                customerId: customer?.id,
+                amount: allocation.amount,
+                paymentMethod: (initialPaymentMethod || 'Cash') as any,
+                status: 'Paid',
+                transactionDate: new Date(),
+                type: 'Credit Repayment',
+                createdByUid: userProfile.uid,
+                createdByName: userProfile.name,
+                sourceSaleId: newSaleRef.id,
+                allocationSource: 'POS_CHANGE',
+                notes: `Applied from excess received on POS sale ${saleData.saleId} to previous credit sale ${allocation.saleId}.`,
+              };
+              await setDoc(repaymentRef, repaymentData);
+              try {
+                await fetch('/api/lan-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ collectionName: 'payments', docId: repaymentRef.id, action: 'set', data: repaymentData }),
+                });
+              } catch {}
+            }
           }
 
           if (restoredSaleId) {
@@ -655,7 +775,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         };
 
         try {
-          if (navigator.onLine) {
+          if (paymentMethod === 'Credit') {
+            // Credit settlement also writes payment ledger entries and LAN mutations.
+            // Use the same direct-write path as offline mode so both environments record them.
+            createdSale = await executeSaleWrites();
+          } else if (navigator.onLine) {
             await runTransaction(firestore, async (transaction) => {
                 const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
                 const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
