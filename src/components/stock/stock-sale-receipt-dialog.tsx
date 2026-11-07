@@ -368,11 +368,12 @@ export function StockSaleReceiptDialog({
                           <>
                             <div className="flex justify-between text-sm"><span>Total Amount Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
                             <div className="flex justify-between text-sm"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount || 0)}</span></div>
+                            <div className="flex justify-between text-sm"><span>Outstanding on This Sale:</span><span>{formatCurrency(Math.max(0, sale.totalAmount - (sale.initialPaymentAmount || 0)))}</span></div>
                             {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-sm text-green-700"><span>Applied to Previous Credit:</span><span>-{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
                             {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-sm"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
                           </>
                         )}
-                        {(finalCustomerBalance ?? 0) > 0 && (
+                        {(sale.customerOutstandingBalanceAfter != null || customerBalance != null) && (
                           <div className="flex justify-between font-bold text-lg text-destructive border-t-2 border-dashed border-red-300 pt-3">
                             <span>Customer's New Outstanding Balance:</span>
                             <span>{formatCurrency(finalCustomerBalance || 0)}</span>
@@ -479,7 +480,7 @@ export function StockSaleReceiptDialog({
                         {(sale.changeGiven || 0) > 0 && <div className="flex justify-between text-xs"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
                       </>
                     )}
-                    {(finalCustomerBalance ?? 0) > 0 && (
+                    {(sale.customerOutstandingBalanceAfter != null || customerBalance != null) && (
                       <div className="text-center font-bold text-red-700 border-t border-dashed mt-2 pt-2">
                         NEW CUSTOMER OUTSTANDING: {formatCurrency(finalCustomerBalance || 0)}
                       </div>
