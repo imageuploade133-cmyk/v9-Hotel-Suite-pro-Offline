@@ -46,6 +46,7 @@ import { PagePermission } from '@/lib/permissions';
 import { ColumnDef } from '@tanstack/react-table';
 import { format, isToday, isYesterday, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { getSafeDate } from '@/lib/helpers';
+import { cn } from '@/lib/utils';
 import { HeldSaleReceiptDialog } from '@/components/pos/held-sale-receipt-dialog';
 import { UnprintedItemsReceiptDialog } from '@/components/pos/unprinted-items-receipt-dialog';
 import { DraftDocketReceiptDialog } from '@/components/pos/draft-docket-receipt-dialog';
