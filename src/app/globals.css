@@ -745,3 +745,14 @@
     padding: 1rem 1.75rem max(1rem, env(safe-area-inset-bottom)) !important;
   }
 }
+
+/* POS product card columns are configured independently for small and large screens. */
+.pos-product-card-grid {
+  grid-template-columns: repeat(var(--pos-product-grid-columns-mobile, 2), minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .pos-product-card-grid {
+    grid-template-columns: repeat(var(--pos-product-grid-columns-desktop, 2), minmax(0, 1fr));
+  }
+}
