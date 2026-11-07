@@ -131,7 +131,7 @@ export function OnHoldSalesByUser({ globalHeldSales }: OnHoldSalesByUserProps = 
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-start">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <CardTitle className="flex items-center gap-2">
                 <Hand className="h-6 w-6 text-yellow-500" />
@@ -142,7 +142,7 @@ export function OnHoldSalesByUser({ globalHeldSales }: OnHoldSalesByUserProps = 
                 </CardDescription>
             </div>
             {canViewPOS && (
-                <Button asChild>
+                <Button className="w-full justify-center sm:w-auto" asChild>
                     <Link href="/pos">
                         <ShoppingCart className="mr-2 h-4 w-4" /> Go to POS
                     </Link>
