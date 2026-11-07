@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSettings } from '@/contexts/settings-context';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, documentId, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
 import type { Booking, Customer, UnifiedItem } from '@/lib/types';
 import { DollarSign, CreditCard, CheckCircle, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +45,9 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   const [paymentTab, setPaymentTab] = React.useState<'pay-now' | 'bill-to-room'>('pay-now');
   const [selectedBookingId, setSelectedBookingId] = React.useState<string>('');
   const [roomSearchTerm, setRoomSearchTerm] = React.useState('');
+  const [roomPageIndex, setRoomPageIndex] = React.useState(0);
+  const [roomPageCursors, setRoomPageCursors] = React.useState<string[]>([]);
+  const ROOM_PAGE_SIZE = 10;
   const [showExcessDecision, setShowExcessDecision] = React.useState(false);
 
   const paymentMethodsQuery = React.useMemo(() => {
@@ -55,9 +58,21 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
 
   const activeBookingsQuery = React.useMemo(() => {
     if (!firestore || !allowBillToRoom) return null;
-    return query(collection(firestore, 'bookings'), where('status', 'in', ['Active', 'Checked-in']));
-  }, [firestore, allowBillToRoom]);
-  const { data: activeBookings } = useCollection<Booking>(activeBookingsQuery);
+    const bookings = collection(firestore, 'bookings');
+    const activeStatus = where('status', 'in', ['Active', 'Checked-in']);
+
+    // Normal browsing reads one small page. An explicit search retains the
+    // previous full-list substring matching behaviour.
+    if (roomSearchTerm.trim()) {
+      return query(bookings, activeStatus);
+    }
+
+    const cursor = roomPageCursors[roomPageIndex];
+    return cursor
+      ? query(bookings, activeStatus, orderBy(documentId()), startAfter(cursor), limit(ROOM_PAGE_SIZE + 1))
+      : query(bookings, activeStatus, orderBy(documentId()), limit(ROOM_PAGE_SIZE + 1));
+  }, [firestore, allowBillToRoom, roomSearchTerm, roomPageCursors, roomPageIndex]);
+  const { data: activeBookings, isLoading: areActiveBookingsLoading, error: activeBookingsError } = useCollection<Booking>(activeBookingsQuery);
 
   const allItems = [...activeRunningItems, ...cart];
   const subtotal = allItems.reduce((sum, item) => sum + ((item.price || item.sellingPrice) * item.sellQuantity), 0);
@@ -81,6 +96,8 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
       setPaymentTab('pay-now');
       setSelectedBookingId(customer?.id || '');
       setRoomSearchTerm('');
+      setRoomPageIndex(0);
+      setRoomPageCursors([]);
     }
   }, [isOpen, total, customer?.id, startInCreditMode]);
 
@@ -168,28 +185,46 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   const paymentAmountNumber = parseFloat(String(amountPaid)) || 0;
   const newBalance = paymentMethod === 'Credit' ? Math.max(0, total - Math.min(total, paymentAmountNumber)) : 0;
 
+  const hasRoomSearch = !!roomSearchTerm.trim();
+  const hasNextRoomPage = !hasRoomSearch && (activeBookings?.length || 0) > ROOM_PAGE_SIZE;
+  const visibleRoomPage = React.useMemo(
+    () => (activeBookings || []).slice(0, ROOM_PAGE_SIZE),
+    [activeBookings]
+  );
   const filteredBookings = React.useMemo(() => {
     if (!activeBookings) return [];
     const normalizedSearch = roomSearchTerm.trim().toLowerCase();
-    const sortedBookings = [...activeBookings].sort((a, b) => (a.roomNumber || '').localeCompare(b.roomNumber || ''));
+    const sourceBookings = hasRoomSearch ? activeBookings : visibleRoomPage;
+    const sortedBookings = [...sourceBookings].sort((a, b) => (a.roomNumber || '').localeCompare(b.roomNumber || ''));
     if (!normalizedSearch) return sortedBookings;
     return sortedBookings.filter(booking => {
       const roomMatch = booking.roomNumber?.toLowerCase().includes(normalizedSearch);
       const guestMatch = booking.guestName?.toLowerCase().includes(normalizedSearch);
       return roomMatch || guestMatch;
     });
-  }, [activeBookings, roomSearchTerm]);
+  }, [activeBookings, visibleRoomPage, roomSearchTerm, hasRoomSearch]);
+
+  const goToNextRoomPage = () => {
+    const lastVisibleBooking = visibleRoomPage[visibleRoomPage.length - 1];
+    if (!lastVisibleBooking?.id || !hasNextRoomPage) return;
+    setRoomPageCursors(current => {
+      const next = [...current];
+      next[roomPageIndex + 1] = lastVisibleBooking.id;
+      return next;
+    });
+    setRoomPageIndex(current => current + 1);
+  };
 
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className={cn("flex flex-col overflow-hidden p-0 gap-0", allowBillToRoom ? "h-[100dvh] max-h-[100dvh] w-screen max-w-none rounded-none" : "max-h-[90vh] w-[95vw] max-w-2xl")}>
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle>{paymentMethod === 'Credit' ? 'Complete Credit Sale' : 'Process Payment'}</DialogTitle>
           <DialogDescription>Total amount due is {formatCurrency(total)}</DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 min-h-0">
-          <div className="px-6 py-4 space-y-4">
+          <div className="flex min-h-full flex-col space-y-4 px-6 py-4">
           <div className="p-3 rounded-md border bg-muted space-y-1 text-sm">
              <div className="flex justify-between">
                 <span>Subtotal:</span>
@@ -209,7 +244,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
           </div>
 
           {allowBillToRoom && !startInCreditMode ? (
-            <Tabs value={paymentTab} onValueChange={(value) => setPaymentTab(value as 'pay-now' | 'bill-to-room')}>
+            <Tabs value={paymentTab} onValueChange={(value) => setPaymentTab(value as 'pay-now' | 'bill-to-room')} className="flex min-h-0 flex-1 flex-col">
               <TabsList className="grid grid-cols-2">
                 <TabsTrigger value="pay-now">Pay Now</TabsTrigger>
                 <TabsTrigger value="bill-to-room">Bill to Room</TabsTrigger>
@@ -265,7 +300,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                   </div>
                 ) : null}
               </TabsContent>
-              <TabsContent value="bill-to-room" className="space-y-4">
+              <TabsContent value="bill-to-room" className="mt-2 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden data-[state=inactive]:hidden">
                 <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
                   Select a checked-in room to add these items to the guest folio. The bill will remain unpaid until settled at checkout.
                 </div>
@@ -278,8 +313,12 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                     className="pl-9"
                   />
                 </div>
-                <ScrollArea className="h-56 rounded-md border">
-                  {filteredBookings.length === 0 ? (
+                <ScrollArea className="min-h-[160px] flex-1 rounded-md border">
+                  {activeBookingsError ? (
+                    <div className="p-6 text-center text-sm text-destructive">Unable to load active rooms. Please try again.</div>
+                  ) : areActiveBookingsLoading ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">Loading active rooms…</div>
+                  ) : filteredBookings.length === 0 ? (
                     <div className="p-6 text-center text-sm text-muted-foreground">
                       {roomSearchTerm ? 'No matching active rooms found.' : 'No active check-ins available to bill.'}
                     </div>
@@ -308,6 +347,15 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
                     </div>
                   )}
                 </ScrollArea>
+                {!hasRoomSearch && (
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-t pt-3">
+                    <span className="text-xs text-muted-foreground">Page {roomPageIndex + 1} · Showing up to {ROOM_PAGE_SIZE} rooms</span>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={roomPageIndex === 0 || areActiveBookingsLoading} onClick={() => setRoomPageIndex(current => Math.max(0, current - 1))}>Previous</Button>
+                      <Button type="button" size="sm" variant="outline" disabled={!hasNextRoomPage || areActiveBookingsLoading} onClick={goToNextRoomPage}>Next</Button>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           ) : (
