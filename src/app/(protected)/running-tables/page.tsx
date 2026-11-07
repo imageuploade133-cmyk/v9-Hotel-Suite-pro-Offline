@@ -1078,7 +1078,7 @@ function RunningTablesPage() {
       />
 
       {/* Statistics Cards */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${isPosStaff ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-4`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isPosStaff ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-4`}>
         <StatCard
           title="Total Running Tables"
           value={stats.totalTables}
