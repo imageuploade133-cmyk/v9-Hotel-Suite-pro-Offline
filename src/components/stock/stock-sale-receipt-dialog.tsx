@@ -247,7 +247,7 @@ export function StockSaleReceiptDialog({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>Sale Receipt #{sale.saleId}</span>
-            {sale.paymentStatus === 'Unpaid' || sale.paymentMethod === 'Credit' ? (
+            {(sale.paymentStatus === 'Unpaid' || (sale.paymentMethod === 'Credit' && sale.paymentStatus !== 'Paid')) ? (
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
                 aria-live="polite"
@@ -457,7 +457,7 @@ export function StockSaleReceiptDialog({
                 </div>
                 <div className="my-4 space-y-1 text-center border-t border-dashed border-black pt-2">
                   {sale.paymentMethod === 'Credit' ? (
-                    <p className="font-bold text-lg text-red-600">CREDIT SALE</p>
+                    <p className={`font-bold text-lg ${sale.paymentStatus === 'Paid' ? 'text-green-600' : 'text-red-600'}`}>{sale.paymentStatus === 'Paid' ? 'CREDIT SALE - PAID IN FULL' : 'CREDIT SALE'}</p>
                   ) : (
                     <p className="font-bold text-lg text-green-600">PAID IN FULL</p>
                   )}
