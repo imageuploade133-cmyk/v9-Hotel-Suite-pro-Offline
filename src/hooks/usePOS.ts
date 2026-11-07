@@ -510,6 +510,15 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
   const processSale = async (total: number, paymentMethod: string, paymentStatus: 'Paid' | 'Credit' | 'Unpaid', context: 'hotel' | 'pos' = 'pos', initialPaymentAmount?: number, initialPaymentMethod?: string): Promise<StockSale> => {
     if (!firestore || !userProfile) throw new Error('System not ready.');
+    const isAdminIdentity = userProfile.isFirebaseOnlyAdmin === true
+      || userProfile.isSuperAdmin === true
+      || userProfile.role === 'Admin'
+      || userProfile.role === 'Super Admin';
+    if (paymentMethod === 'Credit' && !isAdminIdentity
+      && !userProfile.permissions?.includes('create:credit_sales')) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
+      throw new Error('You do not have permission to create credit sales.');
+    }
 
     const allItems = [...activeRunningItems, ...cart];
 

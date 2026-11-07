@@ -42,6 +42,8 @@ import { formatCurrency } from '@/lib/utils';
 import { HoldSaleDialog } from './HoldSaleDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBranch } from '@/contexts/branch-context';
+import { usePermissions } from '@/hooks/use-permissions';
+import { PagePermission } from '@/lib/permissions';
 
 interface HotelPosProps {
     onSaleAction: () => void;
@@ -53,6 +55,7 @@ interface HotelPosProps {
 export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: externalReloadProducts }: HotelPosProps) {
   const { toast } = useToast();
   const { userProfile } = useUser();
+  const { hasPermission } = usePermissions();
   const firestore = useFirestore();
   const { settings } = useSettings();
   const { getCollectionPath } = useBranch();
@@ -106,6 +109,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     || userProfile?.role === 'Admin'
     || userProfile?.role === 'Super Admin';
   const currentUserUid = userProfile?.uid || userProfile?.id || null;
+  const canCreateCreditSales = isAdminIdentity || hasPermission(PagePermission.CREATE_CREDIT_SALES);
 
   // Keep Bill-to-Room lookup scoped to the signed-in staff member; admins retain
   // the full lookup so their existing cross-user merge workflow is unchanged.
@@ -777,23 +781,10 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
               <div className="flex items-center">
                 <List className="mr-2 h-4 w-4" /> Running Tables
                {heldSalesCount > 0 && (
-                <motion.div
-                  animate={{
-                    scale: [1, 1.1, 1],
-                    boxShadow: ['0 0 0 0 rgba(239, 68, 68, 0.5)', '0 0 0 4px rgba(239, 68, 68, 0)', '0 0 0 0 rgba(239, 68, 68, 0)'],
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                    ease: 'easeInOut'
-                  }}
-                  className="ml-2"
-                >
-                  <Badge variant="destructive" className="h-5 min-w-5 justify-center rounded-full px-1.5 text-xs font-bold shadow-md">
-                    <Bell className="h-3 w-3 mr-0.5 animate-[bellRing_0.5s_ease-in-out]" />
-                    {heldSalesCount}
-                  </Badge>
-                </motion.div>
+                <div className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                  {heldSalesCount}
+                </div>
               )}
               {restoredSaleId && cart.length > 0 && (
                 <motion.div
@@ -945,6 +936,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
         isProcessing={isProcessing}
         discount={pos.discount}
         allowBillToRoom={true}
+        canCreateCreditSales={canCreateCreditSales}
       />
       <HoldSaleDialog
         isOpen={isHoldOpen}
