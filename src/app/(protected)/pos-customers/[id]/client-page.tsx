@@ -112,11 +112,11 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
                         saleDetails = (
                              <div className="text-xs space-y-2 mt-2">
                                 <div className="flex justify-between"><span>Payment Method:</span><span className="font-medium">{sale.paymentMethod}</span></div>
-                                {sale.initialPaymentAmount && <div className="flex justify-between"><span>Initial Payment:</span><span>{formatCurrency(sale.initialPaymentAmount)}</span></div>}
+                                {sale.initialPaymentAmount && <div className="flex justify-between"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount)}</span></div>}
                                 {sale.totalTenderedAmount != null && (
                                   <>
                                     <div className="flex justify-between"><span>Total Amount Received:</span><span>{formatCurrency(sale.totalTenderedAmount)}</span></div>
-                                    <div className="flex justify-between"><span>Applied to This Sale:</span><span>{formatCurrency(sale.initialPaymentAmount || 0)}</span></div>
+                                    
                                     {(sale.excessAppliedToOutstanding || 0) > 0 && <div className="flex justify-between text-green-700"><span>Applied to Previous Credit:</span><span>{formatCurrency(sale.excessAppliedToOutstanding || 0)}</span></div>}
                                     {(sale.changeGiven || 0) > 0 && <div className="flex justify-between"><span>Change Returned:</span><span>{formatCurrency(sale.changeGiven || 0)}</span></div>}
                                     {sale.customerOutstandingBalanceAfter != null && <div className="flex justify-between font-semibold border-t pt-2"><span>Customer Balance After Sale:</span><span>{formatCurrency(sale.customerOutstandingBalanceAfter)}</span></div>}
