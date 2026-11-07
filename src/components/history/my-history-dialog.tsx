@@ -23,8 +23,8 @@ interface MyHistoryDialogProps {
 export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDialogProps) {
 
   const content = (
-      <div className="min-h-0 min-w-0 flex-1 -mx-4 overflow-hidden sm:-mx-6">
-          <ScrollArea className="h-full px-4 sm:px-6">
+      <div className="min-h-0 min-w-0 flex-1 -mx-3 overflow-hidden sm:-mx-6">
+          <ScrollArea className="h-full min-w-0 px-3 sm:px-6">
             <MyHistory onViewDetails={onViewDetails} />
           </ScrollArea>
         </div>
@@ -32,7 +32,7 @@ export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDia
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-6xl">
+      <DialogContent className="flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-auto sm:max-h-[min(90dvh,52rem)] sm:max-w-6xl sm:rounded-lg sm:p-6">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>My History</DialogTitle>
           <DialogDescription>
