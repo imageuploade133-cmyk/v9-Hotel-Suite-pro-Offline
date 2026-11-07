@@ -1,206 +1,215 @@
 /**
- * Service Worker for Hotel Suite Pro
- * Handles caching and offline functionality
+ * Service Worker for Hotel Suite Pro.
+ *
+ * Keep offline navigation available without serving stale Next.js HTML/RSC
+ * alongside a different deployment's JavaScript chunks.
  */
-
-const CACHE_NAME = 'hotel-suite-pro-v1';
+const CACHE_NAME = 'hotel-suite-pro-v2';
 const AUDIO_CACHE_NAME = 'hotel-suite-audio-v1';
-
-// Assets to cache on install
-const STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-];
+const LEGACY_CACHE_NAMES = new Set(['studio-pwa-v1']);
+const SHELL_ASSETS = ['/', '/manifest.json', '/offline.html'];
 
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing.');
-
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching static assets');
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('Failed to cache some static assets:', err);
-      });
-    }).then(() => {
-      // Skip waiting to activate immediately
-      return self.skipWaiting();
-    })
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // A single missing shell URL must not prevent the worker from installing.
+    await Promise.allSettled(SHELL_ASSETS.map((url) => cache.add(url)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating.');
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    const legacyNames = names.filter((name) =>
+      (name.startsWith('hotel-suite-pro-') && name !== CACHE_NAME) ||
+      LEGACY_CACHE_NAMES.has(name)
+    );
+    const currentCache = await caches.open(CACHE_NAME);
 
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== AUDIO_CACHE_NAME)
-          .map((name) => {
-            console.log('Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => {
-      // Take control immediately
-      return self.clients.claim();
-    })
-  );
+    // Migrate previously cached pages and hashed assets before removing the
+    // old cache. This prevents an SW update from unexpectedly wiping assets
+    // that an existing hotel device relies on while offline.
+    for (const legacyName of legacyNames) {
+      const legacyCache = await caches.open(legacyName);
+      const requests = await legacyCache.keys();
+      for (const request of requests) {
+        try {
+          if (!(await currentCache.match(request))) {
+            const response = await legacyCache.match(request);
+            if (response) await currentCache.put(request, response);
+          }
+        } catch (error) {
+          // A single non-cloneable or expired entry must not block activation.
+          console.warn('Could not migrate cached asset:', request.url, error);
+        }
+      }
+    }
+
+    await Promise.all(legacyNames.map((name) => caches.delete(name)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (request.headers.has('range')) return;
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
-    return;
-  }
-
-  // Skip chrome-extension and other non-http(s) requests
-  if (!url.protocol.startsWith('http')) {
-    return;
-  }
-
-  // Handle audio files with special caching strategy
-  if (url.pathname.endsWith('.mp3') || url.pathname.endsWith('.wav') || url.pathname.endsWith('.ogg')) {
+  // Keep audio offline support in its dedicated cache.
+  if (/\\.(mp3|wav|ogg)$/i.test(url.pathname)) {
     event.respondWith(handleAudioRequest(request));
     return;
   }
 
-  // Handle API requests - network first, then cache
+  // APIs must always attempt the live/local server first. Never cache writes
+  // or API data as generic static assets.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(handleApiRequest(request));
+    event.respondWith(networkOnly(request, 'api'));
     return;
   }
 
-  // Handle static assets - cache first, then network
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Return cached response and update cache in background
-        event.waitUntil(updateCache(request));
-        return cachedResponse;
-      }
+  // Next.js RSC, router-prefetch and data payloads are deployment-specific.
+  // Caching these can pair an old route tree with a new set of JS chunks.
+  const isNextPayload =
+    request.headers.has('RSC') ||
+    request.headers.has('Next-Router-Prefetch') ||
+    request.headers.has('Next-Router-State-Tree') ||
+    url.searchParams.has('_rsc') ||
+    url.pathname.startsWith('/_next/data/');
 
-      // No cache, fetch from network
-      return fetch(request).then((response) => {
-        // Cache successful responses
-        if (response.ok) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone).catch((err) => {
-              console.warn('Failed to cache response:', err);
-            });
-          });
-        }
-        return response;
-      }).catch((error) => {
-        console.error('Fetch failed:', error);
-        // Return offline fallback if available
-        return caches.match('/offline.html').catch(() => {
-          // If no offline page, return a basic error response
-          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
-        });
-      });
-    })
-  );
+  if (isNextPayload) {
+    event.respondWith(networkOnly(request, 'next'));
+    return;
+  }
+
+  // Hashed Next.js build assets are immutable. Cache-first is safe here:
+  // a URL containing a different content hash is a different cache key.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirstImmutable(request));
+    return;
+  }
+
+  // Documents must be network-first so a new deployment's HTML is not paired
+  // with stale cached HTML. If offline, fall back to the last cached document.
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirstDocument(request));
+    return;
+  }
+
+  // Public files (images, fonts, stylesheets, etc.) use network-first so
+  // updated assets become visible promptly, with cache fallback when offline.
+  event.respondWith(networkFirstAsset(request));
 });
 
-/**
- * Handle audio file requests with error handling
- */
-async function handleAudioRequest(request) {
+async function networkOnly(request, kind) {
   try {
-    // Try network first
-    const response = await fetch(request);
-
-    if (response.ok) {
-      // Cache the audio file
-      const responseClone = response.clone();
-      caches.open(AUDIO_CACHE_NAME).then((cache) => {
-        cache.put(request, responseClone).catch((err) => {
-          console.warn('Failed to cache audio:', err);
-        });
-      });
+    return await fetch(request);
+  } catch (error) {
+    if (kind === 'api') {
+      return new Response(
+        JSON.stringify({ error: 'Offline', message: 'The server is currently unavailable.' }),
+        { status: 503, statusText: 'Service Unavailable', headers: { 'Content-Type': 'application/json' } }
+      );
     }
+    // Do not return offline.html for a JavaScript/RSC request. That turns a
+    // recoverable network interruption into a misleading chunk/parse error.
+    return new Response('Temporarily unavailable', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+    });
+  }
+}
 
+async function cacheFirstImmutable(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
     return response;
   } catch (error) {
-    console.warn('Audio fetch failed, trying cache:', error);
-
-    // Try cache
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    // Return a silent audio fallback or empty response
-    // This prevents the error from propagating
     return new Response('', {
+      status: 503,
+      statusText: 'Offline asset unavailable',
+      headers: { 'Cache-Control': 'no-store' }
+    });
+  }
+}
+
+async function networkFirstDocument(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok && isHtml(response)) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    const offlinePage = await cache.match('/offline.html');
+    if (offlinePage) return offlinePage;
+
+    return new Response(
+      '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline</title><body><h1>You are offline</h1><p>Reconnect to the hotel server and try again.</p></body></html>',
+      { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }
+    );
+  }
+}
+
+async function networkFirstAsset(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok && shouldCacheAsset(response)) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    return new Response('', { status: 503, statusText: 'Offline asset unavailable' });
+  }
+}
+
+function isHtml(response) {
+  return (response.headers.get('content-type') || '').includes('text/html');
+}
+
+function shouldCacheAsset(response) {
+  const type = response.headers.get('content-type') || '';
+  const cacheControl = response.headers.get('cache-control') || '';
+  return !isHtml(response) && !/no-store|private/i.test(cacheControl) &&
+    !type.includes('application/json');
+}
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  // Intentionally do not expose a blanket CLEAR_CACHE command: offline data
+  // and cached assets must not be destroyed by a generic UI action.
+});
+
+async function handleAudioRequest(request) {
+  const cache = await caches.open(AUDIO_CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch (error) {
+    return (await cache.match(request)) || new Response('', {
       status: 404,
       statusText: 'Audio not available',
       headers: { 'Content-Type': 'audio/mpeg' }
     });
   }
 }
-
-/**
- * Handle API requests - network first
- */
-async function handleApiRequest(request) {
-  try {
-    const response = await fetch(request);
-    return response;
-  } catch (error) {
-    console.warn('API fetch failed:', error);
-
-    // Return offline response for API calls
-    return new Response(
-      JSON.stringify({ error: 'Offline', message: 'You are currently offline.' }),
-      {
-        status: 503,
-        statusText: 'Service Unavailable',
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-  }
-}
-
-/**
- * Update cache in the background
- */
-async function updateCache(request) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(request, response);
-    }
-  } catch (error) {
-    // Silently fail - cache update is non-critical
-    console.debug('Cache update failed:', error);
-  }
-}
-
-// Handle messages from the main thread
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-
-  if (event.data && event.data.type === 'CLEAR_CACHE') {
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((name) => caches.delete(name))
-      );
-    }).then(() => {
-      // Notify clients that cache was cleared
-      self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({ type: 'CACHE_CLEARED' });
-        });
-      });
-    });
-  }
-});
