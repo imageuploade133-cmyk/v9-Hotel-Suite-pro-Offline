@@ -167,7 +167,7 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [expanded, setExpanded] = React.useState<ExpandedState>(initialState.expanded ?? {})
-  const [internalColumnVisibility, setInternalColumnVisibility] = React.useState<VisibilityState>({})
+  const [internalColumnVisibility, setInternalColumnVisibility] = React.useState<VisibilityState>(() => columnVisibility ?? {})
   const [columnVisibilityUpdatedAt, setColumnVisibilityUpdatedAt] = React.useState(0)
   const [columnVisibilityDirty, setColumnVisibilityDirty] = React.useState(false)
   const [columnPreferencesLoadedFor, setColumnPreferencesLoadedFor] = React.useState<string | null>(null)
@@ -176,25 +176,26 @@ export function DataTable<TData, TValue>({
 
   const currentUserUid = user?.uid || userProfile?.uid || userProfile?.id || null
   const isFirebaseOnlyAdmin = userProfile?.isFirebaseOnlyAdmin === true
+  const isExternallyControlled = columnVisibility !== undefined && onColumnVisibilityChange !== undefined
   const columnVisibilityChangeRef = React.useRef(onColumnVisibilityChange)
-  const isColumnVisibilityControlledRef = React.useRef(columnVisibility !== undefined)
+  const isColumnVisibilityControlledRef = React.useRef(isExternallyControlled)
   columnVisibilityChangeRef.current = onColumnVisibilityChange
-  isColumnVisibilityControlledRef.current = columnVisibility !== undefined
+  isColumnVisibilityControlledRef.current = isExternallyControlled
   const preferenceScope = currentUserUid ? `${currentUserUid}:${tableId}` : null
-  const activeColumnVisibility = columnVisibility ?? internalColumnVisibility
+  const activeColumnVisibility = isExternallyControlled ? columnVisibility! : internalColumnVisibility
 
   const handleColumnVisibilityChange = React.useCallback<OnChangeFn<VisibilityState>>((updater) => {
     const nextVisibility = functionalUpdate(updater, activeColumnVisibility)
 
     // DataTable owns visibility state by default. Existing callers may still
     // provide controlled state; those callers continue to receive the updater.
-    if (columnVisibility === undefined) {
+    if (!isExternallyControlled) {
       setInternalColumnVisibility(nextVisibility)
     }
     onColumnVisibilityChange?.(updater)
     setColumnVisibilityUpdatedAt(Date.now())
     setColumnVisibilityDirty(true)
-  }, [activeColumnVisibility, columnVisibility, onColumnVisibilityChange])
+  }, [activeColumnVisibility, isExternallyControlled, onColumnVisibilityChange])
 
   const table = useReactTable({
     data,
