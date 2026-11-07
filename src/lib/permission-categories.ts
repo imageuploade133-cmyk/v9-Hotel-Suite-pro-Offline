@@ -53,6 +53,7 @@ export const BRANCH_COMPATIBLE_PERMISSIONS = new Set([
   PagePermission.APPLY_DISCOUNTS,
   PagePermission.PROCESS_SALE_REFUNDS,
   PagePermission.MANAGE_CREDIT_SALES,
+  PagePermission.CREATE_CREDIT_SALES,
   PagePermission.VIEW_SALES_REPORTS,
   PagePermission.VIEW_MY_SALES_HISTORY,
   PagePermission.MANAGE_POS_CUSTOMERS,
