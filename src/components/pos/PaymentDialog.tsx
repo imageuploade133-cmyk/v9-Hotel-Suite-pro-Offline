@@ -224,7 +224,7 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
           <DialogDescription>Total amount due is {formatCurrency(total)}</DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 min-h-0">
-          <div className="px-6 py-4 space-y-4">
+          <div className="flex min-h-full flex-col space-y-4 px-6 py-4">
           <div className="p-3 rounded-md border bg-muted space-y-1 text-sm">
              <div className="flex justify-between">
                 <span>Subtotal:</span>
