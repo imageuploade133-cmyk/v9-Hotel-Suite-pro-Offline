@@ -8,9 +8,10 @@ import type { UserProfile } from '@/lib/types';
 import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer, getDocFromServer, where, or } from 'firebase/firestore';
 import { sanitizeForUrl } from '@/lib/helpers';
 import { firestoreCache, CacheTTL, CacheKeys } from '@/lib/firestore-cache';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface UserContextValue {
   user: User | null;
@@ -332,48 +333,110 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
+    let profileLookupStarted = false;
     const loadProfile = async () => {
+      // The initial lookup and the user-document listener can fire together.
+      // Deduplicate them so a missing UID document never triggers a second full roster read.
+      if (profileLookupStarted) return;
+      profileLookupStarted = true;
+
       let matchedProfile: UserProfile | null = null;
       let cloudLookupCompleted = false;
 
-      // 1. Prefer a server-confirmed Firestore roster while online.
-      // A successful lookup is authoritative: no stale local profile can replace it.
+      // 1. Prefer a server-confirmed, targeted Firestore lookup while online.
+      // Read the conventional UID document and query only possible matches by UID/ID/email.
+      // This avoids downloading the entire staff collection on every app startup.
       if (typeof navigator === 'undefined' || navigator.onLine) {
+        let lookupTimeout: ReturnType<typeof setTimeout> | undefined;
         try {
-          const snap = await Promise.race([
-            getDocsFromServer(collection(firestore, 'users')),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Firestore staff lookup timed out')), 3500)
-            ),
+          const staffFilters = [
+            where('uid', '==', user.uid),
+            where('id', '==', user.uid),
+          ];
+          const exactEmail = user.email?.trim();
+          const normalizedEmail = exactEmail?.toLowerCase();
+          if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
+          if (normalizedEmail && normalizedEmail !== exactEmail) {
+            staffFilters.push(where('email', '==', normalizedEmail));
+          }
+
+          const staffMatchesQuery = query(
+            collection(firestore, 'users'),
+            or(...staffFilters)
+          );
+
+          const [uidDocumentResult, matchingStaffResult] = await Promise.race([
+            Promise.allSettled([
+              getDocFromServer(doc(firestore, 'users', user.uid)),
+              getDocsFromServer(staffMatchesQuery),
+            ]),
+            new Promise<never>((_, reject) => {
+              lookupTimeout = setTimeout(
+                () => reject(new Error('Firestore staff lookup timed out')),
+                2000
+              );
+            }),
           ]);
-          cloudLookupCompleted = true;
-          const usersList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
-          firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
-          matchedProfile = findStaffProfile(usersList, user.uid, user.email);
+
+          // A failure in one lookup must not discard a successful UID document
+          // read. Only treat "no profile found" as authoritative when both
+          // server lookups completed successfully.
+          const uidDocument = uidDocumentResult.status === 'fulfilled'
+            ? uidDocumentResult.value
+            : null;
+          const matchingStaffDocuments = matchingStaffResult.status === 'fulfilled'
+            ? matchingStaffResult.value
+            : null;
+          cloudLookupCompleted = !!uidDocument && !!matchingStaffDocuments;
+
+          const matchingProfiles = new Map<string, UserProfile>();
+
+          if (uidDocument?.exists()) {
+            matchingProfiles.set(uidDocument.id, {
+              id: uidDocument.id,
+              ...uidDocument.data(),
+            } as UserProfile);
+          }
+
+          matchingStaffDocuments?.forEach((staffDocument) => {
+            matchingProfiles.set(staffDocument.id, {
+              id: staffDocument.id,
+              ...staffDocument.data(),
+            } as UserProfile);
+          });
+
+          matchedProfile = findStaffProfile(
+            Array.from(matchingProfiles.values()),
+            user.uid,
+            user.email
+          );
           setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
         } catch {
           // Cloud is unreachable: use the Master PC roster, then the device cache.
+        } finally {
+          if (lookupTimeout) clearTimeout(lookupTimeout);
         }
       }
 
-      // 2. When cloud authority is unavailable, prefer the local Master PC roster or local cache.
+      // 2. When cloud authority is unavailable, use the local Master PC roster or cache.
       if (!cloudLookupCompleted) {
-        // Check local staff cache immediately for 0ms offline response
         matchedProfile = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
 
-        if (!matchedProfile) {
-          let lanRosterAvailable = false;
+        // Public/cloud deployments do not have a local Master PC endpoint. Avoid
+        // spending an extra network timeout against a route that cannot exist there.
+        if (!matchedProfile && isLocalMasterHost()) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 800);
 
           try {
-            const response = await fetch('/api/lan-sync/?collection=users', { signal: controller.signal });
+            const response = await fetch('/api/lan-sync/?collection=users', {
+              signal: controller.signal,
+            });
             if (response.ok) {
               const result = await response.json();
               if (result?.success === true && result.data && typeof result.data === 'object') {
                 const usersList = Object.values(result.data) as UserProfile[];
                 if (usersList.length > 0) {
-                  lanRosterAvailable = true;
                   firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
                   matchedProfile = findStaffProfile(usersList, user.uid, user.email);
                 }
@@ -403,7 +466,6 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
       }
     };
-
     void loadProfile();
 
     const userDocRef = doc(firestore, 'users', user.uid);
