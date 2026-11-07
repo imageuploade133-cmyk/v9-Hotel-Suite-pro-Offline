@@ -45,9 +45,6 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
 
     // Sort transactions chronologically to calculate running balance correctly
     const chronologicalTransactions = React.useMemo(() => {
-        const creditSaleIds = new Set(transactions
-          .filter(t => t.transactionType === 'Sale' && (t as StockSale).paymentMethod === 'Credit')
-          .map(t => t.id));
         return [...transactions].sort((a, b) => {
             const dateA = getSafeDate((a as any).soldAt || (a as any).transactionDate || (a as any).returnedAt)?.getTime() || 0;
             const dateB = getSafeDate((b as any).soldAt || (b as any).transactionDate || (b as any).returnedAt)?.getTime() || 0;
@@ -59,6 +56,9 @@ function TransactionHistory({ transactions, currency, customer, onRecordPayment 
     }, [transactions]);
 
     const runningBalances = React.useMemo(() => {
+        const creditSaleIds = new Set(chronologicalTransactions
+          .filter(t => t.transactionType === 'Sale' && (t as StockSale).paymentMethod === 'Credit')
+          .map(t => t.id));
         let currentBalance = 0;
         const balances: { [id: string]: number } = {};
 
