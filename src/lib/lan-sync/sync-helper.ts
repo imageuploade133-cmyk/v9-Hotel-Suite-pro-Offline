@@ -1,3 +1,5 @@
+import { isLocalMasterHost } from './is-local-master-host';
+
 /**
  * Broadcasts a local data mutation to the Master Server PC LAN store.
  * The Master Server persists the change to disk, streams it instantly via SSE
@@ -9,7 +11,9 @@ export async function pushLanMutation(
   action: 'set' | 'update' | 'delete',
   data?: Record<string, unknown>
 ): Promise<void> {
-  if (typeof window === 'undefined') return;
+  // Public/hosted deployments (including Vercel) are not LAN Master Servers.
+  // Avoid unnecessary requests to filesystem-backed LAN endpoints there.
+  if (typeof window === 'undefined' || !isLocalMasterHost()) return;
 
   try {
     // Strip functions or complex objects that cannot be serialized
