@@ -75,7 +75,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
   const { data: allUsers } = useCollection<UserProfile>(usersQuery);
 
   const pos = usePOS({ userProfile, toast });
-  const { cart, activeRunningItems, customer, setCustomer, addToCart, removeFromCart, updateQuantity, clearCart, holdSale, processSale, restoreHeldSale, restoredSaleId, discount, applyDiscount, removeDiscount, removeFromActiveRunningItems } = pos;
+  const { cart, activeRunningItems, customer, setCustomer, addToCart, removeFromCart, updateQuantity, clearCart, holdSale, processSale, restoreHeldSale, restoredSaleId, discount, applyDiscount, removeDiscount, removeFromActiveRunningItems, getCustomerFinancials } = pos;
 
   const [activeTab, setActiveTab] = React.useState('new-sale');
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
@@ -411,7 +411,7 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     }
   };
 
-  const handleOpenCreditSale = () => {
+  const handleOpenCreditSale = async () => {
     if (!canCreateCreditSales) {
       toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to create credit sales.' });
       return;
@@ -419,6 +419,26 @@ export function HotelPos({ onSaleAction, context = 'pos', reloadProducts: extern
     if (!customer?.id) {
       toast({ variant: 'destructive', title: 'Customer Required', description: 'Select an existing registered customer before starting a credit sale.' });
       return;
+    }
+    if (isProcessing) return;
+
+    // A restored running table may contain only the customer's ID and name.
+    // Refresh the ledger in that case so the excess-payment prompt uses a real balance.
+    if (customer.outstandingBalance == null) {
+      setIsProcessing(true);
+      try {
+        const financialCustomers = await getCustomerFinancials();
+        const latestCustomer = financialCustomers.find(entry => entry.id === customer.id);
+        if (!latestCustomer) {
+          throw new Error('Could not load this customer’s credit balance. Please retry before creating the credit sale.');
+        }
+        setCustomer({ ...customer, ...latestCustomer });
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Customer Balance Unavailable', description: error.message || 'Could not verify the customer’s outstanding balance.' });
+        setIsProcessing(false);
+        return;
+      }
+      setIsProcessing(false);
     }
     setStartPaymentInCreditMode(true);
     setIsPaymentOpen(true);
