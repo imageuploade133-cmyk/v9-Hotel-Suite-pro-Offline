@@ -160,12 +160,16 @@ function MenuItemCard({
     }, 300);
   }
 
-  const getButtonStyle = (color?: string) => {
+  const getButtonStyle = (color?: string): React.CSSProperties => {
     if (!color) return {};
     if (color.startsWith('linear-gradient')) {
-      return { backgroundImage: color };
+      return { backgroundImage: color, color: '#FFFFFF' };
     }
-    return { backgroundColor: color };
+    const hex = /^#[0-9a-fA-F]{6}$/.test(color) ? color.slice(1) : '2563EB';
+    const channels = [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16) / 255);
+    const luminance = channels.map(channel => channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4))
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    return { backgroundColor: color, color: luminance > 0.45 ? '#111827' : '#FFFFFF' };
   };
 
 
