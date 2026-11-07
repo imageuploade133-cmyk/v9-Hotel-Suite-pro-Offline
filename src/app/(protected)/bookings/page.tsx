@@ -143,25 +143,40 @@ function BookingsPage() {
               Manage and view the status of all hotel rooms.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <DateRangePicker date={filterDateRange} onDateChange={setFilterDateRange} />
-             <div className="flex items-center gap-2">
-                <Button
-                    variant="outline"
-                    onClick={() => setDueCheckoutsOpen(true)}
-                    disabled={isLoading}
-                    className={cn((overdueCheckoutsData?.length || 0) > 0 && 'bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive animate-pulse')}
-                >
-                    <AlarmClockOff className="mr-2" />
-                    Overdue Checkouts {(overdueCheckoutsData?.length || 0) > 0 && `(${(overdueCheckoutsData?.length)})`}
-                </Button>
-                <Button variant="outline" onClick={() => setIsMyHistoryOpen(true)} disabled={isLoading}>
-                    <History className="mr-2" /> My History
-                </Button>
-                <Button onClick={() => handleDateClick(undefined, 'reservation')} disabled={isLoading}>
-                  <CalendarPlus className="mr-2" /> New Booking
-                </Button>
-             </div>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div className="w-full min-w-0 sm:w-auto">
+              <DateRangePicker date={filterDateRange} onDateChange={setFilterDateRange} />
+            </div>
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:flex sm:w-auto sm:flex-nowrap">
+              <Button
+                variant="outline"
+                onClick={() => setDueCheckoutsOpen(true)}
+                disabled={isLoading}
+                className={cn(
+                  "min-h-10 w-full min-w-0 whitespace-normal px-3 text-center sm:w-auto sm:whitespace-nowrap",
+                  "min-[420px]:col-span-2 sm:col-span-1",
+                  (overdueCheckoutsData?.length || 0) > 0 && 'bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive animate-pulse'
+                )}
+              >
+                <AlarmClockOff className="mr-2 h-4 w-4 shrink-0" />
+                <span className="min-w-0">Overdue Checkouts {(overdueCheckoutsData?.length || 0) > 0 && `(${overdueCheckoutsData.length})`}</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsMyHistoryOpen(true)}
+                disabled={isLoading}
+                className="min-h-10 w-full min-w-0 whitespace-normal px-3 text-center sm:w-auto sm:whitespace-nowrap"
+              >
+                <History className="mr-2 h-4 w-4 shrink-0" /> My History
+              </Button>
+              <Button
+                onClick={() => handleDateClick(undefined, 'reservation')}
+                disabled={isLoading}
+                className="min-h-10 w-full min-w-0 whitespace-normal px-3 text-center sm:w-auto sm:whitespace-nowrap"
+              >
+                <CalendarPlus className="mr-2 h-4 w-4 shrink-0" /> New Booking
+              </Button>
+            </div>
           </div>
         </div>
 
