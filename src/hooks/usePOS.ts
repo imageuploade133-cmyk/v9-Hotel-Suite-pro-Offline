@@ -531,14 +531,18 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       if (paymentMethod !== 'Credit' || !customer?.id) return null;
       const salesCollection = collection(firestore, getCollectionPath('stockSales'));
       const paymentCollection = collection(firestore, 'payments');
+      const branchPaymentCollection = collection(firestore, getCollectionPath('payments'));
       const salesQueries = [
         query(salesCollection, where('customerId', '==', customer.id)),
         ...(customer.email ? [query(salesCollection, where('customerEmail', '==', customer.email))] : []),
       ];
-      const paymentQueries = [
-        query(paymentCollection, where('customerId', '==', customer.id)),
-        ...(customer.email ? [query(paymentCollection, where('guestEmail', '==', customer.email))] : []),
-      ];
+      const paymentCollections = paymentCollection.path === branchPaymentCollection.path
+        ? [paymentCollection]
+        : [paymentCollection, branchPaymentCollection];
+      const paymentQueries = paymentCollections.flatMap(source => [
+        query(source, where('customerId', '==', customer.id)),
+        ...(customer.email ? [query(source, where('guestEmail', '==', customer.email))] : []),
+      ]);
       const readWithCacheFallback = async (target: any) => {
         try {
           return await getDocs(target);
@@ -550,9 +554,22 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           }
         }
       };
-      const [salesSnapshots, paymentSnapshots] = await Promise.all([
+      const readLanCollection = async (collectionName: string): Promise<{ id: string; data: Record<string, any> }[]> => {
+        try {
+          const response = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+          if (!response.ok) return [];
+          const payload = await response.json();
+          if (!payload?.success || !payload?.data || typeof payload.data !== 'object') return [];
+          return Object.entries(payload.data).map(([id, data]) => ({ id, data: data as Record<string, any> }));
+        } catch {
+          return [];
+        }
+      };
+      const [salesSnapshots, paymentSnapshots, lanSales, ...lanPaymentGroups] = await Promise.all([
         Promise.all(salesQueries.map(readWithCacheFallback)),
         Promise.all(paymentQueries.map(readWithCacheFallback)),
+        readLanCollection(getCollectionPath('stockSales')),
+        ...paymentCollections.map(readLanCollection),
       ]);
       const salesById = new Map<string, StockSale>();
       salesSnapshots.forEach(snapshot => snapshot.docs.forEach(saleDoc => {
@@ -561,6 +578,12 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           salesById.set(sale.id, sale);
         }
       }));
+      lanSales.forEach(({ id, data }) => {
+        const sale = { ...data, id } as StockSale;
+        if (sale.paymentMethod === 'Credit' && (sale.customerId === customer.id || (!!customer.email && sale.customerEmail === customer.email))) {
+          salesById.set(id, sale);
+        }
+      });
       const paymentsById = new Map<string, Payment>();
       paymentSnapshots.forEach(snapshot => snapshot.docs.forEach(paymentDoc => {
         const payment = { ...paymentDoc.data(), id: paymentDoc.id } as Payment;
@@ -568,6 +591,12 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           paymentsById.set(payment.id, payment);
         }
       }));
+      lanPaymentGroups.flat().forEach(({ id, data }) => {
+        const payment = { ...data, id } as Payment;
+        if (payment.type === 'Credit Repayment' && (payment.customerId === customer.id || (!!customer.email && payment.guestEmail === customer.email))) {
+          paymentsById.set(id, payment);
+        }
+      });
       const repayments = [...paymentsById.values()];
       const paidBySale = new Map<string, number>();
       let unallocatedRepayments = 0;
@@ -642,7 +671,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               })),
               totalAmount: total,
               paymentMethod: paymentMethod as any,
-              paymentStatus: paymentMethod === 'Credit' && settlement && settlement.salePayment >= total ? 'Paid' : paymentStatus,
+              paymentStatus,
               soldAt: new Date() as any,
               soldByUid: userProfile.uid,
               soldByName: userProfile.name,
