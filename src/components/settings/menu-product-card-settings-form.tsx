@@ -61,19 +61,22 @@ export function MenuProductCardSettingsForm() {
     }
 
     const safeCount = Math.min(MAX_ITEMS_PER_PAGE, Math.max(MIN_ITEMS_PER_PAGE, Math.round(Number(itemsPerPage) || DEFAULTS.menuItemsPerPage)));
+    if (!/^#[0-9a-fA-F]{6}$/.test(borderColor) || !/^#[0-9a-fA-F]{6}$/.test(buttonColor)) {
+      toast({ title: 'Invalid color', description: 'Enter a valid six-digit HEX color, for example #2563EB.', variant: 'destructive' });
+      return;
+    }
+
     const data = {
       menuItemsPerPage: safeCount,
       menuCardBorderEnabled: borderEnabled,
-      menuCardBorderColor: normalizeHexColor(borderColor, DEFAULTS.menuCardBorderColor),
-      menuButtonColor: normalizeHexColor(buttonColor, DEFAULTS.menuButtonColor),
+      menuCardBorderColor: borderColor.toUpperCase(),
+      menuButtonColor: buttonColor.toUpperCase(),
     };
 
     setIsSaving(true);
     try {
-      // Firestore persistence is offline-first in this project: writes are queued
-      // locally while disconnected and synchronized when connectivity returns.
-      await setDoc(doc(firestore, 'settings', 'global'), data, { merge: true });
-
+      // Publish the new values to this device immediately. Firestore's persistent
+      // cache then synchronizes the same settings when internet becomes available.
       const mergedSettings = { ...settings, ...data };
       try {
         localStorage.setItem('app_saved_settings', JSON.stringify(mergedSettings));
@@ -82,8 +85,8 @@ export function MenuProductCardSettingsForm() {
       }
       firestoreCache.set(CacheKeys.settings(), mergedSettings, CacheTTL.HOUR);
 
-      // On the Local Master, mirror the same global settings document into the
-      // filesystem-backed LAN store so connected offline devices read one value.
+      // Mirror to the Local Master first so LAN-only devices can use the setting
+      // even when the internet connection is unavailable.
       if (isLocalMasterHost()) {
         try {
           const response = await fetch('/api/lan-sync', {
@@ -100,14 +103,28 @@ export function MenuProductCardSettingsForm() {
             console.warn('[Menu Card Settings] Local Master mirror was not accepted:', response.status);
           }
         } catch (lanError) {
-          // Firestore has already accepted/queued the offline-first write.
           console.warn('[Menu Card Settings] Local Master mirror is temporarily unavailable:', lanError);
         }
       }
 
+      // Firestore persistent local cache queues this write while offline and
+      // synchronizes it after reconnecting. Do not block the local UI indefinitely.
+      let writeTimer: ReturnType<typeof setTimeout> | undefined;
+      const firestoreWrite = setDoc(doc(firestore, 'settings', 'global'), data, { merge: true });
+      const writeResult = await Promise.race([
+        firestoreWrite.then(() => 'synced' as const),
+        new Promise<'queued'>((resolve) => { writeTimer = setTimeout(() => resolve('queued'), 4000); }),
+      ]);
+      if (writeTimer) clearTimeout(writeTimer);
+      if (writeResult === 'queued') {
+        firestoreWrite.catch(error => console.warn('[Menu Card Settings] Firestore sync is still pending:', error));
+      }
+
       toast({
-        title: 'Product Card Settings Saved',
-        description: 'Your card layout, border and button colors have been updated.',
+        title: writeResult === 'synced' ? 'Product Card Settings Saved' : 'Settings Saved on This Device',
+        description: writeResult === 'synced'
+          ? 'Your card layout, border and button colors have been updated.'
+          : 'Your settings are available locally and will synchronize with Firestore when the connection is restored.',
         variant: 'success',
       });
     } catch (error: any) {
