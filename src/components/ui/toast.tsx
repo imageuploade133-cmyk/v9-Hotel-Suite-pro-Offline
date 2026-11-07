@@ -158,10 +158,12 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary",
+      "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-current/20 bg-background/80 text-current opacity-100 shadow-sm transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className
     )}
     toast-close=""
+    aria-label="Dismiss notification"
+    title="Dismiss notification"
     {...props}
   >
     <X className="h-4 w-4" />
