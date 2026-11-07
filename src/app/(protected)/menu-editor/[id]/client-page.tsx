@@ -100,7 +100,7 @@ import { useParams } from 'next/navigation';
 import { useSettings } from '@/contexts/settings-context';
 import Image from 'next/image';
 
-const PAGE_SIZE = 6;
+
 
 
 function MenuItemCard({
@@ -110,6 +110,8 @@ function MenuItemCard({
   onDelete,
   currency,
   buttonColor,
+  cardBorderEnabled,
+  cardBorderColor,
   menuCategoriesData,
   isOrderingEnabled,
 }: {
@@ -119,6 +121,8 @@ function MenuItemCard({
   onDelete: (item: MenuItem) => void;
   currency: string;
   buttonColor?: string;
+  cardBorderEnabled: boolean;
+  cardBorderColor: string;
   menuCategoriesData: any[];
   isOrderingEnabled: boolean;
 }) {
@@ -166,7 +170,7 @@ function MenuItemCard({
 
 
   return (
-    <Card className={cn("flex flex-col overflow-hidden transition-all duration-300 group/card", isAdding && 'transform scale-105 shadow-2xl border-primary')}>
+    <Card className={cn("flex flex-col overflow-hidden transition-all duration-300 group/card", cardBorderEnabled ? "border" : "border-0", isAdding && "transform scale-105 shadow-2xl")} style={{ borderColor: cardBorderEnabled ? cardBorderColor : "transparent", borderWidth: cardBorderEnabled ? 1 : 0 }}>
         <div className="relative aspect-video">
            {isPromoActive && (
               <Badge className="absolute top-2 left-2 z-10 bg-red-600 text-white gap-1">
@@ -402,6 +406,10 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
 
   const currency = settings?.currency || 'USD';
   const menuButtonColor = settings?.menuButtonColor;
+  const menuCardBorderEnabled = settings?.menuCardBorderEnabled ?? true;
+  const menuCardBorderColor = typeof settings?.menuCardBorderColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(settings.menuCardBorderColor) ? settings.menuCardBorderColor : '#E5E7EB';
+  const pageSizeValue = Number(settings?.menuItemsPerPage);
+  const pageSize = Number.isFinite(pageSizeValue) ? Math.min(48, Math.max(1, Math.round(pageSizeValue))) : 6;
   const menuCartIconColor = settings?.menuCartIconColor;
   const menuActiveCategoryColor = settings?.menuActiveCategoryColor;
   const isOrderingEnabled = menuData?.isOrderingEnabled ?? true;
@@ -426,11 +434,11 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
     const isInitialOrReload = direction === 'initial' || reloadCounter > 0;
 
     if (direction === 'next' && lastVisible) {
-      paginatedQuery = query(baseQuery, startAfter(lastVisible), limit(PAGE_SIZE));
+      paginatedQuery = query(baseQuery, startAfter(lastVisible), limit(pageSize));
     } else if (direction === 'prev' && firstVisible) {
-      paginatedQuery = query(baseQuery, endBefore(firstVisible), limitToLast(PAGE_SIZE));
+      paginatedQuery = query(baseQuery, endBefore(firstVisible), limitToLast(pageSize));
     } else {
-      paginatedQuery = query(baseQuery, limit(PAGE_SIZE));
+      paginatedQuery = query(baseQuery, limit(pageSize));
     }
 
     try {
@@ -456,7 +464,7 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
         setHasMore(false);
         if (direction === 'prev' && page > 1) {
           // Re-fetch the first page instead.
-          const firstPageQuery = query(baseQuery, limit(PAGE_SIZE));
+          const firstPageQuery = query(baseQuery, limit(pageSize));
           const firstPageSnapshot = await getDocs(firstPageQuery);
           if (!firstPageSnapshot.empty) {
             const data = firstPageSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
@@ -476,12 +484,12 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [firestore, activeCategory, searchTerm, lastVisible, firstVisible, page, toast, reloadCounter, menuId]);
+  }, [firestore, activeCategory, searchTerm, lastVisible, firstVisible, page, toast, reloadCounter, menuId, pageSize]);
 
   React.useEffect(() => {
     fetchMenuItems('initial');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory, searchTerm, reloadCounter, menuId]);
+  }, [activeCategory, searchTerm, reloadCounter, menuId, pageSize]);
 
   const handleNextPage = () => {
     if (hasMore) fetchMenuItems('next');
@@ -733,6 +741,8 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
                         onDelete={handleDelete}
                         currency={currency}
                         buttonColor={menuButtonColor}
+                        cardBorderEnabled={menuCardBorderEnabled}
+                        cardBorderColor={menuCardBorderColor}
                         menuCategoriesData={menuCategoriesData || []}
                         isOrderingEnabled={isOrderingEnabled}
                     />
