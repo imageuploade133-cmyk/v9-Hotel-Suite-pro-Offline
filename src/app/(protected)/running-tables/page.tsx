@@ -1407,6 +1407,7 @@ function RunningTablesPage() {
                   columnVisibility={columnVisibility}
                   onColumnVisibilityChange={setColumnVisibility}
                   columnLabels={RUNNING_TABLES_COLUMN_LABELS}
+                  columnVisibilityLoading={!!currentUserUid && columnPreferencesLoadedForUid !== currentUserUid}
                 />
               )}
             </CardContent>
