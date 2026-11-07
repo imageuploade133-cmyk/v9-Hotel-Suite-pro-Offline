@@ -715,54 +715,44 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           };
 
           const saleData = getNewDocumentData(baseSaleData, branchContext);
-          await setDoc(newSaleRef, saleData);
+          const ledgerBatch = writeBatch(firestore);
+          const ledgerMutations: { collectionName: string; docId: string; data: Record<string, any> }[] = [];
 
-          // Save sale mutation in Local Master PC LAN Store for 100% offline multi-device sync
-          try {
-            await fetch('/api/lan-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                collectionName: getCollectionPath('stockSales'),
-                docId: newSaleRef.id,
-                action: 'set',
-                data: saleData,
-              }),
-            });
-          } catch {}
+          // Commit the sale and every payment allocation together. A failed Firestore
+          // batch cannot leave a sale without its matching initial-payment/repayment ledger.
+          ledgerBatch.set(newSaleRef, saleData);
+          ledgerMutations.push({
+            collectionName: getCollectionPath('stockSales'),
+            docId: newSaleRef.id,
+            data: saleData,
+          });
 
-          const amountPaid = paymentMethod === 'Credit' ? (settlement?.salePayment || 0) : (paymentStatus === 'Paid' ? total : initialPaymentAmount);
+          const amountPaid = paymentMethod === 'Credit'
+            ? (settlement?.salePayment || 0)
+            : (paymentStatus === 'Paid' ? total : initialPaymentAmount);
           if (amountPaid && amountPaid > 0) {
-              const paymentRef = doc(collection(firestore, 'payments'));
-              const paymentData: Omit<Payment, 'id'> = {
-                  bookingId: newSaleRef.id,
-                  guestName: saleData.customerName,
-                  guestEmail: saleData.customerEmail || null,
-                  amount: amountPaid,
-                  paymentMethod: (paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod) as any,
-                  status: 'Paid',
-                  transactionDate: new Date(),
-                  type: 'POS',
-                  customerId: customer?.id || undefined,
-                  createdByUid: userProfile.uid,
-                  createdByName: userProfile.name,
-                  items: saleData.items,
-                  profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
-              };
-              await setDoc(paymentRef, paymentData);
-
-              try {
-                await fetch('/api/lan-sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    collectionName: 'payments',
-                    docId: paymentRef.id,
-                    action: 'set',
-                    data: paymentData,
-                  }),
-                });
-              } catch {}
+            const paymentRef = doc(collection(firestore, 'payments'));
+            const paymentData: Omit<Payment, 'id'> = {
+              bookingId: newSaleRef.id,
+              guestName: saleData.customerName,
+              guestEmail: saleData.customerEmail || null,
+              amount: amountPaid,
+              paymentMethod: (paymentMethod === 'Credit' ? (initialPaymentMethod || 'Cash') : paymentMethod) as any,
+              status: 'Paid',
+              transactionDate: new Date(),
+              type: 'POS',
+              customerId: customer?.id || undefined,
+              createdByUid: userProfile.uid,
+              createdByName: userProfile.name,
+              items: saleData.items,
+              profit: saleData.items.reduce((acc, item) => acc + ((item.sellingPrice - (item.costPrice || 0)) * item.quantity), 0),
+            };
+            ledgerBatch.set(paymentRef, paymentData);
+            ledgerMutations.push({
+              collectionName: 'payments',
+              docId: paymentRef.id,
+              data: paymentData,
+            });
           }
 
           if (settlement?.allocations.length) {
@@ -784,14 +774,35 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 allocationSource: 'POS_CHANGE',
                 notes: `Applied from excess received on POS sale ${saleData.saleId} to previous credit sale ${allocation.saleId}.`,
               };
-              await setDoc(repaymentRef, repaymentData);
-              try {
-                await fetch('/api/lan-sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ collectionName: 'payments', docId: repaymentRef.id, action: 'set', data: repaymentData }),
-                });
-              } catch {}
+              ledgerBatch.set(repaymentRef, repaymentData);
+              ledgerMutations.push({
+                collectionName: 'payments',
+                docId: repaymentRef.id,
+                data: repaymentData,
+              });
+            }
+          }
+
+          await ledgerBatch.commit();
+
+          // Mirror the committed ledger to the Local Master store for LAN/offline devices.
+          for (const mutation of ledgerMutations) {
+            try {
+              const response = await fetch('/api/lan-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  collectionName: mutation.collectionName,
+                  docId: mutation.docId,
+                  action: 'set',
+                  data: mutation.data,
+                }),
+              });
+              if (!response.ok) {
+                console.warn('[POS] LAN ledger sync returned a non-success response:', mutation.collectionName, mutation.docId, response.status);
+              }
+            } catch (syncError) {
+              console.warn('[POS] LAN ledger sync failed; Firestore batch is already committed:', syncError);
             }
           }
 
