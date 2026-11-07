@@ -162,6 +162,7 @@ const MIN_PRODUCT_PAGE_SIZE = 1;
 const MAX_PRODUCT_PAGE_SIZE = 48;
 
 function getProductGridColumns(value: unknown, fallback: number, maximum: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(maximum, Math.max(1, Math.round(parsed)));
