@@ -25,6 +25,7 @@ import { BottomSheet } from '../ui/bottom-sheet';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 const singleRoomSchema = z.object({
   id: z.string(),
@@ -184,7 +185,21 @@ function BulkEditFormFields({ onOpenChange, formId, rooms, setIsSaving, onSucces
                 roomNumbers: parsedRoomNumbers,
             });
           });
-          await batch.commit();
+          const localMutations = values.rooms.map((room) => {
+            const parsedRoomNumbers = room.roomNumbers?.split(',').map(n => n.trim()).filter(Boolean) || [];
+            const { id, roomNumbers, ...roomData } = room;
+            return {
+              collectionName: 'rooms',
+              docId: id,
+              action: 'update' as const,
+              data: { ...roomData, roomNumbers: parsedRoomNumbers, updatedAt: new Date().toISOString() },
+            };
+          });
+          await commitLocalFirstMutations(
+            localMutations,
+            `rooms-bulk-edit:${values.rooms.map(room => room.id).sort().join(',')}:${Date.now()}`,
+            () => batch.commit()
+          );
 
           toast({
             variant: 'success',
