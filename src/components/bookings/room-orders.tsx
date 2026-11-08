@@ -376,8 +376,9 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
   return (
     <>
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="w-full rounded-xl bg-gradient-to-r from-primary via-primary/55 to-accent p-[1.5px] shadow-sm">
       <div
-          className="w-full rounded-lg border bg-card p-4 shadow-sm"
+          className="w-full rounded-[calc(0.75rem-1.5px)] bg-card p-4"
           style={{
               backgroundColor: 'hsl(var(--room-orders-tab-background))',
               color: 'hsl(var(--room-orders-tab-foreground))'
@@ -411,6 +412,7 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
             </div>
           </div>
         </CollapsibleTrigger>
+      </div>
       </div>
 
       <CollapsibleContent>
