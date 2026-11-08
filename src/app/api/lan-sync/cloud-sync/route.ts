@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLocalMasterServerRuntime } from '@/lib/lan-sync/is-local-master-server';
 import { getDb } from '@/lib/firebase';
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, DocumentData } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, DocumentData, Timestamp } from 'firebase/firestore';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const DATE_FIELD_NAMES = new Set([
+  'checkInDate', 'checkOutDate', 'actualCheckOutDate', 'createdAt', 'updatedAt',
+  'checkedInAt', 'checkedOutAt', 'cancelledAt', 'refundedAt', 'transactionDate',
+  'promoStartDate', 'promoEndDate', 'lastVisit', 'paidAt', 'checkedOutAt',
+]);
+
+/** Restore Firestore Timestamp values from ISO dates stored in the JSON LAN DB. */
+function restoreFirestoreDates(value: any, fieldName = ''): any {
+  if (typeof value === 'string' && DATE_FIELD_NAMES.has(fieldName) && !Number.isNaN(Date.parse(value))) {
+    return Timestamp.fromDate(new Date(value));
+  }
+  if (Array.isArray(value)) return value.map((item) => restoreFirestoreDates(item));
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, restoreFirestoreDates(child, key)]));
+  }
+  return value;
+}
+
 
 export async function POST(req: NextRequest) {
   if (!isLocalMasterServerRuntime()) {
@@ -55,7 +74,7 @@ export async function POST(req: NextRequest) {
         if (mutation.action === 'delete') {
           await deleteDoc(docRef);
         } else {
-          const payload = (mutation.data || {}) as DocumentData;
+          const payload = restoreFirestoreDates((mutation.data || {}) as DocumentData) as DocumentData;
 
           // Conflict resolution: check cloud doc timestamp if available
           try {
