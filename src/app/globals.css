@@ -937,3 +937,28 @@
     overflow: hidden !important;
   }
 }
+
+
+/*
+ * Keep the laundry form in its phone layout even when browser zoom-out makes
+ * the CSS viewport wide enough to activate Tailwind's md: two-column grid.
+ * Breakpoint-based desktop columns are not appropriate on touch devices.
+ */
+@media (pointer: coarse), (any-pointer: coarse) {
+  [data-dialog-content].mobile-fullscreen-laundry-dialog .mobile-fullscreen-dialog-laundry-body {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(7rem, 0.8fr) minmax(0, 1.2fr) !important;
+    grid-auto-flow: row !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  [data-dialog-content].mobile-fullscreen-laundry-dialog .mobile-fullscreen-dialog-laundry-body > section {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
