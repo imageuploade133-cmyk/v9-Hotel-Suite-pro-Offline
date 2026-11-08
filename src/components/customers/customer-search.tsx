@@ -14,6 +14,8 @@ import { useOnClickOutside } from '@/hooks/use-on-click-outside';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
+import { fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -27,7 +29,7 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
     (Partial<Customer> & { outstandingBalance?: number }) | null
   >(null);
   const firestore = useFirestore();
-  const { getCollectionPath, isGlobalMode } = useBranch();
+  const { getCollectionPath, isGlobalMode, branches } = useBranch();
   const { userProfile } = useUser();
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
@@ -65,8 +67,37 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
   }, [firestore, collectionName, getCollectionPath, isGlobalMode, isPOSCustomerCollection, canViewAllPOSCustomers, userProfile?.uid]);
 
   const { data: branchCustomers, isLoading: areBranchCustomersLoading, error: branchCustomersError } = useCollection<Customer>(customersQuery);
-  const allCustomers = isGlobalMode ? globalCustomers : branchCustomers;
-  const areCustomersLoading = isGlobalMode ? isGlobalCustomersLoading : areBranchCustomersLoading;
+  const cloudCustomers = isGlobalMode ? globalCustomers : branchCustomers;
+  const [localCustomers, setLocalCustomers] = React.useState<Customer[] | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!isLocalMasterHost()) {
+      setLocalCustomers(null);
+      return;
+    }
+    const paths = new Set<string>();
+    if (isGlobalMode) {
+      paths.add(collectionName);
+      branches.forEach(branch => paths.add(`branches/${branch.id}/${collectionName}`));
+    } else {
+      paths.add(getCollectionPath(collectionName));
+    }
+    Promise.all([...paths].map(path => fetchLocalLanCollection<Customer>(path).catch(error => {
+      console.warn(`[POS] Could not read local customers from ${path}:`, error);
+      return [];
+    }))).then(groups => {
+      if (!cancelled) setLocalCustomers(groups.flat());
+    });
+    return () => { cancelled = true; };
+  }, [collectionName, getCollectionPath, isGlobalMode, branches]);
+  const allCustomers = React.useMemo(() => {
+    const merged = new Map<string, Customer>();
+    (cloudCustomers || []).forEach(customer => merged.set(`${(customer as any).branchId || 'root'}:${customer.id}`, customer));
+    (localCustomers || []).forEach(customer => merged.set(`${(customer as any).branchId || 'root'}:${customer.id}`, { ...merged.get(`${(customer as any).branchId || 'root'}:${customer.id}`), ...customer }));
+    return [...merged.values()];
+  }, [cloudCustomers, localCustomers]);
+  const areCustomersLoading = (isGlobalMode ? isGlobalCustomersLoading : areBranchCustomersLoading)
+    || (isLocalMasterHost() && localCustomers === null);
   const customersError = isGlobalMode ? globalCustomersError : branchCustomersError;
 
   const salesQuery = React.useMemo(() => firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath]);
