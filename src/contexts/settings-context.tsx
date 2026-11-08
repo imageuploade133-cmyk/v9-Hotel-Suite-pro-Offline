@@ -16,7 +16,6 @@ interface ShiftSettings {
 }
 
 const DEFAULT_SETTINGS = {
-    currency: 'USD',
     salaryPayday: 28,
     staffPerDayRate: 50,
     enableRestock: true,
@@ -108,7 +107,11 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     if (!db || isFetchingRef.current) return;
 
     isFetchingRef.current = true;
-    if (mountedRef.current) setIsLoading(true);
+    const hasUsableSettings = !!(
+      settings.currency || settings.businessName || settings.businessAddress ||
+      (Array.isArray(settings.paymentMethods) && settings.paymentMethods.length > 0)
+    );
+    if (mountedRef.current && !hasUsableSettings) setIsLoading(true);
 
     const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1500): Promise<T | null> => {
       try {
