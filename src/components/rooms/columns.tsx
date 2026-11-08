@@ -28,7 +28,6 @@ export const getColumns = (
     onDelete: (room: Room) => void,
     onResetInventory: (room: Room) => void,
     currency: string,
-    onUpdateRoomStatus: (room: Room, status: string) => void,
 ): ColumnDef<Room & { totalSpent?: number }>[] => [
     {
         id: "select",
@@ -244,8 +243,8 @@ export const getColumns = (
             <DropdownMenuItem onClick={() => onEdit(room)}>
               Edit room
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onUpdateRoomStatus(room, room.status)}>
-             Update Room Status
+            <DropdownMenuItem onClick={() => onEdit(room)}>
+             Edit Room Details
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onResetInventory(room)}>
               <RefreshCw className="mr-2 h-4 w-4" />
