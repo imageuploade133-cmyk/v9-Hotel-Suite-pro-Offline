@@ -143,8 +143,7 @@ const hasStaffAssignment = (profile: Partial<UserProfile> | null | undefined): b
   return hasExplicitRole ||
     hasExplicitPermissions ||
     hasRoleId ||
-    (profile as any).accountType === 'staff' ||
-    profile.isActive === false;
+    (profile as any).accountType === 'staff';
 };
 
 const findMatchingProfile = (
