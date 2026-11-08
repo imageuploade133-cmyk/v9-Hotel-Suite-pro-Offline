@@ -37,33 +37,46 @@ export const useUser = () => useContext(UserContext);
 
 // Firebase-only accounts receive full Admin access. A matching Firestore staff
 // record always takes precedence and retains only its explicitly assigned access.
-const toFirebaseAdminProfile = (user: User): UserProfile => ({
+const toFirebaseAdminProfile = (
+  user: User,
+  accountProfile?: Partial<UserProfile> | null
+): UserProfile => ({
   id: user.uid,
   uid: user.uid,
-  name: user.displayName || user.email?.split('@')[0] || 'Admin',
-  email: user.email || '',
+  name: accountProfile?.name || user.displayName || user.email?.split('@')[0] || 'Admin',
+  email: user.email || accountProfile?.email || '',
   role: 'Admin',
+  photoURL: accountProfile?.photoURL || user.photoURL || undefined,
+  phoneNumber: accountProfile?.phoneNumber ?? null,
   permissions: ALL_PERMISSIONS,
   isActive: true,
-  isSuperAdmin: true,
+  isSuperAdmin: false,
   isFirebaseOnlyAdmin: true,
   assignedBranches: [],
+  ...(accountProfile?.uiPreferences ? { uiPreferences: accountProfile.uiPreferences } : {}),
 });
 
-const toStaffProfile = (user: User, profile: Partial<UserProfile>): UserProfile => ({
-  ...profile,
-  id: profile.id || user.uid,
-  uid: user.uid,
-  name: profile.name || user.displayName || user.email?.split('@')[0] || 'Staff',
-  email: profile.email || user.email || '',
-  role: profile.role || 'Staff',
-  permissions: Array.isArray(profile.permissions)
-    ? profile.permissions.filter((permission): permission is string => typeof permission === 'string')
-    : [],
-  isActive: profile.isActive !== false,
-  isSuperAdmin: profile.isSuperAdmin === true,
-  isFirebaseOnlyAdmin: false,
-});
+const toStaffProfile = (user: User, profile: Partial<UserProfile>): UserProfile => {
+  const roleName = profile.role || 'Staff';
+  const defaultRolePermissions = DEFAULT_SYSTEM_ROLES.find(role => role.name === roleName)?.permissions || [];
+
+  return {
+    ...profile,
+    id: profile.id || user.uid,
+    uid: user.uid,
+    name: profile.name || user.displayName || user.email?.split('@')[0] || 'Staff',
+    email: profile.email || user.email || '',
+    role: roleName,
+    // An explicitly stored empty array means this role has no permissions.
+    // Only legacy records with no permissions field use the built-in role defaults.
+    permissions: Array.isArray(profile.permissions)
+      ? profile.permissions.filter((permission): permission is string => typeof permission === 'string')
+      : defaultRolePermissions,
+    isActive: profile.isActive !== false,
+    isSuperAdmin: profile.isSuperAdmin === true,
+    isFirebaseOnlyAdmin: false,
+  };
+};
 
 const accountTypeCacheKey = (uid: string) => `app_account_type_${uid}`;
 
@@ -113,16 +126,54 @@ const readCachedStaffUsers = (): UserProfile[] => {
   return Array.isArray(cached) ? cached : [];
 };
 
-const findStaffProfile = (users: unknown, uid: string, email?: string | null): UserProfile | null => {
+const hasStaffAssignment = (profile: Partial<UserProfile> | null | undefined): boolean => {
+  if (!profile || profile.isFirebaseOnlyAdmin === true ||
+      (profile as any).accountType === 'firebase-only-admin') {
+    return false;
+  }
+
+  const hasExplicitRole = typeof profile.role === 'string' && profile.role.trim().length > 0;
+  const hasExplicitPermissions = Array.isArray(profile.permissions);
+  const roleId = (profile as any).roleId;
+  const hasRoleId = typeof roleId === 'string' && roleId.trim().length > 0 && roleId !== 'no-role';
+
+  // A personal profile written by the Profile page contains fields such as
+  // name/photoURL only. It is not a staff assignment and must not remove Admin access.
+  return hasExplicitRole || hasExplicitPermissions || hasRoleId;
+};
+
+const findMatchingProfile = (
+  users: unknown,
+  uid: string,
+  email?: string | null
+): Partial<UserProfile> | null => {
   if (!Array.isArray(users)) return null;
-  const lowerEmail = email?.toLowerCase();
-  return (users as UserProfile[]).find(profile =>
+  const lowerEmail = email?.trim().toLowerCase();
+  const matches = (users as Partial<UserProfile>[]).filter(profile =>
     profile && (
       profile.uid === uid ||
       profile.id === uid ||
-      (lowerEmail && profile.email?.toLowerCase() === lowerEmail)
+      (!!lowerEmail && profile.email?.trim().toLowerCase() === lowerEmail)
     )
-  ) || null;
+  );
+
+  // Prefer a real role assignment if a cache contains more than one identity match.
+  return matches.find(hasStaffAssignment) || matches[0] || null;
+};
+
+const findStaffProfile = (users: unknown, uid: string, email?: string | null): UserProfile | null => {
+  const profile = findMatchingProfile(users, uid, email);
+  return profile && hasStaffAssignment(profile) ? profile as UserProfile : null;
+};
+
+const readCachedAccountProfile = (uid: string): Partial<UserProfile> | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = localStorage.getItem('app_cached_account_profile_' + uid);
+    return value ? JSON.parse(value) as Partial<UserProfile> : null;
+  } catch {
+    return null;
+  }
 };
 
 const cacheStaffProfile = (profile: UserProfile) => {
@@ -156,9 +207,56 @@ const syncStaffProfileToMaster = (profile: UserProfile) => {
         role: profile.role,
         permissions: profile.permissions || [],
         assignedBranches: profile.assignedBranches || [],
+        isFirebaseOnlyAdmin: false,
+        accountType: 'staff',
       },
     }),
   }).catch(() => {});
+};
+
+const cacheFirebaseOnlyAdminForOffline = (
+  user: User,
+  accountProfile?: Partial<UserProfile> | null
+) => {
+  setCachedAccountType(user.uid, 'firebase-only-admin');
+
+  if (typeof window === 'undefined') return;
+
+  const cachedProfile = {
+    id: user.uid,
+    uid: user.uid,
+    name: accountProfile?.name || user.displayName || user.email?.split('@')[0] || 'Admin',
+    email: user.email || accountProfile?.email || '',
+    photoURL: accountProfile?.photoURL || user.photoURL || undefined,
+    role: 'Admin',
+    permissions: ALL_PERMISSIONS,
+    isActive: true,
+    isFirebaseOnlyAdmin: true,
+  };
+
+  try {
+    localStorage.setItem('app_cached_account_profile_' + user.uid, JSON.stringify(cachedProfile));
+  } catch {
+    // Local storage may be unavailable; the authenticated session can still continue.
+  }
+
+  // Keep the Master PC's offline credential record in sync with the verified account type.
+  if (isLocalMasterHost()) {
+    void fetch('/api/auth/offline-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'cache_user',
+        user: {
+          uid: user.uid,
+          email: user.email || '',
+          name: cachedProfile.name,
+          isFirebaseOnlyAdmin: true,
+          accountType: 'firebase-only-admin',
+        },
+      }),
+    }).catch(() => {});
+  }
 };
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
@@ -351,241 +449,271 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     let isCancelled = false;
-    setUserProfile(null);
-    setLoading(true);
+    let lookupInProgress = false;
 
-    // If Firestore has not initialized, use the device's last synced staff roster
-    // before treating this authenticated identity as a Firebase-only Admin.
-    if (!firestore) {
-      const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
-      const accountType = getCachedAccountType(user.uid);
-      if (cachedStaff) {
-        setCachedAccountType(user.uid, 'staff');
-        setUserProfile(toStaffProfile(user, cachedStaff));
-      } else {
-        setUserProfile(accountType === 'firebase-only-admin' ? toFirebaseAdminProfile(user) : toUnverifiedProfile(user));
-      }
+    const cachedUsers = readCachedStaffUsers();
+    const cachedAccountProfile =
+      findMatchingProfile(cachedUsers, user.uid, user.email) || readCachedAccountProfile(user.uid);
+    const cachedStaff = findStaffProfile(cachedUsers, user.uid, user.email);
+    const cachedAccountType = getCachedAccountType(user.uid);
+    const hasCachedFirebaseAdmin = cachedAccountType === 'firebase-only-admin' ||
+      (!!cachedAccountProfile && !hasStaffAssignment(cachedAccountProfile));
+
+    const applyStaffProfile = (profile: UserProfile) => {
+      if (isCancelled) return;
+      setCachedAccountType(user.uid, 'staff');
+      const normalizedProfile = toStaffProfile(user, profile);
+      setUserProfile(normalizedProfile);
       setLoading(false);
+      cacheStaffProfile(normalizedProfile);
+      syncStaffProfileToMaster(normalizedProfile);
+    };
+
+    const applyFirebaseAdmin = (profile?: Partial<UserProfile> | null) => {
+      if (isCancelled) return;
+      const normalizedProfile = toFirebaseAdminProfile(user, profile);
+      cacheFirebaseOnlyAdminForOffline(user, profile);
+      setUserProfile(normalizedProfile);
+      setLoading(false);
+    };
+
+    const applyUnverifiedProfile = () => {
+      if (isCancelled) return;
+      setUserProfile(toUnverifiedProfile(user));
+      setLoading(false);
+    };
+
+    // Reuse the last verified identity immediately. The server lookup below runs
+    // in the background and replaces this provisional profile if the assignment changed.
+    if (cachedStaff) {
+      applyStaffProfile(cachedStaff);
+    } else if (hasCachedFirebaseAdmin) {
+      applyFirebaseAdmin(cachedAccountProfile);
+    } else {
+      setUserProfile(null);
+      setLoading(true);
+    }
+
+    if (!firestore) {
+      if (!cachedStaff && !hasCachedFirebaseAdmin) applyUnverifiedProfile();
       return;
     }
 
     const isDeviceOnline = typeof navigator === 'undefined' || navigator.onLine;
-    const cachedStaff = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
-    const cachedAccountType = getCachedAccountType(user.uid);
-
     if (!isDeviceOnline) {
-      if (cachedStaff) {
-        setUserProfile(toStaffProfile(user, cachedStaff));
-      } else if (cachedAccountType === 'firebase-only-admin') {
-        cacheFirebaseOnlyAdminForOffline(user);
-        setUserProfile(toFirebaseAdminProfile(user));
-      } else {
-        setUserProfile(toUnverifiedProfile(user));
-      }
-      setLoading(false);
+      if (!cachedStaff && !hasCachedFirebaseAdmin) applyUnverifiedProfile();
       return;
     }
 
+    const withTimeout = <T,>(
+      promise: Promise<T>,
+      milliseconds: number,
+      message: string
+    ): Promise<T> => new Promise<T>((resolve, reject) => {
+      const timeoutId = setTimeout(() => reject(new Error(message)), milliseconds);
+      promise.then(
+        value => {
+          clearTimeout(timeoutId);
+          resolve(value);
+        },
+        error => {
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      );
+    });
 
-    let profileLookupStarted = false;
-    let profileFallbackTimer: ReturnType<typeof setTimeout> | undefined;
-    const loadProfile = async () => {
-      if (profileLookupStarted) return;
-      profileLookupStarted = true;
+    const resolveProfile = async () => {
+      if (lookupInProgress || isCancelled) return;
+      lookupInProgress = true;
 
-      let matchedProfile: UserProfile | null = null;
-      let cloudLookupCompleted = false;
+      let accountProfile: Partial<UserProfile> | null = null;
+      let matchedStaffProfile: UserProfile | null = null;
+      let lookupSucceeded = false;
 
-      // Prefer the local Master roster on LAN installs. iPhone can report online
-      // while the internet is unavailable but the hotel Wi-Fi server is reachable.
-      if (isLocalMasterHost()) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 650);
-        try {
-          const response = await fetch('/api/lan-sync/?collection=users', {
-            signal: controller.signal,
-            cache: 'no-store',
-          });
-          if (response.ok) {
-            const result = await response.json();
-            if (result?.success === true && result.data && typeof result.data === 'object') {
-              const usersList = Object.entries(result.data).map(([id, value]) => ({
-                id,
-                ...(value && typeof value === 'object' ? value : {}),
-              })) as UserProfile[];
-              if (usersList.length > 0) {
+      try {
+        // On the local Master host, prefer its LAN roster. A successful roster
+        // response is useful immediately when it contains the assigned staff record.
+        if (isLocalMasterHost()) {
+          const controller = new AbortController();
+          try {
+            const response = await withTimeout(
+              fetch('/api/lan-sync/?collection=users', {
+                signal: controller.signal,
+                cache: 'no-store',
+              }),
+              850,
+              'Local staff roster lookup timed out'
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result?.success === true && result.data && typeof result.data === 'object') {
+                const usersList = Object.entries(result.data).map(([id, value]) => ({
+                  id,
+                  ...(value && typeof value === 'object' ? value : {}),
+                })) as UserProfile[];
+
                 firestoreCache.set(CacheKeys.collection('users'), usersList, CacheTTL.LONG);
                 try {
                   localStorage.setItem('app_cached_staff_users', JSON.stringify(usersList));
                 } catch {}
-                matchedProfile = findStaffProfile(usersList, user.uid, user.email);
-                cloudLookupCompleted = true;
+
+                accountProfile = findMatchingProfile(usersList, user.uid, user.email);
+                matchedStaffProfile = findStaffProfile(usersList, user.uid, user.email);
+                if (matchedStaffProfile) lookupSucceeded = true;
               }
             }
+          } catch {
+            controller.abort();
+            // Continue with the cloud identity lookup when the LAN roster is unavailable.
           }
-        } catch {
-          // Continue to the device cache and cloud lookup.
-        } finally {
-          clearTimeout(timeoutId);
         }
-      }
 
-      if (!matchedProfile && cachedStaff) matchedProfile = cachedStaff;
+        // The cloud identity query also finds legacy staff documents whose document
+        // ID is not the Firebase UID. Run it alongside the direct UID lookup.
+        if (!matchedStaffProfile) {
+          const staffFilters = [
+            where('uid', '==', user.uid),
+            where('id', '==', user.uid),
+          ];
+          const exactEmail = user.email?.trim();
+          const normalizedEmail = exactEmail?.toLowerCase();
+          if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
+          if (normalizedEmail && normalizedEmail !== exactEmail) {
+            staffFilters.push(where('email', '==', normalizedEmail));
+          }
 
-      // For cloud deployments or unresolved local identities, fetch the UID doc
-      // and identity query concurrently. Avoid an extra full-roster collection read.
-      if (!matchedProfile || !isLocalMasterHost()) {
-        let lookupTimeout: ReturnType<typeof setTimeout> | undefined;
-        try {
-          // Most staff profiles use the Firebase UID as their document ID.
-          // Resolve that common case with one lightweight document read first;
-          // only perform a collection query for legacy email/custom-ID records.
-          const uidDocument = await Promise.race([
-            getDocFromServer(doc(firestore, 'users', user.uid)),
-            new Promise<never>((_, reject) => {
-              lookupTimeout = setTimeout(
-                () => reject(new Error('Firestore staff lookup timed out')),
-                2000
-              );
-            }),
+          const [uidLookupResult, identityLookupResult] = await Promise.allSettled([
+            withTimeout(
+              getDocFromServer(doc(firestore, 'users', user.uid)),
+              2600,
+              'Firestore UID profile lookup timed out'
+            ),
+            withTimeout(
+              getDocsFromServer(query(collection(firestore, 'users'), or(...staffFilters))),
+              2600,
+              'Firestore staff identity lookup timed out'
+            ),
           ]);
 
-          const uidProfile = uidDocument.exists()
-            ? ({ id: uidDocument.id, ...uidDocument.data() } as UserProfile)
-            : null;
-          const uidDocumentMatchesIdentity = !!uidProfile &&
-            (!uidProfile.uid || uidProfile.uid === user.uid);
+          const candidates: Partial<UserProfile>[] = [];
 
-          if (uidDocumentMatchesIdentity) {
-            matchedProfile = findStaffProfile([uidProfile], user.uid, user.email);
-            cloudLookupCompleted = true;
-          } else {
-            const staffFilters = [
-              where('uid', '==', user.uid),
-              where('id', '==', user.uid),
-            ];
-            const exactEmail = user.email?.trim();
-            const normalizedEmail = exactEmail?.toLowerCase();
-            if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
-            if (normalizedEmail && normalizedEmail !== exactEmail) {
-              staffFilters.push(where('email', '==', normalizedEmail));
+          if (uidLookupResult.status === 'fulfilled' && uidLookupResult.value.exists()) {
+            const uidProfile = {
+              id: uidLookupResult.value.id,
+              ...uidLookupResult.value.data(),
+            } as UserProfile;
+            if (!uidProfile.uid || uidProfile.uid === user.uid) {
+              candidates.push(uidProfile);
             }
+          }
 
-            // Legacy staff profiles may use a custom document ID. Bound this
-            // fallback query as well as the UID lookup above so a stalled
-            // Firestore request can never leave the login screen loading forever.
-            if (lookupTimeout) clearTimeout(lookupTimeout);
-            const matchingStaff = await Promise.race([
-              getDocsFromServer(query(
-                collection(firestore, 'users'),
-                or(...staffFilters)
-              )),
-              new Promise<never>((_, reject) => {
-                lookupTimeout = setTimeout(
-                  () => reject(new Error('Firestore staff identity lookup timed out')),
-                  3000
-                );
-              }),
-            ]);
-            const matches = matchingStaff.docs.map(staffDocument => ({
+          if (identityLookupResult.status === 'fulfilled') {
+            const matches = identityLookupResult.value.docs.map(staffDocument => ({
               id: staffDocument.id,
               ...staffDocument.data(),
             } as UserProfile));
-            matchedProfile = findStaffProfile(matches, user.uid, user.email);
-            cloudLookupCompleted = true;
+            candidates.push(...matches);
+            lookupSucceeded = true;
           }
 
-          setCachedAccountType(user.uid, matchedProfile ? 'staff' : 'firebase-only-admin');
-        } catch {
-          // Retain the last verified assignment if cloud access is unavailable.
-        } finally {
-          if (lookupTimeout) clearTimeout(lookupTimeout);
-        }
-      }
+          accountProfile = findMatchingProfile(candidates, user.uid, user.email);
+          matchedStaffProfile = findStaffProfile(candidates, user.uid, user.email);
 
-      if (!isCancelled) {
-        if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
-        if (matchedProfile) {
-          setCachedAccountType(user.uid, 'staff');
-          const normalizedProfile = toStaffProfile(user, matchedProfile);
-          setUserProfile(normalizedProfile);
-          cacheStaffProfile(normalizedProfile);
-          syncStaffProfileToMaster(normalizedProfile);
-        } else if (cloudLookupCompleted || cachedAccountType === 'firebase-only-admin') {
-          cacheFirebaseOnlyAdminForOffline(user);
-          setUserProfile(toFirebaseAdminProfile(user));
-        } else {
-          setUserProfile(toUnverifiedProfile(user));
+          // A direct UID read can still confirm a role assignment when a separate
+          // legacy query is unavailable. Do not infer Admin from an unsuccessful lookup.
+          if (matchedStaffProfile) lookupSucceeded = true;
+
+          if (
+            uidLookupResult.status === 'rejected' &&
+            identityLookupResult.status === 'rejected' &&
+            !matchedStaffProfile
+          ) {
+            throw uidLookupResult.reason;
+          }
         }
-        setLoading(false);
+
+        if (isCancelled) return;
+
+        if (matchedStaffProfile) {
+          applyStaffProfile(matchedStaffProfile);
+        } else if (lookupSucceeded) {
+          setCachedAccountType(user.uid, 'firebase-only-admin');
+          applyFirebaseAdmin(accountProfile || cachedAccountProfile);
+        } else if (cachedStaff) {
+          // Preserve the last verified staff assignment if the cloud is temporarily unreachable.
+          applyStaffProfile(cachedStaff);
+        } else if (hasCachedFirebaseAdmin) {
+          applyFirebaseAdmin(cachedAccountProfile);
+        } else {
+          applyUnverifiedProfile();
+        }
+      } catch {
+        if (isCancelled) return;
+
+        // Network failures must not silently turn an unknown account into Admin.
+        // Only a previously verified cached identity may be used as the fallback.
+        if (cachedStaff) {
+          applyStaffProfile(cachedStaff);
+        } else if (hasCachedFirebaseAdmin) {
+          applyFirebaseAdmin(cachedAccountProfile);
+        } else {
+          applyUnverifiedProfile();
+        }
+      } finally {
+        lookupInProgress = false;
       }
     };
 
-    // Safety net: never keep a successfully authenticated user on an
-    // indefinite redirect screen if Firestore/LAN profile resolution stalls.
-    // Only use a previously verified cached identity; otherwise fail closed.
-    profileFallbackTimer = setTimeout(() => {
-      if (isCancelled) return;
-      const lastKnownStaff = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
-      if (lastKnownStaff) {
-        setUserProfile(toStaffProfile(user, lastKnownStaff));
-      } else if (cachedAccountType === 'firebase-only-admin') {
-        setUserProfile(toFirebaseAdminProfile(user));
-      } else {
-        setUserProfile(toUnverifiedProfile(user));
-      }
-      setLoading(false);
-    }, 8000);
+    void resolveProfile();
 
-    void loadProfile();
-
+    // Watch the UID document for permission/role changes. Personal profile-only
+    // documents are not staff assignments; resolveProfile checks legacy IDs too.
     const userDocRef = doc(firestore, 'users', user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-      // Do not accept a cached snapshot while online before server confirmation.
       if (docSnap.metadata.fromCache && (typeof navigator === 'undefined' || navigator.onLine)) {
         return;
       }
 
       if (docSnap.exists()) {
         const profileData = { id: docSnap.id, ...docSnap.data() } as UserProfile;
-        if (!profileData.uid || profileData.uid === user.uid) {
-          setCachedAccountType(user.uid, 'staff');
-          const normalizedProfile = toStaffProfile(user, profileData);
-          setUserProfile(normalizedProfile);
-          cacheStaffProfile(normalizedProfile);
-          syncStaffProfileToMaster(normalizedProfile);
-        } else {
-          // A document with a mismatched UID is not this user's staff assignment.
-          setUserProfile(toUnverifiedProfile(user));
+        if (profileData.uid && profileData.uid !== user.uid) {
+          applyUnverifiedProfile();
+          return;
         }
-        setLoading(false);
+
+        if (hasStaffAssignment(profileData)) {
+          applyStaffProfile(profileData);
+        } else {
+          void resolveProfile();
+        }
       } else {
-        void loadProfile();
+        void resolveProfile();
       }
     }, () => {
-      void loadProfile();
+      // The bounded identity lookup above remains the source of truth if the listener fails.
     });
 
     return () => {
       isCancelled = true;
-      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
       unsubscribe();
     };
   }, [user, authLoading, firestore, refreshTrigger]);
 
-  // Firebase-only accounts get full access; staff accounts get only their Firestore assignment.
+  // Firebase-only accounts and explicitly flagged super-admins are unrestricted.
+  // Every ordinary Firestore staff profile follows its stored permission assignment,
+  // even when its display role happens to be named "Admin".
   const permissions = useMemo(() => {
     if (!user || !userProfile || userProfile.isActive === false) return [];
 
     const dynamicPermissions = dynamicPermissionGroups.flatMap(group =>
       (group.permissions || []).map((permission: any) => permission.id)
     );
-    const isAdminRole = userProfile.isFirebaseOnlyAdmin || userProfile.role === 'Admin' || userProfile.role === 'Super Admin';
-    const assignedPermissions = isAdminRole
+    const isUnrestrictedAdmin = userProfile.isFirebaseOnlyAdmin === true || userProfile.isSuperAdmin === true;
+    const assignedPermissions = isUnrestrictedAdmin
       ? [...ALL_PERMISSIONS, ...dynamicPermissions]
-      : (Array.isArray(userProfile.permissions) && userProfile.permissions.length > 0
-          ? userProfile.permissions
-          : (DEFAULT_SYSTEM_ROLES.find(r => r.name === userProfile.role)?.permissions || []));
+      : (Array.isArray(userProfile.permissions) ? userProfile.permissions : []);
 
     return Array.from(new Set(assignedPermissions.filter(permission => typeof permission === 'string')));
   }, [user, userProfile, dynamicPermissionGroups]);
