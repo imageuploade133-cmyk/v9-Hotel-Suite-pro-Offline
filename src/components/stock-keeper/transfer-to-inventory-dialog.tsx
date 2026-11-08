@@ -14,7 +14,7 @@ import {
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { collection, doc, runTransaction, serverTimestamp, increment, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, runTransaction, serverTimestamp, increment, getDoc, writeBatch, setDoc } from 'firebase/firestore';
 import type { StockItem } from '@/lib/types';
 import { useUser } from '@/contexts/user-context';
 import { ScrollArea } from '../ui/scroll-area';
@@ -27,6 +27,8 @@ import { Separator } from '../ui/separator';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { format } from 'date-fns';
 import { useBranch } from '@/contexts/branch-context';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface TransferToInventoryDialogProps {
   isOpen: boolean;
@@ -116,6 +118,108 @@ export function TransferToInventoryDialog({ isOpen, onClose, itemsToTransfer, on
           invoiceNumber,
         };
 
+        if (isLocalMasterHost()) {
+          const [localStaging, localMain] = await Promise.all([
+            fetchLocalLanCollection<StockItem>(stagingItemsCollection),
+            fetchLocalLanCollection<StockItem>(mainStockCollection),
+          ]);
+          const transferMutations: Array<{ collectionName: string; docId: string; action: 'set' | 'update'; data: Record<string, unknown> }> = [];
+          const localAuditChanges: any[] = [];
+          let localTotalValue = 0;
+          for (const requested of itemsWithValidQuantity) {
+            const stagingItem = localStaging.find(entry => entry.id === requested.itemId);
+            if (!stagingItem || Number(stagingItem.quantity || 0) < requested.quantity) {
+              throw new Error(`Not enough stock for ${stagingItem?.name || requested.itemId} in staging.`);
+            }
+            const mainItem = localMain.find(entry => entry.id === requested.itemId);
+            const costPrice = Number(stagingItem.costPrice || 0);
+            const subtotal = costPrice * requested.quantity;
+            localTotalValue += subtotal;
+            receiptData.items.push({
+              id: requested.itemId,
+              name: stagingItem.name,
+              quantity: requested.quantity,
+              costPrice,
+              sellingPrice: Number(stagingItem.sellingPrice || 0),
+              subtotal,
+            });
+            localAuditChanges.push({
+              field: `transfer: ${stagingItem.name}`,
+              before: `Staging: ${stagingItem.quantity}`,
+              after: `Main: ${Number(mainItem?.quantity || 0) + requested.quantity}`,
+            });
+            transferMutations.push({
+              collectionName: stagingItemsCollection,
+              docId: stagingItem.id,
+              action: 'update',
+              data: { quantity: Number(stagingItem.quantity) - requested.quantity, updatedAt: new Date().toISOString() },
+            });
+            const mainData = mainItem
+              ? { quantity: Number(mainItem.quantity || 0) + requested.quantity, updatedAt: new Date().toISOString() }
+              : { ...stagingItem, quantity: requested.quantity, held: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+            transferMutations.push({
+              collectionName: mainStockCollection,
+              docId: requested.itemId,
+              action: mainItem ? 'update' : 'set',
+              data: mainData as any,
+            });
+          }
+          receiptData.totalValue = localTotalValue;
+          const expenseRef = doc(collection(firestore, expensesCollection));
+          const auditLogRef = doc(collection(firestore, globalAuditLogCollection));
+          const localExpense = {
+            description: `Stock purchase from ${supplier || 'Staging Area'}` + (invoiceNumber ? ` (Inv #${invoiceNumber})` : ''),
+            amount: localTotalValue,
+            category: 'Stock',
+            date: new Date().toISOString(),
+            paymentMethod: 'Payable',
+            status: 'Active',
+            recordedBy: userProfile.name,
+            recordedByUid: userProfile.uid,
+            createdAt: new Date().toISOString(),
+          };
+          const localTransfer = { ...receiptData, transferredAt: new Date().toISOString(), transferredBy: userProfile.name };
+          const localAudit = {
+            timestamp: new Date().toISOString(),
+            userId: userProfile.uid,
+            userName: userProfile.name,
+            changeType: 'Transfer',
+            entityType: 'Stock Transfer',
+            entityId: transferLogRef.id,
+            details: `Transferred ${itemsWithValidQuantity.length} item type(s) from staging to main inventory.`,
+            changes: localAuditChanges,
+            notes: `Total Cost: ${formatCurrency(localTotalValue)}. Supplier: ${supplier || 'N/A'}. Invoice: ${invoiceNumber || 'N/A'}.`,
+            keywords: ['transfer', 'stock', 'inventory', ...receiptData.items.map(entry => entry.name.toLowerCase())],
+          };
+          transferMutations.push(
+            { collectionName: expensesCollection, docId: expenseRef.id, action: 'set', data: localExpense },
+            { collectionName: transferLogCollection, docId: transferLogRef.id, action: 'set', data: localTransfer as any },
+            { collectionName: globalAuditLogCollection, docId: auditLogRef.id, action: 'set', data: localAudit },
+          );
+          await commitLocalFirstMutations(
+            transferMutations,
+            `stock-transfer:${transferLogRef.id}`,
+            async () => {
+              await runTransaction(firestore, async (transaction) => {
+                const auditRef = doc(firestore, globalAuditLogCollection, auditLogRef.id);
+                const stagingRefs = itemsWithValidQuantity.map(({ itemId }) => doc(firestore, stagingItemsCollection, itemId));
+                const mainRefs = itemsWithValidQuantity.map(({ itemId }) => doc(firestore, mainStockCollection, itemId));
+                const stagingSnapshots = await Promise.all(stagingRefs.map(ref => transaction.get(ref)));
+                const mainSnapshots = await Promise.all(mainRefs.map(ref => transaction.get(ref)));
+                stagingSnapshots.forEach((snapshot, index) => {
+                  const quantity = itemsWithValidQuantity[index].quantity;
+                  if (!snapshot.exists() || Number(snapshot.data().quantity || 0) < quantity) throw new Error('Insufficient staging stock during cloud transfer.');
+                  transaction.update(stagingRefs[index], { quantity: increment(-quantity) });
+                  if (mainSnapshots[index].exists()) transaction.update(mainRefs[index], { quantity: increment(quantity) });
+                  else transaction.set(mainRefs[index], { ...snapshot.data(), quantity, held: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+                });
+                transaction.set(doc(firestore, expensesCollection, expenseRef.id), { ...localExpense, date: serverTimestamp(), createdAt: serverTimestamp() });
+                transaction.set(transferLogRef, { ...localTransfer, transferredAt: serverTimestamp() });
+                transaction.set(auditRef, { ...localAudit, timestamp: serverTimestamp() });
+              });
+            }
+          );
+        } else {
         await runTransaction(firestore, async (transaction) => {
             const auditLogRef = doc(collection(firestore, globalAuditLogCollection));
             const readPromises = itemsWithValidQuantity.map(({ itemId }) => {
@@ -209,6 +313,7 @@ export function TransferToInventoryDialog({ isOpen, onClose, itemsToTransfer, on
                 keywords: ['transfer', 'stock', 'inventory', ...receiptData.items.map(i => i.name.toLowerCase())]
             });
         });
+        }
 
         if (settings?.enableTransferReceipts && settings.transferReceiptPhoneNumber) {
             const itemsList = receiptData.items.map(i => `- ${i.name} (x${i.quantity})`).join('\n');
