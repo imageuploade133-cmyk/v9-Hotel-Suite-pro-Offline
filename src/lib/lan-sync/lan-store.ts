@@ -13,6 +13,7 @@ export interface SyncMutation {
   syncedAt?: number;
   attempts: number;
   error?: string;
+  transactionKey?: string;
 }
 
 export interface LanStoreState {
@@ -170,6 +171,7 @@ function saveState(state: LanStoreState): void {
     maybeCreatePeriodicBackup();
   } catch (err: unknown) {
     console.error('[LAN Store] Error writing local store file:', err);
+    throw err;
   }
 }
 
@@ -248,52 +250,107 @@ export class LanStore {
     });
   }
 
+  /**
+   * Apply a group of document mutations as one durable Master-PC transaction.
+   * The JSON database is atomically replaced before this method returns. A
+   * transactionKey makes client retries safe after a lost HTTP response.
+   */
+  public applyMutationsAtomic(
+    inputs: Array<{
+      collectionName: string;
+      docId: string;
+      action: 'set' | 'update' | 'delete';
+      data?: Record<string, unknown>;
+    }>,
+    transactionKey?: string
+  ): { mutations: SyncMutation[]; duplicate: boolean } {
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+      throw new Error('A non-empty mutation batch is required.');
+    }
+
+    if (transactionKey) {
+      const prior = this.mutationsList.filter((m) => m.transactionKey === transactionKey);
+      if (prior.length > 0) return { mutations: prior, duplicate: true };
+    }
+
+    const previousCollections = new Map<string, Map<string, Record<string, unknown>>>();
+    for (const [name, docs] of this.collectionsMap.entries()) {
+      previousCollections.set(name, new Map(docs));
+    }
+    const previousMutationCount = this.mutationsList.length;
+    const timestamp = Date.now();
+    const created: SyncMutation[] = [];
+
+    try {
+      for (const input of inputs) {
+        let docMap = this.collectionsMap.get(input.collectionName);
+        if (!docMap) {
+          docMap = new Map<string, Record<string, unknown>>();
+          this.collectionsMap.set(input.collectionName, docMap);
+        }
+
+        if (input.action === 'delete') {
+          docMap.delete(input.docId);
+        } else if (input.action === 'set') {
+          docMap.set(input.docId, { id: input.docId, ...(input.data || {}) });
+        } else {
+          const existing = docMap.get(input.docId) || { id: input.docId };
+          docMap.set(input.docId, { ...existing, ...(input.data || {}) });
+        }
+
+        const mutation: SyncMutation = {
+          id: crypto.randomUUID(),
+          collectionName: input.collectionName,
+          docId: input.docId,
+          action: input.action,
+          data: input.data,
+          timestamp,
+          syncedToCloud: false,
+          attempts: 0,
+          transactionKey,
+        };
+        this.mutationsList.push(mutation);
+        created.push(mutation);
+      }
+
+      // Persist synchronously; never acknowledge a transaction still waiting
+      // in a debounce timer or silently swallowed filesystem write error.
+      if (this.persistTimer) {
+        clearTimeout(this.persistTimer);
+        this.persistTimer = null;
+      }
+      this.doPersist();
+    } catch (error) {
+      this.collectionsMap.clear();
+      for (const [name, docs] of previousCollections.entries()) {
+        this.collectionsMap.set(name, docs);
+      }
+      this.mutationsList.splice(previousMutationCount);
+      throw error;
+    }
+
+    for (const mutation of created) {
+      const docs = this.collectionsMap.get(mutation.collectionName);
+      this.broadcast({
+        type: 'mutation',
+        collectionName: mutation.collectionName,
+        docId: mutation.docId,
+        action: mutation.action,
+        data: docs?.get(mutation.docId) || mutation.data,
+        timestamp,
+      });
+    }
+
+    return { mutations: created, duplicate: false };
+  }
+
   public addMutation(
     collectionName: string,
     docId: string,
     action: 'set' | 'update' | 'delete',
     data?: Record<string, unknown>
   ): SyncMutation {
-    const mutation: SyncMutation = {
-      id: crypto.randomUUID(),
-      collectionName,
-      docId,
-      action,
-      data,
-      timestamp: Date.now(),
-      syncedToCloud: false,
-      attempts: 0,
-    };
-
-    let docMap = this.collectionsMap.get(collectionName);
-    if (!docMap) {
-      docMap = new Map<string, Record<string, unknown>>();
-      this.collectionsMap.set(collectionName, docMap);
-    }
-
-    if (action === 'delete') {
-      docMap.delete(docId);
-    } else if (action === 'set') {
-      docMap.set(docId, { id: docId, ...(data || {}) });
-    } else if (action === 'update') {
-      const existingDoc = docMap.get(docId) || { id: docId };
-      docMap.set(docId, { ...existingDoc, ...(data || {}) });
-    }
-
-    this.mutationsList.push(mutation);
-    this.persist();
-
-    // Broadcast to all active SSE subscribers in real time
-    this.broadcast({
-      type: 'mutation',
-      collectionName,
-      docId,
-      action,
-      data: docMap.get(docId) || data,
-      timestamp: mutation.timestamp,
-    });
-
-    return mutation;
+    return this.applyMutationsAtomic([{ collectionName, docId, action, data }]).mutations[0];
   }
 
   public getPendingMutations(): SyncMutation[] {
