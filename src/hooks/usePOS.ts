@@ -345,7 +345,23 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
         }
     };
-        if (isOffline) {
+        let localMasterAvailable = false;
+        if (!isOffline) {
+          try {
+            const masterStatus = await fetch('/api/lan-sync', { cache: 'no-store' });
+            if (masterStatus.ok) {
+              const statusPayload = await masterStatus.json();
+              localMasterAvailable = statusPayload?.success === true && statusPayload?.mode === 'LAN_MASTER_SERVER';
+            }
+          } catch {
+            localMasterAvailable = false;
+          }
+        }
+
+        // Regular running tables are saved to the Master PC first when
+        // connected to the hotel LAN. Room-bill tables keep their existing
+        // Firestore transaction until the linked bill is migrated atomically.
+        if (isOffline || (localMasterAvailable && !restoredSaleData?.linkedBillId)) {
             await executeOfflineHoldWrites();
         } else {
             try {
