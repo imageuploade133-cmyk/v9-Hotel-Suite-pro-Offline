@@ -619,26 +619,39 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           // Older staff records may have a custom document ID. Query by UID/email
           // only when the canonical UID document was not found.
           if (!uidDocumentFound) {
-            const staffFilters = [
-              where('uid', '==', user.uid),
-              where('id', '==', user.uid),
+            const usersCollection = collection(firestore, 'users');
+            const identityQueries = [
+              query(usersCollection, where('uid', '==', user.uid)),
+              query(usersCollection, where('id', '==', user.uid)),
             ];
             const exactEmail = user.email?.trim();
             const normalizedEmail = exactEmail?.toLowerCase();
-            if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
+            if (exactEmail) {
+              identityQueries.push(query(usersCollection, where('email', '==', exactEmail)));
+            }
             if (normalizedEmail && normalizedEmail !== exactEmail) {
-              staffFilters.push(where('email', '==', normalizedEmail));
+              identityQueries.push(query(usersCollection, where('email', '==', normalizedEmail)));
             }
 
-            const matchingStaff = await withTimeout(
-              getDocsFromServer(query(collection(firestore, 'users'), or(...staffFilters))),
-              2600,
-              'Firestore staff identity lookup timed out'
-            );
-            const matches = matchingStaff.docs.map(staffDocument => ({
-              id: staffDocument.id,
-              ...staffDocument.data(),
-            } as UserProfile));
+            // Keep each legacy identity lookup on a single indexed field. A
+            // composite OR query can fail when older deployments lack an index.
+            const identitySnapshots = await Promise.all(identityQueries.map(identityQuery =>
+              withTimeout(
+                getDocsFromServer(identityQuery),
+                2600,
+                'Firestore staff identity lookup timed out'
+              )
+            ));
+            const uniqueMatches = new Map<string, UserProfile>();
+            identitySnapshots.forEach(snapshot => {
+              snapshot.docs.forEach(staffDocument => {
+                uniqueMatches.set(staffDocument.id, {
+                  id: staffDocument.id,
+                  ...staffDocument.data(),
+                } as UserProfile);
+              });
+            });
+            const matches = Array.from(uniqueMatches.values());
 
             accountProfile = findMatchingProfile(matches, user.uid, user.email);
             matchedStaffProfile = findStaffProfile(matches, user.uid, user.email);
