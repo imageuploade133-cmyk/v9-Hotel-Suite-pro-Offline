@@ -75,6 +75,7 @@ export async function commitLocalFirstMutations(
       return value.toDate().toISOString();
     }
     if (value instanceof Date) return value.toISOString();
+    if (typeof value === 'number' && !Number.isFinite(value)) return value === Infinity ? '__LAN_INFINITY__' : value === -Infinity ? '__LAN_NEG_INFINITY__' : '__LAN_NAN__';
     if (Array.isArray(value)) return value.map(cleanValue);
     if (value && typeof value === 'object') {
       return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cleanValue(child)]));
@@ -119,5 +120,13 @@ export async function fetchLocalLanCollection<T = Record<string, unknown>>(
   if (result?.success !== true || !result?.data || typeof result.data !== 'object') {
     throw new Error('The Local Master returned an invalid collection response.');
   }
-  return Object.entries(result.data).map(([id, value]) => ({ id, ...(value as object) })) as T[];
+  const restore = (value: any): any => {
+    if (value === '__LAN_INFINITY__') return Infinity;
+    if (value === '__LAN_NEG_INFINITY__') return -Infinity;
+    if (value === '__LAN_NAN__') return NaN;
+    if (Array.isArray(value)) return value.map(restore);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, restore(child)]));
+    return value;
+  };
+  return Object.entries(result.data).map(([id, value]) => ({ id, ...restore(value as object) })) as T[];
 }
