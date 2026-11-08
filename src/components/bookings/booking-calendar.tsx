@@ -357,8 +357,9 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
   return (
     <>
       <Collapsible open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+        <div className="w-full rounded-xl bg-gradient-to-r from-primary via-primary/55 to-accent p-[1.5px] shadow-sm">
         <div
-            className="w-full rounded-lg border bg-card p-4 shadow-sm"
+            className="w-full rounded-[calc(0.75rem-1.5px)] bg-card p-4"
             style={{
                 backgroundColor: 'hsl(var(--booking-calendar-tab-background))',
                 color: 'hsl(var(--booking-calendar-tab-foreground))'
@@ -413,6 +414,7 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
                     </Button>
                 </div>
             </CollapsibleTrigger>
+        </div>
         </div>
         <CollapsibleContent>
             <Card className="mt-2">
