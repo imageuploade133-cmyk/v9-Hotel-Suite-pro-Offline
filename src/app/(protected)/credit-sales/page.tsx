@@ -188,7 +188,63 @@ function CreditSalesPage() {
       }
     }
 
-    await batch.commit();
+    // Prefer the Local Master as the durable source of truth whenever this
+    // page is opened through the hotel LAN server.
+    let savedOnLocalMaster = false;
+    try {
+      const masterStatus = await fetch('/api/lan-sync', { cache: 'no-store' });
+      if (masterStatus.ok) {
+        const statusPayload = await masterStatus.json();
+        if (statusPayload?.success && statusPayload?.mode === 'LAN_MASTER_SERVER') {
+          const mutations: { collectionName: string; docId: string; action: 'set' | 'update' | 'delete'; data?: Record<string, any> }[] = [{
+            collectionName: 'payments',
+            docId: newPaymentRef.id,
+            action: 'set',
+            data: { ...newPaymentData, id: newPaymentRef.id },
+          }];
+          if (sale.outstandingBalance - paymentAmount <= 0) {
+            mutations.push({
+              collectionName: 'stockSales',
+              docId: sale.id,
+              action: 'update',
+              data: { paymentStatus: 'Paid' },
+            });
+            if (sale.linkedHeldSaleId) {
+              mutations.push({
+                collectionName: getCollectionPath('heldSales'),
+                docId: sale.linkedHeldSaleId,
+                action: 'delete',
+              });
+            }
+          }
+          const localResponse = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transactionKey: `credit-repayment-${newPaymentRef.id}`,
+              mutations,
+            }),
+          });
+          const localResult = await localResponse.json().catch(() => ({}));
+          if (!localResponse.ok || localResult?.success !== true || localResult?.durable !== true) {
+            throw new Error(localResult?.error || 'The Local Master PC could not confirm this repayment.');
+          }
+          savedOnLocalMaster = true;
+          if (typeof navigator !== 'undefined' && navigator.onLine) {
+            fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
+          }
+        }
+      }
+    } catch (localError) {
+      throw new Error(localError instanceof Error ? localError.message : 'Local Master save failed.');
+    }
+
+    if (!savedOnLocalMaster) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('No Local Master PC connection is available. This repayment has not been saved.');
+      }
+      await batch.commit();
+    }
     setReloadCounter(c => c + 1); // Trigger a re-fetch
   };
 
