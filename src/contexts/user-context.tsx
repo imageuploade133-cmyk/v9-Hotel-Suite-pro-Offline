@@ -154,13 +154,19 @@ const findMatchingProfile = (
 ): Partial<UserProfile> | null => {
   if (!Array.isArray(users)) return null;
   const lowerEmail = email?.trim().toLowerCase();
-  const matches = (users as Partial<UserProfile>[]).filter(profile =>
-    profile && (
-      profile.uid === uid ||
-      profile.id === uid ||
-      (!!lowerEmail && profile.email?.trim().toLowerCase() === lowerEmail)
-    )
-  );
+  const matches = (users as Partial<UserProfile>[]).filter(profile => {
+    if (!profile) return false;
+
+    // Never bind a cached/legacy email record to another Firebase UID.
+    if (profile.uid && profile.uid !== uid) return false;
+
+    const matchesUid = profile.uid === uid || profile.id === uid;
+    const matchesLegacyEmail = !!lowerEmail &&
+      profile.email?.trim().toLowerCase() === lowerEmail &&
+      !profile.uid;
+
+    return matchesUid || matchesLegacyEmail;
+  });
 
   // Prefer a real role assignment if a cache contains more than one identity match.
   return matches.find(hasStaffAssignment) || matches[0] || null;
