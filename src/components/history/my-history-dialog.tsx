@@ -31,7 +31,7 @@ export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDia
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-auto sm:max-h-[min(90dvh,52rem)] sm:max-w-6xl sm:rounded-lg sm:p-6">
+      <DialogContent className="mobile-fullscreen-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-auto sm:max-h-[min(90dvh,52rem)] sm:max-w-6xl sm:rounded-lg sm:p-6">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>My History</DialogTitle>
           <DialogDescription>
