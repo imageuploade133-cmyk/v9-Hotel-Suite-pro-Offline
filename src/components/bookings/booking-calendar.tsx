@@ -382,9 +382,9 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
                             {activeGuests.slice(0, 5).map((guest, i) => (
                                 <Tooltip key={guest.id}>
                                     <TooltipTrigger>
-                                    <Avatar className="h-8 w-8 border-2 border-background">
+                                    <Avatar className="h-8 w-8 border-2 border-white bg-white">
                                             <AvatarImage src={guest.guestPhotoURL} alt={guest.guestName} />
-                                            <AvatarFallback>{getInitials(guest.guestName)}</AvatarFallback>
+                                            <AvatarFallback className="bg-white text-primary">{getInitials(guest.guestName)}</AvatarFallback>
                                         </Avatar>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -396,7 +396,7 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
                                 <Tooltip>
                                     <TooltipTrigger>
                                         <Avatar className="h-8 w-8 border-2 border-background">
-                                            <AvatarFallback>+{activeGuests.length - 5}</AvatarFallback>
+                                            <AvatarFallback className="bg-white text-primary">+{activeGuests.length - 5}</AvatarFallback>
                                         </Avatar>
                                     </TooltipTrigger>
                                     <TooltipContent>

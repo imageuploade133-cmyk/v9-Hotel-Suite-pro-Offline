@@ -400,7 +400,7 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-                 <Button variant="outline" className="border-white/70 bg-transparent text-white hover:bg-white/10 hover:text-white [&_svg]:text-white" onClick={(e) => { e.stopPropagation(); setIsSoundMuted(prev => !prev); }}>
+                 <Button variant="outline" className="border-2 border-white bg-transparent text-white hover:bg-white/10 hover:text-white [&_svg]:text-white" onClick={(e) => { e.stopPropagation(); setIsSoundMuted(prev => !prev); }}>
                   {isSoundMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   <span className="ml-2">{isSoundMuted ? 'Unmute' : 'Mute'}</span>
                 </Button>
