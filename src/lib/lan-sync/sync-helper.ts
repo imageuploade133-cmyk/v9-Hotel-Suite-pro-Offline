@@ -61,7 +61,8 @@ export type LanMutationInput = {
 export async function commitLocalFirstMutations(
   mutations: LanMutationInput[],
   transactionKey: string,
-  cloudCommit: () => Promise<unknown>
+  cloudCommit: () => Promise<unknown>,
+  stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number }> = []
 ): Promise<{ local: boolean; duplicate?: boolean }> {
   if (typeof window === 'undefined' || !isLocalMasterHost()) {
     await cloudCommit();
@@ -90,6 +91,7 @@ export async function commitLocalFirstMutations(
         ...mutation,
         data: mutation.data ? cleanValue(mutation.data) : undefined,
       })),
+      stockAdjustments,
     }),
   });
 
