@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
         action?: 'set' | 'update' | 'delete';
         data?: Record<string, unknown>;
       }>;
-      const stockAdjustments = Array.isArray(body?.stockAdjustments) ? body.stockAdjustments : [];\n      const valid = (mutations.length > 0 || stockAdjustments.length > 0) && mutations.every((mutation) =>
+      const stockAdjustments = Array.isArray(body?.stockAdjustments) ? body.stockAdjustments : [];
+      const valid = (mutations.length > 0 || stockAdjustments.length > 0) && mutations.every((mutation) =>
         typeof mutation.collectionName === 'string'
         && mutation.collectionName.length > 0
         && typeof mutation.docId === 'string'
