@@ -29,6 +29,7 @@ import { useFirestore, useCollection, useDoc } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import {
   Utensils,
   Search,
@@ -579,7 +580,12 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
   const handleDelete = async (item: MenuItem) => {
     if (!item || !firestore || !menuId) return;
     try {
-      await deleteDoc(doc(firestore, `menus/${menuId}/items`, item.id));
+      const itemRef = doc(firestore, `menus/${menuId}/items`, item.id);
+      await commitLocalFirstMutations(
+        [{ collectionName: `menus/${menuId}/items`, docId: item.id, action: 'delete' }],
+        `menu-item-delete:${menuId}:${item.id}:${Date.now()}`,
+        () => deleteDoc(itemRef)
+      );
       toast({
         variant: 'success',
         title: 'Menu Item Deleted',
