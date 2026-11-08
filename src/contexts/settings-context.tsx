@@ -194,9 +194,9 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             try {
                 const branchSettingsPath = `branches/${currentBranchId}/posSettings`;
                 const branchSettingsCollectionRef = collection(db, branchSettingsPath);
-                const branchSettingsSnapshot = await getDocs(branchSettingsCollectionRef);
+                const branchSettingsSnapshot = await fetchWithTimeout(getDocs(branchSettingsCollectionRef), 1200);
                 extractedBranchPosSettings = {};
-                branchSettingsSnapshot.forEach((doc) => {
+                branchSettingsSnapshot?.forEach((doc) => {
                     Object.assign(extractedBranchPosSettings!, doc.data());
                 });
             } catch (err) {
@@ -205,9 +205,12 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         }
 
         const paymentMethodsCollectionRef = collection(db, 'paymentMethods');
-        const paymentMethodsSnapshot = await getDocs(paymentMethodsCollectionRef);
-        const paymentMethods = paymentMethodsSnapshot.docs.map(doc => doc.data().name as string);
-        mergedSettings.paymentMethods = paymentMethods;
+        const paymentMethodsSnapshot = await fetchWithTimeout(getDocs(paymentMethodsCollectionRef), 1200);
+        if (paymentMethodsSnapshot) {
+          mergedSettings.paymentMethods = paymentMethodsSnapshot.docs
+            .map(doc => doc.data().name as string)
+            .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+        }
 
         firestoreCache.set(CacheKeys.settings(), mergedSettings, CacheTTL.HOUR);
         try {
