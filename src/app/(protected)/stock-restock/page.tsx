@@ -62,6 +62,7 @@ import { AlertTriangle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBranch } from '@/contexts/branch-context';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 interface RestockEntry {
   id: string;
@@ -210,17 +211,20 @@ function RestockInventoryPage() {
     try {
       if (!firestore || !userProfile) throw new Error('Not authenticated');
 
-      // Update stock quantity and cost price if changed
+      // Prepare stock balance and restock ledger as one durable Master-PC transaction.
       const stockPath = isBranchMode && currentBranchId ? `branches/${currentBranchId}/stock` : 'stock';
       const stockRef = doc(firestore, stockPath, item.id);
-      await updateDoc(stockRef, {
-        quantity: increment(quantity),
+      const restockEntryRef = doc(collection(firestore, getCollectionPath('restockHistory')));
+      const nextQuantity = Number(item.quantity || 0) + quantity;
+      if (!Number.isFinite(nextQuantity) || nextQuantity < 0) throw new Error('The resulting stock quantity is invalid.');
+      const stockUpdate = {
+        quantity: nextQuantity,
         costPrice: costPerUnit,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: new Date().toISOString(),
+      };
 
-      // Create restock history entry
       const restockEntryData: Record<string, any> = {
+        id: restockEntryRef.id,
         itemId: item.id,
         itemName: item.name,
         quantityAdded: quantity,
@@ -228,7 +232,7 @@ function RestockInventoryPage() {
         totalCost,
         restockedBy: userProfile.name || 'Unknown',
         restockedByUid: userProfile.id || '',
-        restockedAt: serverTimestamp(),
+        restockedAt: new Date().toISOString(),
       };
 
       // Add branch ID for branch-isolated collections
@@ -242,7 +246,13 @@ function RestockInventoryPage() {
       }
 
       const historyPath = getCollectionPath('restockHistory');
-      await setDoc(doc(collection(firestore, historyPath)), restockEntryData);
+      await commitLocalFirstMutations([
+        { collectionName: stockPath, docId: item.id, action: 'update', data: stockUpdate },
+        { collectionName: historyPath, docId: restockEntryRef.id, action: 'set', data: restockEntryData },
+      ], `stock-restock:${restockEntryRef.id}`, async () => {
+        await updateDoc(stockRef, { quantity: increment(quantity), costPrice: costPerUnit, updatedAt: serverTimestamp() });
+        await setDoc(restockEntryRef, { ...restockEntryData, restockedAt: serverTimestamp() });
+      });
 
       toast({
         variant: 'success',
