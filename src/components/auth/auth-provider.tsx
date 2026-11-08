@@ -142,7 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 localStorage.setItem('app_active_offline_session', JSON.stringify(offlineUser));
                 // The Master Server response includes the cached role and permissions.
                 // Save them locally before the protected layout starts resolving access.
-                if (u.role || Array.isArray(u.permissions)) {
+                if (u.isFirebaseOnlyAdmin === true || u.accountType === 'firebase-only-admin') {
+                  localStorage.setItem(`app_account_type_${offlineUid}`, 'firebase-only-admin');
+                } else if (u.role || Array.isArray(u.permissions)) {
                   const staffProfile = {
                     id: offlineUid,
                     uid: offlineUid,

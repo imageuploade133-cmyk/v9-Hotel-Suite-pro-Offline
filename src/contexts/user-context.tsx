@@ -377,6 +377,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       if (cachedStaff) {
         setUserProfile(toStaffProfile(user, cachedStaff));
       } else if (cachedAccountType === 'firebase-only-admin') {
+        cacheFirebaseOnlyAdminForOffline(user);
         setUserProfile(toFirebaseAdminProfile(user));
       } else {
         setUserProfile(toUnverifiedProfile(user));
@@ -511,7 +512,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           cacheStaffProfile(normalizedProfile);
           syncStaffProfileToMaster(normalizedProfile);
         } else if (cloudLookupCompleted || cachedAccountType === 'firebase-only-admin') {
-          if (cloudLookupCompleted) setCachedAccountType(user.uid, 'firebase-only-admin');
+          cacheFirebaseOnlyAdminForOffline(user);
           setUserProfile(toFirebaseAdminProfile(user));
         } else {
           setUserProfile(toUnverifiedProfile(user));

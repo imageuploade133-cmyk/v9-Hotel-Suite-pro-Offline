@@ -309,9 +309,13 @@ export default function LoginPage() {
     });
   };
 
-  if (authLoading || user) {
+  if (authLoading) {
     return <FullscreenLoader message="Please wait..." subtext="Signing in..." />;
   }
+
+  // Once authenticated, let the route transition happen without flashing
+  // an additional full-screen redirect loader over the login page.
+  if (user) return null;
 
   return (
     <>
