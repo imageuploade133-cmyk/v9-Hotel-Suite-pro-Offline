@@ -50,6 +50,8 @@ import { cn } from '@/lib/utils';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import Link from 'next/link';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import Image from 'next/image';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
@@ -191,8 +193,9 @@ function BulkAddPage() {
     setIsSaving(true);
 
     try {
-      const existingItemsSnapshot = await getDocs(collection(firestore, 'stockKeeperItems'));
-      const existingItems = existingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as StockItem);
+      const existingItems = isLocalMasterHost()
+        ? await fetchLocalLanCollection<StockItem>('stockKeeperItems')
+        : (await getDocs(collection(firestore, 'stockKeeperItems'))).docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as StockItem));
 
       const names = new Set<string>();
       const barcodes = new Set<string>();
@@ -234,6 +237,7 @@ function BulkAddPage() {
       }
 
       const auditChanges: any[] = [];
+      const localMutations: Array<{ collectionName: string; docId: string; action: 'set'; data: Record<string, unknown> }> = [];
 
       data.items.forEach((item, index) => {
         const newItemRef = doc(collection(firestore, 'stockKeeperItems'));
@@ -257,6 +261,7 @@ function BulkAddPage() {
           promoEndDate: item.promoDates?.to ? Timestamp.fromDate(item.promoDates.to) : null,
         };
         batch.set(newItemRef, itemData);
+        localMutations.push({ collectionName: 'stockKeeperItems', docId: newItemRef.id, action: 'set', data: { ...itemData, id: newItemRef.id, createdAt: new Date().toISOString(), expiryDate: item.expiryDate || null, promoStartDate: item.promoDates?.from?.toISOString?.() || null, promoEndDate: item.promoDates?.to?.toISOString?.() || null } as any });
 
         auditChanges.push({
             field: `staged item: ${item.name}`,
@@ -279,7 +284,15 @@ function BulkAddPage() {
             keywords: ['create', 'staged', 'stock', ...data.items.map(i => i.name.toLowerCase()), ...data.items.map(i => i.category.toLowerCase())]
         });
 
-      await batch.commit();
+      const localAudit = {
+        timestamp: new Date().toISOString(), userId: userProfile.uid, userName: userProfile.name,
+        changeType: 'Create', entityType: 'Stock Keeper', entityId: 'Bulk Add',
+        details: `Bulk added ${data.items.length} item(s) to staging.`, changes: auditChanges,
+        notes: `Total Cost: ${formatCurrency(totalCost)}. Supplier: ${data.supplier || 'N/A'}. Invoice: ${data.invoiceNumber || 'N/A'}.`,
+        keywords: ['create', 'staged', 'stock', ...data.items.map(i => i.name.toLowerCase()), ...data.items.map(i => i.category.toLowerCase())],
+      };
+      localMutations.push({ collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set', data: localAudit });
+      await commitLocalFirstMutations(localMutations, `stock-keeper-bulk-add:${auditLogRef.id}`, () => batch.commit());
 
       toast({
         variant: 'success',
