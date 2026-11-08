@@ -247,12 +247,11 @@ function RestockInventoryPage() {
 
       const historyPath = getCollectionPath('restockHistory');
       await commitLocalFirstMutations([
-        { collectionName: stockPath, docId: item.id, action: 'update', data: stockUpdate },
         { collectionName: historyPath, docId: restockEntryRef.id, action: 'set', data: restockEntryData },
       ], `stock-restock:${restockEntryRef.id}`, async () => {
         await updateDoc(stockRef, { quantity: increment(quantity), costPrice: costPerUnit, updatedAt: serverTimestamp() });
         await setDoc(restockEntryRef, { ...restockEntryData, restockedAt: serverTimestamp() });
-      });
+      }, [{ collectionName: stockPath, itemId: item.id, quantityDelta: quantity }]);
 
       toast({
         variant: 'success',
