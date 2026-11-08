@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { MyHistory } from './my-history';
 import type { Booking } from '@/lib/types';
-import { ScrollArea } from '../ui/scroll-area';
 
 
 interface MyHistoryDialogProps {
@@ -24,10 +23,10 @@ export function MyHistoryDialog({ isOpen, onClose, onViewDetails }: MyHistoryDia
 
   const content = (
       <div className="min-h-0 min-w-0 flex-1 -mx-3 overflow-hidden sm:-mx-6">
-          <ScrollArea className="h-full min-w-0 px-3 sm:px-6">
-            <MyHistory onViewDetails={onViewDetails} />
-          </ScrollArea>
+        <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-3 sm:px-6">
+          <MyHistory onViewDetails={onViewDetails} />
         </div>
+      </div>
   );
 
   return (

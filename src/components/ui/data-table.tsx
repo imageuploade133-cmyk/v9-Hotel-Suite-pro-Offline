@@ -131,6 +131,7 @@ interface DataTableProps<TData, TValue> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>
   columnLabels?: Record<string, string>
   columnVisibilityLoading?: boolean
+  tableClassName?: string
   rowSelection?: RowSelectionState
   onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>
   emptyStateTitle?: string
@@ -155,6 +156,7 @@ export function DataTable<TData, TValue>({
   onColumnVisibilityChange,
   columnLabels,
   columnVisibilityLoading = false,
+  tableClassName,
   rowSelection = {},
   onRowSelectionChange = () => {},
   emptyStateTitle = "No Results Found",
@@ -507,8 +509,8 @@ export function DataTable<TData, TValue>({
                 </DropdownMenu>
             </div>
         </div>
-        <div className="min-w-0 flex-1 overflow-auto">
-            <Table>
+        <div className="min-w-0 flex-1 overflow-hidden">
+            <Table className={tableClassName}>
             <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>

@@ -111,6 +111,7 @@ export function HistoryList({
 
   return (
     <DataTable
+      tableClassName="w-max min-w-full"
       columns={columns as any}
       data={history || []}
       filterColumn={activeTab === 'bills' ? 'guestInfo' : 'guestName'}
