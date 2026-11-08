@@ -218,12 +218,12 @@ export function PaymentDialog({ isOpen, onClose, cart, activeRunningItems = [], 
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn("flex flex-col overflow-hidden p-0 gap-0", allowBillToRoom ? "h-[100dvh] max-h-[100dvh] w-screen max-w-none rounded-none" : "max-h-[90vh] w-[95vw] max-w-2xl")}>
+      <DialogContent className={cn("mobile-fullscreen-dialog flex min-h-0 flex-col overflow-hidden p-0 gap-0", allowBillToRoom ? "h-[100dvh] max-h-[100dvh] w-screen max-w-none rounded-none" : "max-h-[90vh] w-[95vw] max-w-2xl")}>
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle>{paymentMethod === 'Credit' ? 'Complete Credit Sale' : 'Process Payment'}</DialogTitle>
           <DialogDescription>Total amount due is {formatCurrency(total)}</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="min-h-0 min-w-0 flex-1">
           <div className="flex min-h-full flex-col space-y-4 px-6 py-4">
           <div className="p-3 rounded-md border bg-muted space-y-1 text-sm">
              <div className="flex justify-between">
