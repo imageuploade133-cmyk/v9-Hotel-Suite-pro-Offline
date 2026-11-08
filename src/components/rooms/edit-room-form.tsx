@@ -25,6 +25,7 @@ import { getSafeDate, uploadImage } from '@/lib/helpers';
 import { setHours, setMinutes, endOfDay } from 'date-fns';
 import { useSettings } from '@/contexts/settings-context';
 import { Form } from '../ui/form';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
 
@@ -113,7 +114,7 @@ export function EditRoomForm({ open, onOpenChange, room, onSuccess }: EditRoomFo
       }
 
       const roomRef = doc(firestore, 'rooms', room.id);
-      await updateDoc(roomRef, {
+      const roomUpdates = {
         name: data.name,
         price: data.price,
         capacity: data.capacity,
@@ -125,7 +126,13 @@ export function EditRoomForm({ open, onOpenChange, room, onSuccess }: EditRoomFo
         promoType: data.promoPrice ? data.promoType : null,
         promoStartDate: data.promoDates?.from ? Timestamp.fromDate(data.promoDates.from) : null,
         promoEndDate: data.promoDates?.to ? Timestamp.fromDate(endOfPromotionDay(data.promoDates.to, checkoutTime)) : null,
-      });
+        updatedAt: new Date().toISOString(),
+      };
+      await commitLocalFirstMutations(
+        [{ collectionName: 'rooms', docId: room.id, action: 'update', data: roomUpdates as any }],
+        `room-update:${room.id}:${Date.now()}`,
+        () => updateDoc(roomRef, roomUpdates)
+      );
 
       toast({ variant: 'success', title: 'Room Updated' });
       onSuccess();
