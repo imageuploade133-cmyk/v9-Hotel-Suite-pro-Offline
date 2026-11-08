@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
         uid: user.uid,
         email: user.email,
         name: user.name || user.displayName || user.email.split('@')[0],
-        role: user.role || 'Staff',
-        permissions: user.permissions || [],
-        assignedBranches: user.assignedBranches || [],
-        passwordHash,
+        ...(user.role ? { role: user.role } : {}),
+        ...(Array.isArray(user.permissions) ? { permissions: user.permissions } : {}),
+        ...(Array.isArray(user.assignedBranches) ? { assignedBranches: user.assignedBranches } : {}),
+        ...(user.isFirebaseOnlyAdmin === true ? { isFirebaseOnlyAdmin: true, accountType: 'firebase-only-admin' } : {}),
+        ...(passwordHash ? { passwordHash } : {}),
       });
 
       return NextResponse.json({

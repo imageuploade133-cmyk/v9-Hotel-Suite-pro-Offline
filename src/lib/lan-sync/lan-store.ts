@@ -410,9 +410,11 @@ export class LanStore {
     uid: string;
     email: string;
     name: string;
-    role: string;
+    role?: string;
     permissions?: string[];
     assignedBranches?: string[];
+    isFirebaseOnlyAdmin?: boolean;
+    accountType?: 'staff' | 'firebase-only-admin';
     passwordHash?: string;
   }): void {
     let usersMap = this.collectionsMap.get('users');
