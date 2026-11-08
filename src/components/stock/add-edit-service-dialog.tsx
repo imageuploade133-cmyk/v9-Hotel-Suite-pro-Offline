@@ -29,6 +29,7 @@ import {
   where,
   writeBatch,
   Timestamp,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -85,6 +86,7 @@ import {
 } from '../ui/command';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { BottomSheet } from '../ui/bottom-sheet';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required.'),
@@ -443,11 +445,13 @@ export function AddEditServiceItemDialog({
             return false;
         }
 
-        await addDoc(collection(firestore, `menus/${selectedMenuId}/categories`), {
-            name: name,
-            createdAt: serverTimestamp(),
-            createdBy: userProfile.name,
-        });
+        const categoryRef = doc(collection(firestore, `menus/${selectedMenuId}/categories`));
+        const categoryData = { name, createdAt: new Date().toISOString(), createdBy: userProfile.name };
+        await commitLocalFirstMutations(
+          [{ collectionName: `menus/${selectedMenuId}/categories`, docId: categoryRef.id, action: 'set', data: categoryData }],
+          `menu-category-create:${selectedMenuId}:${categoryRef.id}`,
+          () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+        );
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added to the selected menu.` });
         fetchCategories();
         form.setValue('category', name);
@@ -525,7 +529,12 @@ export function AddEditServiceItemDialog({
             ? `branches/${service.branchId}/services`
             : getCollectionPath('services');
         const serviceRef = doc(firestore, actualCollectionPath, service.id);
-        await updateDoc(serviceRef, serviceData);
+        const localServiceData = { ...serviceData, updatedAt: new Date().toISOString() };
+        await commitLocalFirstMutations(
+          [{ collectionName: actualCollectionPath, docId: service.id, action: 'update', data: localServiceData as any }],
+          `service-update:${service.id}:${Date.now()}`,
+          () => updateDoc(serviceRef, serviceData)
+        );
         toast({ variant: 'success', title: 'Service Updated' });
       } else {
         const baseServiceData = {
@@ -551,18 +560,37 @@ export function AddEditServiceItemDialog({
           serviceDataWithBranch = getNewDocumentData(baseServiceData, branchContext);
         }
 
-        const serviceDocRef = await addDoc(collection(firestore, getCollectionPath('services')), serviceDataWithBranch);
-
+        const serviceDocRef = doc(collection(firestore, getCollectionPath('services')));
+        const localServiceData = { ...serviceDataWithBranch, createdAt: new Date().toISOString(), id: serviceDocRef.id };
+        const serviceMutations: Array<{ collectionName: string; docId: string; action: 'set'; data: Record<string, unknown> }> = [
+          { collectionName: getCollectionPath('services'), docId: serviceDocRef.id, action: 'set', data: localServiceData as any },
+        ];
+        let menuItemRef: ReturnType<typeof doc> | null = null;
+        let localMenuItemData: Record<string, unknown> | null = null;
         if (data.menuId && data.menuId !== 'none') {
-            const menuItemData = {
-                ...serviceData,
-                createdAt: serverTimestamp(),
-                serviceId: serviceDocRef.id,
-            };
-            await addDoc(collection(firestore, `menus/${data.menuId}/items`), menuItemData);
-             toast({ variant: 'success', title: 'Item Added', description: `${data.name} has been added to Services and the selected Menu.` });
+          menuItemRef = doc(collection(firestore, `menus/${data.menuId}/items`));
+          localMenuItemData = { ...serviceData, createdAt: new Date().toISOString(), serviceId: serviceDocRef.id };
+          serviceMutations.push({
+            collectionName: `menus/${data.menuId}/items`,
+            docId: menuItemRef.id,
+            action: 'set',
+            data: localMenuItemData,
+          });
+        }
+        await commitLocalFirstMutations(
+          serviceMutations,
+          `service-create:${serviceDocRef.id}`,
+          async () => {
+            await setDoc(serviceDocRef, serviceDataWithBranch);
+            if (menuItemRef && localMenuItemData) {
+              await setDoc(menuItemRef, { ...localMenuItemData, createdAt: serverTimestamp() });
+            }
+          }
+        );
+        if (data.menuId && data.menuId !== 'none') {
+          toast({ variant: 'success', title: 'Item Added', description: `${data.name} has been added to Services and the selected Menu.` });
         } else {
-            toast({ variant: 'success', title: 'Service Added', description: `${data.name} has been added to Services.` });
+          toast({ variant: 'success', title: 'Service Added', description: `${data.name} has been added to Services.` });
         }
       }
       onSuccess();
