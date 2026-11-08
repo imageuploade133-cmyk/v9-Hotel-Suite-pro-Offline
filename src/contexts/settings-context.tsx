@@ -89,6 +89,8 @@ const getInitialSettings = (): Settings => {
 
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const [settings, setSettings] = useState<Settings>(getInitialSettings);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   // Settings are a startup dependency: protected workspaces stay hidden until a
   // verified persisted or remote settings source has been resolved.
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +129,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     try {
         // Multi-tier fallback strategy for settings:
         // Priority 1: Keep current settings as baseline (never drop currency/configuration)
-        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...settings };
+        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...settingsRef.current };
 
         // Priority 2: Query Local Master LAN Store (/api/lan-sync?collection=settings)
         if (isLocalMasterHost()) try {
