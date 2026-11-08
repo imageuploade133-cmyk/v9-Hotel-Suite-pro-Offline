@@ -182,13 +182,11 @@ export default function LoginPage() {
 
   const { loading: profileLoading, permissions, userProfile } = useUser();
   const redirectDestinationRef = React.useRef<string | null>(null);
-  const redirectFallbackRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     // Firebase sign-in alone is not enough to choose a destination. Wait until
     // the matching profile/role has been resolved so staff never flash Admin access.
     if (!user || profileLoading || !userProfile) {
-      redirectDestinationRef.current = null;
       return;
     }
 
@@ -210,29 +208,13 @@ export default function LoginPage() {
       return;
     }
 
-    // Start the normal client transition once. On mobile Safari, recover with a
-    // document navigation only if Next.js has not changed the URL after a short
-    // grace period. The destination is cached before this fallback can reload.
+    // Use one client-side transition. Do not force a document reload as a
+    // fallback: reloading restarts Firebase/profile hydration and shows the
+    // full-screen loader a second time on slower mobile/LAN connections.
     if (redirectDestinationRef.current !== landingPage) {
       redirectDestinationRef.current = landingPage;
       router.replace(landingPage);
     }
-
-    if (redirectFallbackRef.current) {
-      clearTimeout(redirectFallbackRef.current);
-    }
-    redirectFallbackRef.current = window.setTimeout(() => {
-      if (window.location.pathname !== landingPage) {
-        window.location.replace(landingPage);
-      }
-    }, 1200);
-
-    return () => {
-      if (redirectFallbackRef.current) {
-        clearTimeout(redirectFallbackRef.current);
-        redirectFallbackRef.current = null;
-      }
-    };
   }, [user, profileLoading, userProfile, permissions, router]);
 
   async function onSubmit(values: LoginFormValues) {
