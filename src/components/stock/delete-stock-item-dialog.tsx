@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -41,7 +42,8 @@ export function DeleteStockItemDialog({ isOpen, onClose, item, onSuccess, stockC
       const actualCollectionPath = item.branchId
           ? `branches/${item.branchId}/stock`
           : stockCollection;
-      await deleteDoc(doc(firestore, actualCollectionPath, item.id));
+      const itemRef = doc(firestore, actualCollectionPath, item.id);
+      await commitLocalFirstMutations([{ collectionName: actualCollectionPath, docId: item.id, action: 'delete' }], `stock-item-delete:${item.id}:${Date.now()}`, () => deleteDoc(itemRef));
       toast({
         variant: 'success',
         title: 'Item Deleted',
