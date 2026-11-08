@@ -75,6 +75,9 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
     || hasPermission(PagePermission.PROCESS_SALES);
   const isPosStaff = !isAdminIdentity && hasPosAccess;
   const currentUserUid = userProfile?.uid || userProfile?.id || null;
+  const runningTablesSearchPlaceholder = isAdminIdentity
+    ? "Search all users' tables by table, customer, staff or item..."
+    : "Search your tables by table, customer or item...";
 
   const heldSalesQuery = React.useMemo(() => {
     if (!firestore || !userProfile) return null;
@@ -442,7 +445,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
                     columns={columns}
                     data={heldSales || []}
                     filterColumn="name"
-                    filterPlaceholder="Filter by name or customer..."
+                    filterPlaceholder={runningTablesSearchPlaceholder}
                     tableId="held-sales-table"
                     rowSelection={rowSelection}
                     onRowSelectionChange={setRowSelection}
