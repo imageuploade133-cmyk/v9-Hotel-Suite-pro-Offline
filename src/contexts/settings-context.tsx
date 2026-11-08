@@ -98,6 +98,10 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
   const pathname = usePathname();
   const isFetchingRef = useRef(false);
   const mountedRef = useRef(true);
+  const hasResolvedSettingsRef = useRef(!!(
+    settings.currency || settings.businessName || settings.businessAddress ||
+    (Array.isArray(settings.paymentMethods) && settings.paymentMethods.length > 0)
+  ));
 
   const { currentBranchId, getCollectionPath, isBranchMode, isGlobalMode } = useBranch();
   const isPublicPage = pathname.startsWith('/menus') || pathname.startsWith('/guest-bill') || pathname.startsWith('/guest-report');
@@ -107,11 +111,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     if (!db || isFetchingRef.current) return;
 
     isFetchingRef.current = true;
-    const hasUsableSettings = !!(
-      settings.currency || settings.businessName || settings.businessAddress ||
-      (Array.isArray(settings.paymentMethods) && settings.paymentMethods.length > 0)
-    );
-    if (mountedRef.current && !hasUsableSettings) setIsLoading(true);
+    if (mountedRef.current && !hasResolvedSettingsRef.current) setIsLoading(true);
 
     const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1500): Promise<T | null> => {
       try {
@@ -223,6 +223,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         } catch {}
 
         if (mountedRef.current) {
+            hasResolvedSettingsRef.current = true;
             setSettings(mergedSettings);
             setGlobalPosSettings(extractedGlobalPosSettings);
             setBranchPosSettings(extractedBranchPosSettings);
@@ -231,6 +232,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         console.error("Failed to fetch settings:", error);
     } finally {
         if (mountedRef.current) {
+            hasResolvedSettingsRef.current = true;
             setIsLoading(false);
         }
         isFetchingRef.current = false;
@@ -259,6 +261,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     // including offline. Still revalidate it whenever the cloud/LAN is reachable.
     const availableCachedSettings = cachedSettings || persistedSettings;
     if (availableCachedSettings && Object.keys(availableCachedSettings).length > 0) {
+      hasResolvedSettingsRef.current = true;
       setSettings(previous => ({ ...DEFAULT_SETTINGS, ...previous, ...availableCachedSettings }));
       setIsLoading(false);
     }
