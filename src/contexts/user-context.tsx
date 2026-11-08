@@ -132,8 +132,10 @@ const hasStaffAssignment = (profile: Partial<UserProfile> | null | undefined): b
     return false;
   }
 
-  const hasExplicitRole = typeof profile.role === 'string' && profile.role.trim().length > 0;
-  const hasExplicitPermissions = Array.isArray(profile.permissions);
+  const normalizedRole = typeof profile.role === 'string' ? profile.role.trim().toLowerCase() : '';
+  const hasExplicitRole = normalizedRole.length > 0 && normalizedRole !== 'no-role';
+  const hasExplicitPermissions = Array.isArray(profile.permissions) &&
+    profile.permissions.some(permission => typeof permission === 'string' && permission.trim().length > 0);
   const roleId = (profile as any).roleId;
   const hasRoleId = typeof roleId === 'string' && roleId.trim().length > 0 && roleId !== 'no-role';
 
