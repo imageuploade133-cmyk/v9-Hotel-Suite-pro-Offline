@@ -56,6 +56,22 @@ export interface UseDocResult<T> {
     refetch: () => Promise<void>;
 }
 
+
+function mergeCloudAndLanData<T extends { id?: string }>(cloud: T[], local: T[]): T[] {
+  if (!local.length) return cloud;
+  const merged = new Map<string, T>();
+  cloud.forEach((item, index) => {
+    const key = item.id || `cloud-${index}`;
+    merged.set(key, item);
+  });
+  // Master-PC documents win for matching IDs and are added when not yet in cloud.
+  local.forEach((item, index) => {
+    const key = item.id || `local-${index}`;
+    merged.set(key, { ...(merged.get(key) || {} as T), ...item });
+  });
+  return Array.from(merged.values());
+}
+
 async function fetchLanCollectionData<T>(pathStr: string): Promise<T[]> {
   if (!isLocalMasterHost()) return [];
   try {
@@ -140,12 +156,9 @@ export function useCollection<T>(
           }
 
           const snapshot = await getDocs(memoizedQuery);
-          let results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
-
-          if (results.length === 0 && !navigator.onLine) {
-            const lanResults = await fetchLanCollectionData<T>(pathStr);
-            if (lanResults.length > 0) results = lanResults;
-          }
+          const cloudResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+          const lanResults = await fetchLanCollectionData<T>(pathStr);
+          const results = mergeCloudAndLanData(cloudResults, lanResults);
 
           if (mountedRef.current) {
             setData(results);
@@ -225,24 +238,9 @@ export function useCollection<T>(
     // Set up real-time subscription with Firebase (when internet/cloud is available)
     const unsubscribe = onSnapshot(memoizedQuery,
       async (snapshot) => {
-        const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
-
-        // When offline or local Firestore cache is empty, protect against wiping out Master PC LAN data
-        if (results.length === 0) {
-          const lanResults = await fetchLanCollectionData<T>(pathStr);
-          if (mountedRef.current) {
-            if (lanResults && lanResults.length > 0) {
-              setData(lanResults);
-              onDataRef.current?.(lanResults);
-            } else {
-              setData([]);
-              onDataRef.current?.([]);
-            }
-            setIsLoading(false);
-            setError(null);
-          }
-          return;
-        }
+        const cloudResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+        const lanResults = await fetchLanCollectionData<T>(pathStr);
+        const results = mergeCloudAndLanData(cloudResults, lanResults);
 
         if (mountedRef.current) {
           setData(results);
@@ -283,7 +281,11 @@ export function useCollection<T>(
     setIsLoading(true);
     try {
       const snapshot = await getDocs(memoizedQuery);
-      const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+      const cloudResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+      const pathStr = (memoizedQuery as any).path ||
+        (memoizedQuery as any)._query?.path?.canonicalString?.() || 'collections';
+      const lanResults = await fetchLanCollectionData<T>(pathStr);
+      const results = mergeCloudAndLanData(cloudResults, lanResults);
 
       if (mountedRef.current) {
         setData(results);
