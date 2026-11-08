@@ -255,6 +255,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const holdSale = async (name: string, clearCartOnSuccess: boolean) => {
     if (!firestore || !userProfile) throw new Error('System not ready.');
 
+    try {
+
     const allItems = [...activeRunningItems, ...cart];
     if (allItems.length === 0) {
       toast({ variant: 'destructive', title: 'Cart is empty' });
