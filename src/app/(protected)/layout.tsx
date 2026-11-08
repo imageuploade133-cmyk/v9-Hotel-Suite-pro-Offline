@@ -223,7 +223,7 @@ export default function ProtectedLayout({
 }) {
   const { user, loading: authLoading, logout } = useAuth();
   const { userProfile, loading: profileLoading, dynamicPermissionGroups } = useUser();
-  const { settings } = useSettings();
+  const { settings, isLoading: settingsLoading } = useSettings();
   const { individualRoomsByStatus, roomStatusesData } = useRoomStatus();
   const { canInstall, triggerInstall } = useAppInstall();
   const { branches, currentBranchId, currentBranch, selectBranch, isBranchMode, isGlobalMode, userAccessibleBranches, isRestrictedToBranch, getCollectionPath } = useBranch();
@@ -735,13 +735,13 @@ export default function ProtectedLayout({
 
   // Authentication and the user's permission profile are required before protected
   // pages can render. Non-critical settings continue loading in the background.
-  const isLoading = authLoading || profileLoading;
+  const isLoading = authLoading || profileLoading || settingsLoading;
 
   if (isLoading) {
     return (
       <FullscreenLoader
         message="Please wait..."
-        subtext="Preparing your workspace"
+        subtext={settingsLoading ? "Loading your business settings..." : "Preparing your workspace"}
       />
     );
   }
