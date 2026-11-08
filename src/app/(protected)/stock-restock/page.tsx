@@ -217,12 +217,6 @@ function RestockInventoryPage() {
       const restockEntryRef = doc(collection(firestore, getCollectionPath('restockHistory')));
       const nextQuantity = Number(item.quantity || 0) + quantity;
       if (!Number.isFinite(nextQuantity) || nextQuantity < 0) throw new Error('The resulting stock quantity is invalid.');
-      const stockUpdate = {
-        quantity: nextQuantity,
-        costPrice: costPerUnit,
-        updatedAt: new Date().toISOString(),
-      };
-
       const restockEntryData: Record<string, any> = {
         id: restockEntryRef.id,
         itemId: item.id,
