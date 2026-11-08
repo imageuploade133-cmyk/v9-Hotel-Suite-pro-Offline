@@ -19,8 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Send, Hash, User, Phone } from 'lucide-react';
 import type { CartItem, Order, Booking } from '@/lib/types';
 import { useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { useSettings } from '@/contexts/settings-context';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 interface PlaceOrderDialogProps {
   isOpen: boolean;
@@ -63,14 +65,20 @@ export function PlaceOrderDialog({ isOpen, onClose, cart, onSuccess, menuId }: P
     try {
       const orderNumber = `WEB-${Date.now().toString().slice(-6)}`;
 
-      const bookingsQuery = query(
-        collection(firestore, 'bookings'),
-        where('roomNumber', '==', roomNumber),
-        where('status', 'in', ['Active', 'Checked-in']),
-        limit(1)
-      );
-      const bookingSnapshot = await getDocs(bookingsQuery);
-      const currentBooking = !bookingSnapshot.empty ? { id: bookingSnapshot.docs[0].id, ...bookingSnapshot.docs[0].data() } as Booking : null;
+      let currentBooking: Booking | null = null;
+      if (isLocalMasterHost()) {
+        const localBookings = await fetchLocalLanCollection<Booking>('bookings');
+        currentBooking = localBookings.find(booking => booking.roomNumber === roomNumber && ['Active', 'Checked-in'].includes(booking.status)) || null;
+      } else {
+        const bookingsQuery = query(
+          collection(firestore, 'bookings'),
+          where('roomNumber', '==', roomNumber),
+          where('status', 'in', ['Active', 'Checked-in']),
+          limit(1)
+        );
+        const bookingSnapshot = await getDocs(bookingsQuery);
+        currentBooking = !bookingSnapshot.empty ? { id: bookingSnapshot.docs[0].id, ...bookingSnapshot.docs[0].data() } as Booking : null;
+      }
 
       const orderData: Omit<Order, 'id'> = {
         orderNumber,
@@ -92,7 +100,13 @@ export function PlaceOrderDialog({ isOpen, onClose, cart, onSuccess, menuId }: P
         bookingId: currentBooking?.id,
       };
 
-      await addDoc(collection(firestore, 'orders'), orderData);
+      const orderRef = doc(collection(firestore, 'orders'));
+      const localOrderData = { ...orderData, id: orderRef.id, createdAt: new Date().toISOString() };
+      await commitLocalFirstMutations(
+        [{ collectionName: 'orders', docId: orderRef.id, action: 'set', data: localOrderData as any }],
+        `guest-food-order:${orderRef.id}`,
+        () => setDoc(orderRef, orderData)
+      );
       onSuccess();
     } catch (error) {
       console.error('Error placing order:', error);
