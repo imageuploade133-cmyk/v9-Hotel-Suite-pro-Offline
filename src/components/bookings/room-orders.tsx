@@ -381,13 +381,12 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
           className="w-full rounded-[calc(0.75rem-1.5px)] bg-card p-4"
           style={{
               backgroundColor: 'hsl(var(--room-orders-tab-background))',
-              color: 'hsl(var(--room-orders-tab-foreground))'
           }}
       >
         <CollapsibleTrigger asChild>
-          <div className="flex-1 cursor-pointer flex items-center justify-between">
+          <div className="flex-1 cursor-pointer flex items-center justify-between text-white">
             <div className="flex items-center gap-4">
-              <ChefHat className="h-6 w-6" style={{ color: 'hsl(var(--primary))' }} />
+              <ChefHat className="h-6 w-6 text-white" />
               <div>
                 <h3 className="text-xl font-bold tracking-tight flex items-center gap-3">
                   Room Service &amp; Orders
@@ -401,7 +400,7 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-                 <Button variant="outline" onClick={(e) => { e.stopPropagation(); setIsSoundMuted(prev => !prev); }}>
+                 <Button variant="outline" className="border-white/70 bg-transparent text-white hover:bg-white/10 hover:text-white [&_svg]:text-white" onClick={(e) => { e.stopPropagation(); setIsSoundMuted(prev => !prev); }}>
                   {isSoundMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   <span className="ml-2">{isSoundMuted ? 'Unmute' : 'Mute'}</span>
                 </Button>

@@ -362,13 +362,12 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
             className="w-full rounded-[calc(0.75rem-1.5px)] bg-card p-4"
             style={{
                 backgroundColor: 'hsl(var(--booking-calendar-tab-background))',
-                color: 'hsl(var(--booking-calendar-tab-foreground))'
             }}
         >
             <CollapsibleTrigger asChild>
-                <div className="flex-1 cursor-pointer flex items-center justify-between">
+                <div className="flex-1 cursor-pointer flex items-center justify-between text-white">
                     <div className="flex items-center gap-4">
-                    <CalendarIcon className="mr-3 h-5 w-5" />
+                    <CalendarIcon className="mr-3 h-5 w-5 text-white" />
                     <div>
                         <h4 className="flex items-center text-lg font-semibold">
                         Booking Availability Calendar
