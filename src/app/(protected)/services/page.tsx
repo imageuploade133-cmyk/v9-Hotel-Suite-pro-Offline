@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { Plus, ConciergeBell, DollarSign, CalendarCheck, Package } from 'lucide-react';
@@ -117,7 +118,8 @@ function ServicesPage() {
     const confirmDelete = async () => {
         if (!firestore || !selectedService) return;
         try {
-            await deleteDoc(doc(firestore, getCollectionPath('services'), selectedService.id));
+            const serviceRef = doc(firestore, getCollectionPath('services'), selectedService.id);
+            await commitLocalFirstMutations([{ collectionName: getCollectionPath('services'), docId: selectedService.id, action: 'delete' }], `service-delete:${selectedService.id}:${Date.now()}`, () => deleteDoc(serviceRef));
             toast({ variant: 'success', title: 'Service Deleted' });
             handleSuccess();
         } catch (error: any) {
