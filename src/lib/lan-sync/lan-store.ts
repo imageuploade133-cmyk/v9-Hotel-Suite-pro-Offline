@@ -263,7 +263,7 @@ export class LanStore {
       data?: Record<string, unknown>;
     }>,
     transactionKey?: string,
-    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number }> = []
+    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number; initialData?: Record<string, unknown> }> = []
   ): { mutations: SyncMutation[]; duplicate: boolean } {
     if ((!Array.isArray(inputs) || inputs.length === 0) && stockAdjustments.length === 0) {
       throw new Error('A non-empty mutation batch or stock adjustment is required.');
@@ -282,7 +282,7 @@ export class LanStore {
       }
       const key = adjustment.collectionName + '/' + adjustment.itemId;
       const prior = stockUpdates.get(key);
-      const current = prior?.data || this.getDoc(adjustment.collectionName, adjustment.itemId);
+      const current = prior?.data || this.getDoc(adjustment.collectionName, adjustment.itemId) || adjustment.initialData || null;
       if (!current) throw new Error(`Stock item "${adjustment.itemId}" is missing from the Master PC database.`);
       const currentQty = Number(current.quantity ?? current.stockCount ?? 0);
       const nextQty = currentQty + adjustment.quantityDelta;
