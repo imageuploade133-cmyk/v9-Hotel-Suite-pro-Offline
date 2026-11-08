@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const DATE_FIELD_NAMES = new Set([
   'checkInDate', 'checkOutDate', 'actualCheckOutDate', 'createdAt', 'updatedAt',
-  'checkedInAt', 'checkedOutAt', 'cancelledAt', 'refundedAt', 'transactionDate',
+  'checkedInAt', 'checkedOutAt', 'cancelledAt', 'refundedAt', 'transactionDate', 'restockedAt', 'transferredAt', 'preparingAt', 'completedAt', 'billedAt', 'date',
   'promoStartDate', 'promoEndDate', 'lastVisit', 'paidAt', 'checkedOutAt', 'timestamp',
 ]);
 
