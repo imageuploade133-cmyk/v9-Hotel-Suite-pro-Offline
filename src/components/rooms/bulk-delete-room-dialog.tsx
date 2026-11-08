@@ -17,6 +17,7 @@ import type { Room } from '@/lib/types';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 interface BulkDeleteRoomDialogProps {
   open: boolean;
@@ -48,7 +49,11 @@ export function BulkDeleteRoomDialog({ open, onOpenChange, rooms, onSuccess }: B
         const roomRef = doc(firestore, 'rooms', room.id);
         batch.delete(roomRef);
       });
-      await batch.commit();
+      await commitLocalFirstMutations(
+        rooms.map((room) => ({ collectionName: 'rooms', docId: room.id, action: 'delete' as const })),
+        `rooms-bulk-delete:${rooms.map(room => room.id).sort().join(',')}:${Date.now()}`,
+        () => batch.commit()
+      );
 
       toast({
         variant: 'success',
