@@ -49,7 +49,7 @@ const toFirebaseAdminProfile = (
   phoneNumber: accountProfile?.phoneNumber ?? null,
   permissions: ALL_PERMISSIONS,
   isActive: true,
-  isSuperAdmin: false,
+  isSuperAdmin: true,
   isFirebaseOnlyAdmin: true,
   assignedBranches: [],
   ...(accountProfile?.uiPreferences ? { uiPreferences: accountProfile.uiPreferences } : {}),
@@ -232,6 +232,7 @@ const cacheFirebaseOnlyAdminForOffline = (
     role: 'Admin',
     permissions: ALL_PERMISSIONS,
     isActive: true,
+    isSuperAdmin: true,
     isFirebaseOnlyAdmin: true,
   };
 
@@ -265,6 +266,7 @@ const cacheFirebaseOnlyAdminForOffline = (
           permissions: ALL_PERMISSIONS,
           assignedBranches: [],
           isFirebaseOnlyAdmin: true,
+          isSuperAdmin: true,
           accountType: 'firebase-only-admin',
         },
       }),
