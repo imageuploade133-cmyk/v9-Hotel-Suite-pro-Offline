@@ -79,9 +79,17 @@ async function fetchLanCollectionData<T>(pathStr: string): Promise<T[]> {
     if (res.ok) {
       const result = await res.json();
       if (result.data) {
+        const restoreLanValues = (value: any): any => {
+          if (value === '__LAN_INFINITY__') return Infinity;
+          if (value === '__LAN_NEG_INFINITY__') return -Infinity;
+          if (value === '__LAN_NAN__') return NaN;
+          if (Array.isArray(value)) return value.map(restoreLanValues);
+          if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, restoreLanValues(child)]));
+          return value;
+        };
         return Object.entries(result.data).map(([id, val]: [string, any]) => ({
           id,
-          ...(typeof val === 'object' ? val : {}),
+          ...(typeof val === 'object' ? restoreLanValues(val) : {}),
         })) as T[];
       }
     }
