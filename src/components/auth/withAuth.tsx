@@ -11,12 +11,24 @@ import { PagePermission, getLandingPage } from '@/lib/permissions';
 import { usePathname, useRouter } from 'next/navigation';
 import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
-function PermissionRedirect({ path }: { path: string }) {
+function PermissionRedirect({ path, currentPath }: { path: string; currentPath: string }) {
   const router = useRouter();
 
   React.useEffect(() => {
+    // Prefer the normal Next.js client-side transition.
     router.replace(path);
-  }, [path, router]);
+
+    // Some mobile WebKit sessions can leave a client-side route transition
+    // pending after authentication. If the browser URL has not changed, fall
+    // back to a full document navigation so the assigned workspace can load.
+    const fallbackId = window.setTimeout(() => {
+      if (window.location.pathname === currentPath) {
+        window.location.replace(path);
+      }
+    }, 1800);
+
+    return () => window.clearTimeout(fallbackId);
+  }, [currentPath, path, router]);
 
   return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
 }
@@ -72,7 +84,7 @@ export default function withAuth<P extends object>(
 
     if (!hasRequiredPermission) {
       if (landingPage !== pathname) {
-        return <PermissionRedirect path={landingPage} />;
+        return <PermissionRedirect path={landingPage} currentPath={pathname} />;
       }
       return (
         <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
