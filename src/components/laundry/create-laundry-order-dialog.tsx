@@ -151,7 +151,7 @@ export function CreateLaundryOrderDialog({ isOpen, onClose, onSubmit }: CreateLa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mobile-fullscreen-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col gap-3 overflow-hidden rounded-none p-3 sm:h-[90dvh] sm:max-h-[min(90dvh,54rem)] sm:max-w-5xl sm:rounded-xl sm:p-6">
+      <DialogContent className="mobile-fullscreen-dialog mobile-fullscreen-laundry-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col gap-3 overflow-hidden rounded-none p-3 sm:h-[90dvh] sm:max-h-[min(90dvh,54rem)] sm:max-w-5xl sm:rounded-xl sm:p-6">
         <DialogHeader className="shrink-0 space-y-1">
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl"><WashingMachine className="h-5 w-5 text-primary" /> New Laundry Order</DialogTitle>
           <DialogDescription>Select the guest's room, add laundry services, review the total and create the order.</DialogDescription>
