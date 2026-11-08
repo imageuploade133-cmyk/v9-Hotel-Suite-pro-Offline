@@ -90,7 +90,9 @@ const getInitialSettings = (): Settings => {
 
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
   const [settings, setSettings] = useState<Settings>(getInitialSettings);
-  const [isLoading, setIsLoading] = useState(false);
+  // Settings are a startup dependency: protected workspaces stay hidden until a
+  // verified persisted or remote settings source has been resolved.
+  const [isLoading, setIsLoading] = useState(true);
   const [globalPosSettings, setGlobalPosSettings] = useState<Partial<Settings> | null>(null);
   const [branchPosSettings, setBranchPosSettings] = useState<Partial<Settings> | null>(null);
   const firestore = useFirestore();
@@ -106,6 +108,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     if (!db || isFetchingRef.current) return;
 
     isFetchingRef.current = true;
+    if (mountedRef.current) setIsLoading(true);
 
     const fetchWithTimeout = async <T,>(p: Promise<T>, ms = 1500): Promise<T | null> => {
       try {
@@ -235,8 +238,32 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     if (!db) return;
 
     const cachedSettings = firestoreCache.get<Settings>(CacheKeys.settings());
-    if (!cachedSettings) {
-      fetchSettings();
+    let persistedSettings: Settings | null = null;
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('app_saved_settings') : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          persistedSettings = parsed as Settings;
+        }
+      }
+    } catch {}
+
+    // A previously saved business configuration is safe to use immediately,
+    // including offline. Still revalidate it whenever the cloud/LAN is reachable.
+    const availableCachedSettings = cachedSettings || persistedSettings;
+    if (availableCachedSettings && Object.keys(availableCachedSettings).length > 0) {
+      setSettings(previous => ({ ...DEFAULT_SETTINGS, ...previous, ...availableCachedSettings }));
+      setIsLoading(false);
+    }
+
+    const canRefreshFromSource = typeof navigator === 'undefined'
+      || navigator.onLine
+      || isLocalMasterHost();
+    if (!availableCachedSettings || canRefreshFromSource) {
+      void fetchSettings();
+    } else {
+      setIsLoading(false);
     }
 
     let skipFirstSettings = true;
