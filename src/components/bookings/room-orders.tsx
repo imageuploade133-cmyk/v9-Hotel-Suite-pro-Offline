@@ -31,6 +31,8 @@ import {
 import { useFirestore, useCollection } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
 import { useToast } from '@/hooks/use-toast';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -261,9 +263,17 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
             where('roomNumber', '==', manualRoomNumber),
             where('status', 'in', ['Active', 'Checked-in']),
         );
-        const roomSnapshot = await getDocs(roomQuery);
+        const roomSnapshot = isLocalMasterHost()
+          ? null
+          : await getDocs(roomQuery);
+        const localBookings = isLocalMasterHost()
+          ? await fetchLocalLanCollection<Booking>('bookings')
+          : [];
+        const activeBookings = isLocalMasterHost()
+          ? localBookings.filter(booking => booking.roomNumber === manualRoomNumber && ['Active', 'Checked-in'].includes(booking.status))
+          : roomSnapshot!.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as Booking));
 
-        if (roomSnapshot.empty) {
+        if (activeBookings.length === 0) {
             toast({
                 variant: 'destructive',
                 title: 'No Active Guest',
@@ -271,13 +281,13 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
             });
             setIsUpdatingOrder(false);
             return;
-        } else if (roomSnapshot.size > 1) {
-            const foundBookings = roomSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+        } else if (activeBookings.length > 1) {
+            const foundBookings = activeBookings;
             setAmbiguousBookings(foundBookings);
             setIsUpdatingOrder(false);
             return;
         } else {
-            finalBookingId = roomSnapshot.docs[0].id;
+            finalBookingId = activeBookings[0].id;
         }
     }
 
@@ -321,7 +331,19 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
 
 
     try {
-        await batch.commit();
+        const localBillData = {
+          id: newBillRef.id, items: billItems, total: orderToBill.totalPrice,
+          createdAt: new Date().toISOString(), createdBy: user.uid,
+          createdByName: userProfile.name, paid: false, bookingId: finalBookingId,
+        };
+        const localOrderUpdate = {
+          status: 'Billed', billedAt: new Date().toISOString(),
+          billedByUid: user.uid, billedByName: userProfile.name,
+        };
+        await commitLocalFirstMutations([
+          { collectionName: `bookings/${finalBookingId}/bills`, docId: newBillRef.id, action: 'set', data: localBillData as any },
+          { collectionName: 'orders', docId: orderToBill.id, action: 'update', data: localOrderUpdate },
+        ], `room-order-bill:${orderToBill.id}:${newBillRef.id}`, () => batch.commit());
         let toastDescription = `The charge of ${formatCurrency(orderToBill.totalPrice)} has been added to the guest's bill for Room ${manualRoomNumber}.`;
         toast({
             variant: 'success',
