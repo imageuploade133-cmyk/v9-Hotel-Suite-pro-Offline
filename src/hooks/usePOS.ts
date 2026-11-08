@@ -888,7 +888,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             if (masterStatus.ok) {
               const statusPayload = await masterStatus.json();
               if (statusPayload?.success && statusPayload?.mode === 'LAN_MASTER_SERVER') {
-                const transactionMutations = ledgerMutations.map(mutation => ({
+                const transactionMutations: { collectionName: string; docId: string; action: 'set' | 'update' | 'delete'; data?: Record<string, any> }[] = ledgerMutations.map(mutation => ({
                   collectionName: mutation.collectionName,
                   docId: mutation.docId,
                   action: 'set' as const,
