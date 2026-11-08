@@ -260,7 +260,12 @@ function StockCategoriesPage() {
   const confirmDelete = async () => {
     if (!firestore || !selectedCategory) return;
     try {
-        await deleteDoc(doc(firestore, 'stockCategories', selectedCategory.id));
+        const categoryRef = doc(firestore, 'stockCategories', selectedCategory.id);
+        await commitLocalFirstMutations(
+          [{ collectionName: 'stockCategories', docId: selectedCategory.id, action: 'delete' }],
+          `stock-category-delete:${selectedCategory.id}:${Date.now()}`,
+          () => deleteDoc(categoryRef)
+        );
         toast({ variant: 'success', title: 'Category Deleted' });
         handleSuccess();
     } catch(e: any) {
