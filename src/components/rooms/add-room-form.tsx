@@ -26,6 +26,7 @@ import { useSettings } from '@/contexts/settings-context';
 import { endOfDay, setHours, setMinutes } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { Form } from '../ui/form';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 
 interface AddRoomFormProps {
@@ -127,7 +128,21 @@ export function AddRoomForm({ open, onOpenChange, onSuccess }: AddRoomFormProps)
             details: `Created new room type: ${data.name} with ${parsedRoomNumbers.length} rooms.`
         });
 
-        await batch.commit();
+        const createdAt = new Date().toISOString();
+        const localRoomData = { ...newRoomData, id: newRoomRef.id, createdAt };
+        const localAuditData = {
+          timestamp: createdAt,
+          userId: userProfile.uid,
+          userName: userProfile.name,
+          changeType: 'Create',
+          entityType: 'Room Type',
+          entityId: newRoomRef.id,
+          details: `Created new room type: ${data.name} with ${parsedRoomNumbers.length} rooms.`,
+        };
+        await commitLocalFirstMutations([
+          { collectionName: 'rooms', docId: newRoomRef.id, action: 'set', data: localRoomData as any },
+          { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set', data: localAuditData },
+        ], `room-create:${newRoomRef.id}`, () => batch.commit());
 
         toast({ variant: 'success', title: 'Room Added' });
         onSuccess();
