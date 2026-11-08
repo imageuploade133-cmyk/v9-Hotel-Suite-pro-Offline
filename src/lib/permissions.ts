@@ -276,7 +276,10 @@ export const PERMISSION_GROUPS = [
   }
 ];
 
-export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(group => group.permissions.map(p => p.id));
+export const ALL_PERMISSIONS = Array.from(new Set([
+  ...PERMISSION_GROUPS.flatMap(group => group.permissions.map(p => p.id)),
+  ...STANDALONE_PERMISSIONS,
+]));
 
 export const DEFAULT_SYSTEM_ROLES = [
   {

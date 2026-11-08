@@ -30,7 +30,7 @@ function PermissionRedirect({ path, currentPath }: { path: string; currentPath: 
     return () => window.clearTimeout(fallbackId);
   }, [currentPath, path, router]);
 
-  return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" />;
+  return <FullscreenLoader message="Redirecting..." subtext="Opening your assigned workspace" delayMs={900} />;
 }
 
 export default function withAuth<P extends object>(
