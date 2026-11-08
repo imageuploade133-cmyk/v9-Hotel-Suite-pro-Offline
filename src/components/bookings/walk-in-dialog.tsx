@@ -302,7 +302,7 @@ Please confirm payment in the dashboard.
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-3xl">
+      <DialogContent className="mobile-fullscreen-dialog min-h-0 overflow-hidden sm:max-h-[min(90dvh,52rem)] sm:max-w-3xl">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
