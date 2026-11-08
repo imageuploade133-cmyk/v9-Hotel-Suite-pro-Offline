@@ -236,6 +236,8 @@ export default function LoginPage() {
   }, [user, profileLoading, userProfile, permissions, router]);
 
   async function onSubmit(values: LoginFormValues) {
+    // Prevent duplicate authentication requests from rapid taps/clicks.
+    if (isLoggingIn) return;
     setIsLoggingIn(true);
     form.clearErrors();
     try {
@@ -353,12 +355,23 @@ export default function LoginPage() {
   };
 
   if (authLoading) {
-    return <FullscreenLoader message="Please wait..." subtext="Signing in..." />;
+    return <FullscreenLoader message="Please wait..." subtext="Checking your sign-in session..." />;
   }
 
-  // Once authenticated, let the route transition happen without flashing
-  // an additional full-screen redirect loader over the login page.
-  if (user) return null;
+  // Keep a clear, full-screen progress state visible after credentials are
+  // accepted while the account role/permissions resolve and the router opens
+  // the assigned workspace. This avoids a blank screen during slow LAN/mobile
+  // transitions and works the same for online and offline authentication.
+  if (user) {
+    return (
+      <FullscreenLoader
+        message={profileLoading ? "Verifying your account..." : "Opening your workspace..."}
+        subtext={profileLoading
+          ? "Checking your role and access permissions. Please wait."
+          : "Your account is ready. Taking you to your assigned page."}
+      />
+    );
+  }
 
   return (
     <>
