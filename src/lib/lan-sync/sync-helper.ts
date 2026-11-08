@@ -101,3 +101,21 @@ export async function commitLocalFirstMutations(
   return { local: true, duplicate: Boolean(result.duplicate) };
 }
 
+
+
+/** Read the durable Local Master collection for offline validation and UI fallbacks. */
+export async function fetchLocalLanCollection<T = Record<string, unknown>>(
+  collectionName: string
+): Promise<T[]> {
+  if (typeof window === 'undefined' || !isLocalMasterHost()) return [];
+  const response = await fetch('/api/lan-sync?collection=' + encodeURIComponent(collectionName), {
+    method: 'GET',
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Could not read the Local Master database.');
+  const result = await response.json();
+  if (result?.success !== true || !result?.data || typeof result.data !== 'object') {
+    throw new Error('The Local Master returned an invalid collection response.');
+  }
+  return Object.entries(result.data).map(([id, value]) => ({ id, ...(value as object) })) as T[];
+}
