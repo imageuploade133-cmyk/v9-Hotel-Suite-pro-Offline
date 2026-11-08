@@ -698,7 +698,8 @@ export default function ProtectedLayout({
                 // Use requiredPermission if available, otherwise fall back to permission
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
                 const itemHref = (item as any).href;
-                const hasPerm = finalPermissions.includes(permissionId)
+                const hasPerm = itemHref === '/profile'
+                  || finalPermissions.includes(permissionId)
                   || (itemHref === '/running-tables' && (isPosAssignedStaff || isAdminIdentity));
 
                 // If no permission is defined, allow access
