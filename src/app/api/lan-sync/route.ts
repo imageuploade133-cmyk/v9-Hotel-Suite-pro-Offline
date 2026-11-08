@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
           action: mutation.action!,
           data: mutation.data,
         })),
-        transactionKey
+        transactionKey,
+        stockAdjustments
       );
       return NextResponse.json({
         success: true,
