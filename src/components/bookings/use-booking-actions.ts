@@ -33,7 +33,7 @@ import { useUser } from '@/contexts/user-context';
 import { getSafeDate } from '@/lib/helpers';
 import { useSettings } from '@/contexts/settings-context';
 import { useRouter } from 'next/navigation';
-import { pushLanMutation } from '@/lib/lan-sync/sync-helper';
+import { commitLocalFirstMutations, pushLanMutation } from '@/lib/lan-sync/sync-helper';
 
 
 export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room[] | null, onSuccess?: () => void }) => {
@@ -298,24 +298,35 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     });
 
     try {
-      await batch.commit();
-
-      pushLanMutation('bookings', booking.id, 'update', {
+      const roomSnapshot = rooms?.find((item) => item.id === booking.roomId);
+      const localRoomUpdate = {
+        [`individualRoomStatus.${booking.roomNumber}`]: 'Cleaning in Progress',
+        ...(roomSnapshot ? {
+          bookedRooms: Math.max(0, Number(roomSnapshot.bookedRooms || 0) - 1),
+          availableRooms: Number(roomSnapshot.availableRooms || 0),
+        } : {}),
+        updatedAt: actualCheckOutDate.toISOString(),
+      };
+      const localBookingUpdate = {
         ...booking,
         ...updateData,
         actualCheckOutDate: actualCheckOutDate.toISOString(),
-      });
-      pushLanMutation('rooms', booking.roomId, 'update', {
-        [`individualRoomStatus.${booking.roomNumber}`]: 'Cleaning in Progress',
-      });
-      pushLanMutation('cleaning-queue', cleaningQueueRef.id, 'set', {
+      };
+      const localCleaningQueue = {
         id: cleaningQueueRef.id,
         roomId: booking.roomId,
         roomNumber: booking.roomNumber,
         lastGuestName: booking.guestName,
+        lastGuestPhotoURL: booking.guestPhotoURL || null,
         bookingId: booking.id,
         checkedOutAt: actualCheckOutDate.toISOString(),
-      });
+        lastGuestBookingDetails: localBookingUpdate,
+      };
+      await commitLocalFirstMutations([
+        { collectionName: 'bookings', docId: booking.id, action: 'update', data: localBookingUpdate as any },
+        { collectionName: 'rooms', docId: booking.roomId, action: 'update', data: localRoomUpdate },
+        { collectionName: 'cleaning-queue', docId: cleaningQueueRef.id, action: 'set', data: localCleaningQueue },
+      ], `booking-checkout:${booking.id}:${actualCheckOutDate.getTime()}`, () => batch.commit());
 
       toast({
         variant: 'success',
