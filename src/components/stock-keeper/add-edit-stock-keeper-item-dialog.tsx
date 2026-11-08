@@ -31,6 +31,7 @@ import {
   doc,
   serverTimestamp,
   updateDoc,
+  setDoc,
   query,
   getDocs,
   where,
@@ -246,11 +247,13 @@ function ItemForm({ form, isEditMode, currency }: ItemFormProps) {
    const handleAddNewCategory = async (name: string): Promise<boolean> => {
     if (!firestore) return false;
     try {
-        await addDoc(collection(firestore, stockCategoriesCollection), {
-            name: name,
-            createdAt: serverTimestamp(),
-            createdBy: 'System', // This should be dynamic based on user
-        });
+        const categoryRef = doc(collection(firestore, stockCategoriesCollection));
+        const categoryData = { name, createdAt: new Date().toISOString(), createdBy: 'System' };
+        await commitLocalFirstMutations(
+          [{ collectionName: stockCategoriesCollection, docId: categoryRef.id, action: 'set', data: categoryData }],
+          `stock-keeper-category:${categoryRef.id}`,
+          () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+        );
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added.` });
         form.setValue('category', name);
         return true;
@@ -456,14 +459,21 @@ export function AddEditStockKeeperItemDialog({ isOpen, onClose, item, onSuccess 
                 ? `branches/${item.branchId}/stockKeeperItems`
                 : stockKeeperItemsCollection;
             const itemRef = doc(firestore, actualCollectionPath, item.id);
-            await updateDoc(itemRef, { ...itemData, updatedAt: serverTimestamp() });
+            const localItemData = { ...itemData, updatedAt: new Date().toISOString() };
+            await commitLocalFirstMutations(
+              [{ collectionName: actualCollectionPath, docId: item.id, action: 'update', data: localItemData }],
+              `stock-keeper-item-update:${item.id}:${Date.now()}`,
+              () => updateDoc(itemRef, { ...itemData, updatedAt: serverTimestamp() })
+            );
             toast({ variant: 'success', title: 'Item Updated', description: `${data.name} has been updated in staging.` });
         } else {
-            await addDoc(collection(firestore, stockKeeperItemsCollection), {
-                ...itemData,
-                held: 0,
-                createdAt: serverTimestamp(),
-            });
+            const newItemRef = doc(collection(firestore, stockKeeperItemsCollection));
+            const localItemData = { ...itemData, held: 0, createdAt: new Date().toISOString(), id: newItemRef.id };
+            await commitLocalFirstMutations(
+              [{ collectionName: stockKeeperItemsCollection, docId: newItemRef.id, action: 'set', data: localItemData as any }],
+              `stock-keeper-item-create:${newItemRef.id}`,
+              () => setDoc(newItemRef, { ...itemData, held: 0, createdAt: serverTimestamp() })
+            );
             toast({ variant: 'success', title: 'Item Added to Staging', description: `${data.name} has been added.` });
         }
 
