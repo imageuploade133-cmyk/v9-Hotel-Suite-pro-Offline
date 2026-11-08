@@ -601,7 +601,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
         const updatedAt = new Date().toISOString();
-        const localMutations = [{
+        const localMutations: Array<{ collectionName: string; docId: string; action: 'set' | 'update'; data: Record<string, unknown> }> = [{
             collectionName: 'bookings',
             docId: booking.id,
             action: 'update' as const,
@@ -615,7 +615,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             localMutations.push({
                 collectionName: 'payments',
                 docId: paymentRef.id,
-                action: 'update' as const,
+                action: 'set',
                 data: { ...paymentData, id: paymentRef.id } as any,
             });
         }
