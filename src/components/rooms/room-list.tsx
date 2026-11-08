@@ -43,7 +43,6 @@ interface RoomListProps {
   onBulkEdit: (rooms: Room[]) => void;
   onResetInventory: (room: Room) => void;
   setAllRooms: (rooms: Room[]) => void;
-  onUpdateRoomStatus: (room: Room, status: string) => void;
   rooms: Room[];
   isLoading: boolean;
   bills: any[];
@@ -83,7 +82,6 @@ export function RoomList({
   onBulkEdit,
   onResetInventory,
   setAllRooms,
-  onUpdateRoomStatus,
   rooms,
   isLoading,
   bills,
@@ -156,8 +154,8 @@ export function RoomList({
   }, [rooms, allPayments])
 
   const columns = React.useMemo(
-    () => getColumns(onViewRoom, onEditRoom, onDeleteRoom, onResetInventory, userCurrency, onUpdateRoomStatus),
-    [onViewRoom, onEditRoom, onDeleteRoom, onResetInventory, userCurrency, onUpdateRoomStatus]
+    () => getColumns(onViewRoom, onEditRoom, onDeleteRoom, onResetInventory, userCurrency),
+    [onViewRoom, onEditRoom, onDeleteRoom, onResetInventory, userCurrency]
   );
 
   const isDataLoading = isLoading;
