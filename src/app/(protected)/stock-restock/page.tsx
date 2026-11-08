@@ -251,7 +251,7 @@ function RestockInventoryPage() {
       ], `stock-restock:${restockEntryRef.id}`, async () => {
         await updateDoc(stockRef, { quantity: increment(quantity), costPrice: costPerUnit, updatedAt: serverTimestamp() });
         await setDoc(restockEntryRef, { ...restockEntryData, restockedAt: serverTimestamp() });
-      }, [{ collectionName: stockPath, itemId: item.id, quantityDelta: quantity }]);
+      }, [{ collectionName: stockPath, itemId: item.id, quantityDelta: quantity, initialData: { ...item, id: item.id, quantity: Number(item.quantity || 0) } as any }]);
 
       toast({
         variant: 'success',
