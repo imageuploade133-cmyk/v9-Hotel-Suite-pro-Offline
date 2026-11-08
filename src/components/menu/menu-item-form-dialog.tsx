@@ -29,6 +29,7 @@ import {
   where,
   writeBatch,
   Timestamp,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -71,6 +72,7 @@ import { setHours, setMinutes, endOfDay } from 'date-fns';
 import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '../ui/switch';
 import { AddCategoryDialog } from '../stock-keeper/add-category-dialog';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
 import {
@@ -253,11 +255,13 @@ export function MenuItemFormDialog({
     try {
         const selectedMenuId = menuId;
 
-        await addDoc(collection(firestore, `menus/${selectedMenuId}/categories`), {
-            name: name,
-            createdAt: serverTimestamp(),
-            createdBy: userProfile.name,
-        });
+        const categoryRef = doc(collection(firestore, `menus/${selectedMenuId}/categories`));
+        const categoryData = { name, createdAt: new Date().toISOString(), createdBy: userProfile.name };
+        await commitLocalFirstMutations(
+          [{ collectionName: `menus/${selectedMenuId}/categories`, docId: categoryRef.id, action: 'set', data: categoryData }],
+          `menu-category-create:${selectedMenuId}:${categoryRef.id}`,
+          () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+        );
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added to the menu.` });
         form.setValue('category', name);
         return true;
@@ -297,13 +301,21 @@ export function MenuItemFormDialog({
 
         if (isEditMode && item) {
             const docRef = doc(firestore, `menus/${menuId}/items`, item.id);
-            await updateDoc(docRef, itemData);
+            const localItemData = { ...itemData, updatedAt: new Date().toISOString() };
+            await commitLocalFirstMutations(
+              [{ collectionName: `menus/${menuId}/items`, docId: item.id, action: 'update', data: localItemData as any }],
+              `menu-item-update:${item.id}:${Date.now()}`,
+              () => updateDoc(docRef, itemData)
+            );
             toast({ variant: 'success', title: 'Item Updated' });
         } else {
-            await addDoc(collection(firestore, `menus/${menuId}/items`), {
-                ...itemData,
-                createdAt: serverTimestamp(),
-            });
+            const itemRef = doc(collection(firestore, `menus/${menuId}/items`));
+            const localItemData = { ...itemData, id: itemRef.id, createdAt: new Date().toISOString() };
+            await commitLocalFirstMutations(
+              [{ collectionName: `menus/${menuId}/items`, docId: itemRef.id, action: 'set', data: localItemData as any }],
+              `menu-item-create:${itemRef.id}`,
+              () => setDoc(itemRef, { ...itemData, createdAt: serverTimestamp() })
+            );
             toast({ variant: 'success', title: 'Item Added' });
         }
 
