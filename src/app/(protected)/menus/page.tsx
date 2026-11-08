@@ -407,12 +407,22 @@ function MenuFormDialog({
 
       if (isEditMode) {
         const menuRef = doc(firestore, 'menus', menu!.id);
-        await updateDoc(menuRef, menuData);
+        await commitLocalFirstMutations(
+          [{ collectionName: 'menus', docId: menu!.id, action: 'update', data: { ...menuData, updatedAt: new Date().toISOString() } }],
+          `menu-update:${menu!.id}:${Date.now()}`,
+          () => updateDoc(menuRef, menuData)
+        );
         toast({ title: 'Menu Updated', description: `"${data.name}" has been updated.` });
         onSuccess();
       } else {
         const slug = data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        const docRef = await addDoc(collection(firestore, 'menus'), { ...menuData, slug, createdAt: serverTimestamp() });
+        const docRef = doc(collection(firestore, 'menus'));
+        const localMenuData = { ...menuData, slug, id: docRef.id, createdAt: new Date().toISOString() };
+        await commitLocalFirstMutations(
+          [{ collectionName: 'menus', docId: docRef.id, action: 'set', data: localMenuData }],
+          `menu-create:${docRef.id}`,
+          () => setDoc(docRef, { ...menuData, slug, createdAt: serverTimestamp() })
+        );
         toast({ title: 'Menu Created', description: `"${data.name}" has been created.` });
         onSuccess(docRef.id);
       }
@@ -614,7 +624,12 @@ function AuthenticatedMenusPage() {
     if (!firestore || !actionsMenu) return;
 
     try {
-      await deleteDoc(doc(firestore, 'menus', actionsMenu.id));
+      const menuRef = doc(firestore, 'menus', actionsMenu.id);
+      await commitLocalFirstMutations(
+        [{ collectionName: 'menus', docId: actionsMenu.id, action: 'delete' }],
+        `menu-delete:${actionsMenu.id}:${Date.now()}`,
+        () => deleteDoc(menuRef)
+      );
       // Note: Deleting subcollections (the items and categories) should ideally be handled by a Cloud Function.
       // This client-side delete only removes the menu document itself.
       toast({
