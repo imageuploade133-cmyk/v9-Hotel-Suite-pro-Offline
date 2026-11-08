@@ -262,11 +262,43 @@ export class LanStore {
       action: 'set' | 'update' | 'delete';
       data?: Record<string, unknown>;
     }>,
-    transactionKey?: string
+    transactionKey?: string,
+    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number }> = []
   ): { mutations: SyncMutation[]; duplicate: boolean } {
-    if (!Array.isArray(inputs) || inputs.length === 0) {
-      throw new Error('A non-empty mutation batch is required.');
+    if ((!Array.isArray(inputs) || inputs.length === 0) && stockAdjustments.length === 0) {
+      throw new Error('A non-empty mutation batch or stock adjustment is required.');
     }
+
+    // Validate every stock movement before changing any document.
+    const stockUpdates = new Map<string, { collectionName: string; itemId: string; data: Record<string, unknown> }>();
+    for (const adjustment of stockAdjustments) {
+      if (!adjustment.collectionName || !adjustment.itemId || !Number.isFinite(adjustment.quantityDelta) || adjustment.quantityDelta === 0) {
+        throw new Error('Invalid stock adjustment.');
+      }
+      const key = adjustment.collectionName + '/' + adjustment.itemId;
+      const prior = stockUpdates.get(key);
+      const current = prior?.data || this.getDoc(adjustment.collectionName, adjustment.itemId);
+      if (!current) throw new Error(`Stock item "${adjustment.itemId}" is missing from the Master PC database.`);
+      const currentQty = Number(current.quantity ?? current.stockCount ?? 0);
+      const nextQty = currentQty + adjustment.quantityDelta;
+      if (!Number.isFinite(nextQty) || nextQty < 0) {
+        throw new Error(`Insufficient stock for "${String(current.name || adjustment.itemId)}". Available: ${currentQty}.`);
+      }
+      stockUpdates.set(key, {
+        collectionName: adjustment.collectionName,
+        itemId: adjustment.itemId,
+        data: { ...current, quantity: nextQty, stockCount: nextQty, updatedAt: Date.now() },
+      });
+    }
+    const expandedInputs = [
+      ...inputs,
+      ...[...stockUpdates.values()].map(stock => ({
+        collectionName: stock.collectionName,
+        docId: stock.itemId,
+        action: 'set' as const,
+        data: stock.data,
+      })),
+    ];
 
     if (transactionKey) {
       const prior = this.mutationsList.filter((m) => m.transactionKey === transactionKey);
@@ -282,7 +314,7 @@ export class LanStore {
     const created: SyncMutation[] = [];
 
     try {
-      for (const input of inputs) {
+      for (const input of expandedInputs) {
         let docMap = this.collectionsMap.get(input.collectionName);
         if (!docMap) {
           docMap = new Map<string, Record<string, unknown>>();
