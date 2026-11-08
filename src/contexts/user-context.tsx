@@ -236,6 +236,15 @@ const cacheFirebaseOnlyAdminForOffline = (
 
   try {
     localStorage.setItem('app_cached_account_profile_' + user.uid, JSON.stringify(cachedProfile));
+
+    // Remove any older staff assignment for this identity. A removed role must
+    // not survive in the local roster and reappear as stale permissions offline.
+    const cachedUsers = readCachedStaffUsers().filter(profile =>
+      profile && profile.uid !== user.uid && profile.id !== user.uid &&
+      profile.email?.trim().toLowerCase() !== user.email?.trim().toLowerCase()
+    );
+    localStorage.setItem('app_cached_staff_users', JSON.stringify(cachedUsers));
+    firestoreCache.set(CacheKeys.collection('users'), cachedUsers, CacheTTL.LONG);
   } catch {
     // Local storage may be unavailable; the authenticated session can still continue.
   }
@@ -251,6 +260,9 @@ const cacheFirebaseOnlyAdminForOffline = (
           uid: user.uid,
           email: user.email || '',
           name: cachedProfile.name,
+          role: 'Admin',
+          permissions: ALL_PERMISSIONS,
+          assignedBranches: [],
           isFirebaseOnlyAdmin: true,
           accountType: 'firebase-only-admin',
         },
@@ -624,6 +636,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
           // A direct UID read can still confirm a role assignment when a separate
           // legacy query is unavailable. Do not infer Admin from an unsuccessful lookup.
           if (matchedStaffProfile) lookupSucceeded = true;
+          if (uidLookupResult.status === 'fulfilled' || identityLookupResult.status === 'fulfilled') {
+            lookupSucceeded = true;
+          }
 
           if (
             uidLookupResult.status === 'rejected' &&
