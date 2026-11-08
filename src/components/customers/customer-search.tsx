@@ -16,6 +16,7 @@ import { useUser } from '@/contexts/user-context';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { POS_ISOLATED_COLLECTIONS } from '@/contexts/branch-types';
 
 interface CustomerSearchProps {
   onSelectCustomer: (customer: (Partial<Customer> & { outstandingBalance?: number }) | null) => void;
@@ -75,18 +76,34 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
       setLocalCustomers(null);
       return;
     }
-    const paths = new Set<string>();
-    if (isGlobalMode) {
-      paths.add(collectionName);
-      branches.forEach(branch => paths.add(`branches/${branch.id}/${collectionName}`));
-    } else {
-      paths.add(getCollectionPath(collectionName));
-    }
-    Promise.all([...paths].map(path => fetchLocalLanCollection<Customer>(path).catch(error => {
-      console.warn(`[POS] Could not read local customers from ${path}:`, error);
-      return [];
-    }))).then(groups => {
+    const loadLocalCustomers = async () => {
+      const paths = new Set<string>();
+      if (isGlobalMode) {
+        paths.add(collectionName);
+        for (const branch of branches) {
+          const branchPrefix = `branches/${branch.id}`;
+          paths.add(`${branchPrefix}/${collectionName}`);
+          if (POS_ISOLATED_COLLECTIONS.includes(collectionName)) {
+            try {
+              const terminals = await fetchLocalLanCollection<{ id: string }>(`${branchPrefix}/pointOfSales`);
+              terminals.forEach(terminal => paths.add(`${branchPrefix}/pointOfSales/${terminal.id}/${collectionName}`));
+            } catch (error) {
+              console.warn('[POS] Could not enumerate Local Master POS terminals:', error);
+            }
+          }
+        }
+      } else {
+        paths.add(getCollectionPath(collectionName));
+      }
+      const groups = await Promise.all([...paths].map(path => fetchLocalLanCollection<Customer>(path).catch(error => {
+        console.warn(`[POS] Could not read local customers from ${path}:`, error);
+        return [];
+      })));
       if (!cancelled) setLocalCustomers(groups.flat());
+    };
+    loadLocalCustomers().catch(error => {
+      console.warn('[POS] Could not load Local Master POS customers:', error);
+      if (!cancelled) setLocalCustomers([]);
     });
     return () => { cancelled = true; };
   }, [collectionName, getCollectionPath, isGlobalMode, branches]);
