@@ -293,11 +293,20 @@ export function useCollection<T>(
         setError(null);
       }
     } catch (err) {
-      console.error("useCollection refetch error:", err);
+      console.error("useCollection refetch error, attempting Local Master fallback:", err);
+      const pathStr = (memoizedQuery as any).path ||
+        (memoizedQuery as any)._query?.path?.canonicalString?.() || 'collections';
+      const lanResults = await fetchLanCollectionData<T>(pathStr);
       if (mountedRef.current) {
-        const error = err as Error;
-        setError(error);
-        onErrorRef.current?.(error);
+        if (lanResults.length > 0) {
+          setData(lanResults);
+          onDataRef.current?.(lanResults);
+          setError(null);
+        } else {
+          const error = err as Error;
+          setError(error);
+          onErrorRef.current?.(error);
+        }
       }
     } finally {
       if (mountedRef.current) {
