@@ -287,62 +287,64 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
     const executeOfflineHoldWrites = async () => {
         const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleId);
-
         const baseHeldSaleData: Partial<HeldSale> = {
             id: saleId,
-            name: name,
-            cart: combinedItems.map(i => ({...i})),
-            customer: customer?.id ? { id: customer.id, name: customer.name || "Walk-in Customer" } : { name: name || "Walk-in Customer" },
+            name,
+            cart: combinedItems.map(item => ({ ...item })),
+            customer: customer?.id
+              ? { id: customer.id, name: customer.name || 'Walk-in Customer' }
+              : { name: name || 'Walk-in Customer' },
             heldByUid: currentUid,
             heldByName: userProfile.name,
             heldAt: new Date() as any,
             printStatus: 'pending',
         };
-
-        if (restoredSaleData?.linkedBillId) {
-            baseHeldSaleData.linkedBillId = restoredSaleData.linkedBillId;
-        }
-
+        if (restoredSaleData?.linkedBillId) baseHeldSaleData.linkedBillId = restoredSaleData.linkedBillId;
         const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
 
-        // 1. Write to LAN store on Master PC first for instant 0ms offline persistence & multi-device sync
-        try {
-            await fetch('/api/lan-sync/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    collectionName: getCollectionPath('heldSales'),
-                    docId: heldSaleRef.id,
-                    action: 'set',
-                    data: heldSaleData,
-                }),
+        const stockAdjustments: { collectionName: string; itemId: string; quantityDelta: number }[] = [];
+        if (!restoredSaleData?.linkedBillId) {
+          if (restoredSaleId && restoredSaleData) {
+            restoredSaleData.cart.filter(item => !item.isService).forEach(item => {
+              stockAdjustments.push({
+                collectionName: getCollectionPath('stock'),
+                itemId: item.id,
+                quantityDelta: Number(item.sellQuantity || 0),
+              });
             });
-        } catch (lanErr) {
-            console.warn('[Offline HoldSale] LAN sync mutation error:', lanErr);
+          }
+          combinedItems.filter(item => !item.isService).forEach(item => {
+            stockAdjustments.push({
+              collectionName: getCollectionPath('stock'),
+              itemId: item.id,
+              quantityDelta: -Number(item.sellQuantity || 0),
+            });
+          });
         }
 
-        // 2. Write to Firestore local cache in background (do not block on cloud network)
-        setDoc(heldSaleRef, heldSaleData, { merge: true }).catch((err) => {
-            console.warn('[Offline HoldSale] Local setDoc write note:', err);
+        const response = await fetch('/api/lan-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transactionKey: `held-table-${saleId}-${Date.now()}`,
+            mutations: [{
+              collectionName: getCollectionPath('heldSales'),
+              docId: heldSaleRef.id,
+              action: 'set',
+              data: heldSaleData,
+            }],
+            stockAdjustments,
+          }),
         });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.success !== true || result?.durable !== true) {
+          throw new Error(result?.error || 'The Local Master PC did not confirm that the running table was saved.');
+        }
 
-        try {
-            const physicalItems = combinedItems.filter(item => !item.isService);
-            if (physicalItems.length > 0) {
-                await fetch('/api/lan-sync/stock-deduct/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        items: physicalItems.map(i => ({ itemId: i.id, quantity: i.sellQuantity })),
-                    }),
-                });
-            }
-        } catch (stockErr) {
-            console.warn('[Offline HoldSale] LAN stock deduct error:', stockErr);
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
         }
     };
-
-    try {
         if (isOffline) {
             await executeOfflineHoldWrites();
         } else {
