@@ -136,6 +136,11 @@ const DEFAULT_HOUSEKEEPING_STATUSES = {
 const isNavigationItemActive = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(href.endsWith('/') ? href : `${href}/`);
 
+const normalizeNavigationPath = (href: string) => {
+  const path = href.split(/[?#]/, 1)[0] || '/';
+  return path.replace(/\\/+$/, '') || '/';
+};
+
 const NavLink = ({
   item,
   isCollapsed,
@@ -228,6 +233,10 @@ export default function ProtectedLayout({
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [showCelebration, setShowCelebration] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [pendingMobileNavigation, setPendingMobileNavigation] = React.useState<{
+    href: string;
+    fromPath: string;
+  } | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const mobileScrollAreaRef = React.useRef<HTMLDivElement>(null);
 
@@ -393,6 +402,65 @@ export default function ProtectedLayout({
       viewport.removeEventListener('scroll', handleMobileScroll);
     };
   }, [mobileMenuOpen, pathname]);
+
+  // Keep the slide menu mounted until the selected route actually changes.
+  // This avoids closing the Radix drawer in the same click that starts a Next.js
+  // client transition, and gives users immediate feedback while the route loads.
+  const handleMobileNavigation = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.currentTarget.target === '_blank'
+    ) {
+      return;
+    }
+
+    const currentPath = normalizeNavigationPath(pathname);
+    const targetPath = normalizeNavigationPath(href);
+    if (currentPath === targetPath) {
+      setPendingMobileNavigation(null);
+      setMobileMenuOpen(false);
+      return;
+    }
+
+    setPendingMobileNavigation({ href, fromPath: currentPath });
+  };
+
+  React.useEffect(() => {
+    if (!pendingMobileNavigation) return;
+
+    // Any completed route change (including a permission redirect) means the
+    // menu navigation has progressed. Close the drawer and cancel recovery.
+    if (normalizeNavigationPath(pathname) !== pendingMobileNavigation.fromPath) {
+      setPendingMobileNavigation(null);
+      setMobileMenuOpen(false);
+    }
+  }, [pathname, pendingMobileNavigation]);
+
+  React.useEffect(() => {
+    if (!pendingMobileNavigation) return;
+
+    // Next.js App Router navigation can occasionally remain pending when an
+    // RSC request or client transition stalls. Recover with a document
+    // navigation only if the browser is still on the exact page we left.
+    const timeoutId = window.setTimeout(() => {
+      if (
+        normalizeNavigationPath(window.location.pathname) ===
+        pendingMobileNavigation.fromPath
+      ) {
+        window.location.assign(pendingMobileNavigation.href);
+      }
+    }, 8000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingMobileNavigation]);
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/website`;
@@ -826,7 +894,14 @@ export default function ProtectedLayout({
           )}
         >
           <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-background px-2 sm:h-16 sm:gap-4 sm:px-6">
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} disableHistory>
+            <Sheet
+              open={mobileMenuOpen}
+              onOpenChange={(open) => {
+                setMobileMenuOpen(open);
+                if (!open) setPendingMobileNavigation(null);
+              }}
+              disableHistory
+            >
               <SheetTrigger asChild>
                 <Button size="icon" variant="outline" className="sm:hidden">
                   <PanelLeft className="h-5 w-5" />
@@ -908,8 +983,10 @@ export default function ProtectedLayout({
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
+                        prefetch={false}
+                        onClick={(event) => handleMobileNavigation(event, item.href)}
                         aria-current={isNavigationItemActive(pathname, item.href) ? 'page' : undefined}
+                        aria-busy={pendingMobileNavigation?.href === item.href || undefined}
                         data-mobile-nav-active={isNavigationItemActive(pathname, item.href) ? 'true' : undefined}
                         data-mobile-nav-exact={pathname === item.href ? 'true' : undefined}
                         className={cn(
@@ -924,7 +1001,14 @@ export default function ProtectedLayout({
                         {item.notificationCount && item.notificationCount > 0 && (
                           <Badge variant={'destructive'} className="ml-auto rounded-full blinking-red-badge">{item.notificationCount}</Badge>
                         )}
-                        {isNavigationItemActive(pathname, item.href) && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                        {pendingMobileNavigation?.href === item.href ? (
+                          <>
+                            <span className="ml-auto text-xs font-medium">Opening…</span>
+                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                          </>
+                        ) : isNavigationItemActive(pathname, item.href) ? (
+                          <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        ) : null}
                       </Link>
                     ))}
                   </nav>
