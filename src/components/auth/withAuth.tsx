@@ -56,7 +56,11 @@ export default function withAuth<P extends object>(
 
     const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
-    let hasRequiredPermission = requiredPermission ? finalPermissions.includes(requiredPermission) : true;
+    // Every authenticated account may view its own profile, regardless of
+    // whether it has a staff role or the optional MANAGE_OWN_PROFILE permission.
+    const isOwnProfileRoute = pathname === '/profile';
+    let hasRequiredPermission = isOwnProfileRoute ||
+      (requiredPermission ? finalPermissions.includes(requiredPermission) : true);
 
     // POS-assigned staff may open Running Tables; the page itself scopes them
     // to their own held sales and hides management-only sections/actions.
