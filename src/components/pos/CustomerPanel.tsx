@@ -20,6 +20,7 @@ import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
 import { fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface CustomerPanelProps {
@@ -35,7 +36,7 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
   const { settings } = useSettings();
   const { userProfile } = useUser();
   const firestore = useFirestore();
-  const { getCollectionPath } = useBranch();
+  const { getCollectionPath, isGlobalMode, branches } = useBranch();
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
     || userProfile?.isSuperAdmin === true
     || userProfile?.role === 'Admin'
@@ -50,7 +51,9 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
     if (!firestore) return null;
     return query(collection(firestore, getCollectionPath('heldSales')));
   }, [firestore, getCollectionPath]);
+  const { data: globalHeldSales, isLoading: isLoadingGlobalTables } = useGlobalCollectionData<HeldSale>('heldSales');
   const { data: heldSales, isLoading: isLoadingCloudTables } = useCollection<HeldSale>(heldSalesQuery);
+  const cloudHeldSales = isGlobalMode ? globalHeldSales : heldSales;
   const [localHeldSales, setLocalHeldSales] = React.useState<HeldSale[] | null>(null);
   React.useEffect(() => {
     let cancelled = false;
@@ -58,21 +61,44 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
       setLocalHeldSales(null);
       return;
     }
-    fetchLocalLanCollection<HeldSale>(getCollectionPath('heldSales'))
-      .then(records => { if (!cancelled) setLocalHeldSales(records); })
-      .catch(error => {
-        console.warn('[POS] Could not load Local Master running tables:', error);
-        if (!cancelled) setLocalHeldSales([]);
-      });
+    const loadLocalTables = async () => {
+      const paths = new Set<string>();
+      if (isGlobalMode) {
+        paths.add('heldSales');
+        for (const branch of branches) {
+          const branchPrefix = `branches/${branch.id}`;
+          paths.add(`${branchPrefix}/heldSales`);
+          try {
+            const terminals = await fetchLocalLanCollection<{ id: string }>(`${branchPrefix}/pointOfSales`);
+            terminals.forEach(terminal => paths.add(`${branchPrefix}/pointOfSales/${terminal.id}/heldSales`));
+          } catch (error) {
+            console.warn('[POS] Could not enumerate Local Master POS terminals:', error);
+          }
+        }
+      } else {
+        paths.add(getCollectionPath('heldSales'));
+      }
+      const groups = await Promise.all([...paths].map(path =>
+        fetchLocalLanCollection<HeldSale>(path).catch(error => {
+          console.warn(`[POS] Could not load Local Master running tables from ${path}:`, error);
+          return [];
+        })
+      ));
+      if (!cancelled) setLocalHeldSales(groups.flat());
+    };
+    loadLocalTables().catch(error => {
+      console.warn('[POS] Could not load Local Master running tables:', error);
+      if (!cancelled) setLocalHeldSales([]);
+    });
     return () => { cancelled = true; };
-  }, [getCollectionPath]);
+  }, [getCollectionPath, isGlobalMode, branches]);
   const allRunningTables = React.useMemo(() => {
     const merged = new Map<string, HeldSale>();
-    (heldSales || []).forEach(sale => merged.set(sale.id, sale));
+    (cloudHeldSales || []).forEach(sale => merged.set(sale.id, sale));
     (localHeldSales || []).forEach(sale => merged.set(sale.id, { ...merged.get(sale.id), ...sale }));
     return [...merged.values()];
-  }, [heldSales, localHeldSales]);
-  const isLoadingTables = isLoadingCloudTables || (isLocalMasterHost() && localHeldSales === null);
+  }, [cloudHeldSales, localHeldSales]);
+  const isLoadingTables = (isGlobalMode ? isLoadingGlobalTables : isLoadingCloudTables) || (isLocalMasterHost() && localHeldSales === null);
 
   const myRunningTables = React.useMemo(() => {
     if (!userProfile?.uid) return [];
