@@ -14,6 +14,9 @@ const DATE_FIELD_NAMES = new Set([
 
 /** Restore Firestore Timestamp values from ISO dates stored in the JSON LAN DB. */
 function restoreFirestoreDates(value: any, fieldName = ''): any {
+  if (value === '__LAN_INFINITY__') return Infinity;
+  if (value === '__LAN_NEG_INFINITY__') return -Infinity;
+  if (value === '__LAN_NAN__') return NaN;
   if (typeof value === 'string' && DATE_FIELD_NAMES.has(fieldName) && !Number.isNaN(Date.parse(value))) {
     return Timestamp.fromDate(new Date(value));
   }
