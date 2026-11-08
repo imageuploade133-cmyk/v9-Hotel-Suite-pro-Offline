@@ -86,7 +86,8 @@ import {
 } from '../ui/command';
 import { useIsMobile } from '@/hooks/use-is-mobile';
 import { BottomSheet } from '../ui/bottom-sheet';
-import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required.'),
@@ -381,17 +382,16 @@ export function AddEditServiceItemDialog({
   const fetchCategories = React.useCallback(async () => {
     if (!menus || !firestore) return;
 
-    const categoryPromises = menus.map(menu =>
-      getDocs(collection(firestore, `menus/${menu.id}/categories`))
-    );
-
-    const categorySnapshots = await Promise.all(categoryPromises);
+    const categoryLists = await Promise.all(menus.map(async menu => {
+      const collectionPath = `menus/${menu.id}/categories`;
+      if (isLocalMasterHost()) return fetchLocalLanCollection<{ name?: string }>(collectionPath);
+      const snapshot = await getDocs(collection(firestore, collectionPath));
+      return snapshot.docs.map(categoryDoc => ({ name: categoryDoc.data().name }));
+    }));
 
     const categorySet = new Set<string>(['General']);
-    categorySnapshots.forEach(snapshot => {
-      snapshot.docs.forEach(doc => {
-        categorySet.add(doc.data().name);
-      });
+    categoryLists.flat().forEach(category => {
+      if (category.name) categorySet.add(category.name);
     });
 
     setAllCategories(Array.from(categorySet).sort());
