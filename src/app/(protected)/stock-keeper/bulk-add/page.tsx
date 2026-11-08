@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import type { StockItem, StockCategory, StockSupplier } from '@/lib/types';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, writeBatch, doc, Timestamp, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, writeBatch, doc, Timestamp, getDocs, where, setDoc } from 'firebase/firestore';
 import { useUser } from '@/contexts/user-context';
 import { useSettings } from '@/contexts/settings-context';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -342,11 +342,13 @@ function BulkAddPage() {
    const handleAddNewCategory = async (name: string) => {
     if (!firestore || !userProfile) return false;
     try {
-        await addDoc(collection(firestore, 'stockCategories'), {
-            name: name,
-            createdAt: serverTimestamp(),
-            createdBy: userProfile.name,
-        });
+        const categoryRef = doc(collection(firestore, 'stockCategories'));
+        const categoryData = { name, createdAt: new Date().toISOString(), createdBy: userProfile.name };
+        await commitLocalFirstMutations(
+          [{ collectionName: 'stockCategories', docId: categoryRef.id, action: 'set', data: categoryData }],
+          `stock-keeper-bulk-category:${categoryRef.id}`,
+          () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+        );
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added.` });
         if (activeItemIndex !== null) {
             form.setValue(`items.${activeItemIndex}.category`, name);
