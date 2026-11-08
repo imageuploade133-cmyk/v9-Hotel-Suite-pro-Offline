@@ -7,7 +7,7 @@ import type { User } from 'firebase/auth';
 import type { UserProfile } from '@/lib/types';
 import { PERMISSION_GROUPS, ALL_PERMISSIONS, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
 import { useFirestore } from '@/firebase';
-import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer, getDocFromServer, where, or } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer, getDocFromServer, where } from 'firebase/firestore';
 import { sanitizeForUrl } from '@/lib/helpers';
 import { firestoreCache, CacheTTL, CacheKeys } from '@/lib/firestore-cache';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
