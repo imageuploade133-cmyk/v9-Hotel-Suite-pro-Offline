@@ -475,9 +475,7 @@ export default function ProtectedLayout({
   const { permissions: contextPermissions } = useUser();
   const finalPermissions = contextPermissions || [];
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
-    || userProfile?.isSuperAdmin === true
-    || userProfile?.role === 'Admin'
-    || userProfile?.role === 'Super Admin';
+    || userProfile?.isSuperAdmin === true;
   const hasPosAccess = finalPermissions.includes(PagePermission.VIEW_POS)
     || finalPermissions.includes(PagePermission.PROCESS_SALES);
   const isPosAssignedStaff = !isAdminIdentity && hasPosAccess;
@@ -698,7 +696,8 @@ export default function ProtectedLayout({
                 // Use requiredPermission if available, otherwise fall back to permission
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
                 const itemHref = (item as any).href;
-                const hasPerm = finalPermissions.includes(permissionId)
+                const hasPerm = itemHref === '/profile'
+                  || finalPermissions.includes(permissionId)
                   || (itemHref === '/running-tables' && (isPosAssignedStaff || isAdminIdentity));
 
                 // If no permission is defined, allow access
