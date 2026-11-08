@@ -879,69 +879,66 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             }
           }
 
-          await ledgerBatch.commit();
-
-          // Mirror the complete committed ledger to the Local Master in one request.
-          if (ledgerMutations.length > 0) {
-            try {
-              const response = await fetch('/api/lan-sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  mutations: ledgerMutations.map(mutation => ({
-                    collectionName: mutation.collectionName,
-                    docId: mutation.docId,
-                    action: 'set',
-                    data: mutation.data,
-                  })),
-                }),
-              });
-              if (!response.ok) {
-                console.warn('[POS] LAN ledger batch sync returned a non-success response:', response.status);
-              }
-            } catch (syncError) {
-              console.warn('[POS] LAN ledger batch sync failed; Firestore batch is already committed:', syncError);
-            }
-          }
-
-          if (restoredSaleId) {
-              const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), restoredSaleId);
-              await deleteDoc(heldSaleRef);
-              try {
-                await fetch('/api/lan-sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
+          // If this browser is connected to the Local Master PC, the Master
+          // database is the source of truth. Persist sale, payments, held-table
+          // removal and stock movements together before reporting success.
+          let savedOnLocalMaster = false;
+          try {
+            const masterStatus = await fetch('/api/lan-sync', { cache: 'no-store' });
+            if (masterStatus.ok) {
+              const statusPayload = await masterStatus.json();
+              if (statusPayload?.success && statusPayload?.mode === 'LAN_MASTER_SERVER') {
+                const transactionMutations = ledgerMutations.map(mutation => ({
+                  collectionName: mutation.collectionName,
+                  docId: mutation.docId,
+                  action: 'set' as const,
+                  data: mutation.data,
+                }));
+                if (restoredSaleId) {
+                  transactionMutations.push({
                     collectionName: getCollectionPath('heldSales'),
                     docId: restoredSaleId,
-                    action: 'delete',
-                  }),
+                    action: 'delete' as const,
+                    data: undefined as any,
+                  });
+                }
+                const physicalItems = allItems.filter(item => !item.isService);
+                const stockAdjustments = physicalItems.map(item => ({
+                  collectionName: getCollectionPath('stock'),
+                  itemId: item.id,
+                  quantityDelta: -Number(item.sellQuantity || 0),
+                })).filter(item => item.quantityDelta !== 0);
+                const transactionKey = `pos-sale-${newSaleRef.id}`;
+                const localResponse = await fetch('/api/lan-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ transactionKey, mutations: transactionMutations, stockAdjustments }),
                 });
-              } catch {}
-          }
+                const localResult = await localResponse.json().catch(() => ({}));
+                if (!localResponse.ok || localResult?.success !== true || localResult?.durable !== true) {
+                  throw new Error(localResult?.error || 'The Local Master PC could not confirm a durable sale save.');
+                }
+                savedOnLocalMaster = true;
 
-          // Deduct inventory items and broadcast over LAN SSE in real time
-          const physicalItems = allItems.filter(item => !item.isService);
-          for (const item of physicalItems) {
-            try {
-              if (firestore) {
-                const stockRef = doc(firestore, getCollectionPath('stock'), item.id);
-                updateDoc(stockRef, { quantity: increment(-item.sellQuantity) }).catch(() => {});
+                // The Master PC owns the durable offline queue. Ask it to sync
+                // immediately when the network is available; failures leave the
+                // transaction pending locally for the next retry.
+                if (typeof navigator !== 'undefined' && navigator.onLine) {
+                  fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
+                }
               }
-            } catch {}
+            }
+          } catch (localSaveError) {
+            throw new Error(localSaveError instanceof Error
+              ? localSaveError.message
+              : 'Unable to save this sale to the Local Master PC.');
           }
 
-          if (physicalItems.length > 0) {
-            try {
-              await fetch('/api/lan-sync/stock-deduct', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  items: physicalItems.map(i => ({ itemId: i.id, quantity: i.sellQuantity })),
-                }),
-              });
-            } catch (deductErr) {
-              console.warn('[POS] LAN stock deduct error:', deductErr);
+          if (!savedOnLocalMaster) {
+            // Cloud-only mode retains the existing Firestore transaction path.
+            await ledgerBatch.commit();
+            if (restoredSaleId) {
+              await deleteDoc(doc(firestore, getCollectionPath('heldSales'), restoredSaleId));
             }
           }
 
