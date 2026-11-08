@@ -291,25 +291,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await performOfflineAuth();
     }
 
-    // Race Firebase cloud auth against a fast 2.5-second timeout so offline / slow Wi-Fi logins respond instantly
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        const timeoutErr = new Error('Auth timeout: cloud servers unreachable on current Wi-Fi');
-        (timeoutErr as any).code = 'auth/network-request-failed';
-        reject(timeoutErr);
-      }, 2500);
-    });
+    // Race Firebase cloud auth against a fast 2.5-second timeout so offline / slow Wi-Fi logins respond instantly.
+    // Clear the timer when Firebase responds; the auth state listener is a second
+    // source of truth, but a successful sign-in must not wait for that listener
+    // before the app can leave its redirect screen.
+    let authTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        authTimeoutId = setTimeout(() => {
+          const timeoutErr = new Error('Auth timeout: cloud servers unreachable on current Wi-Fi');
+          (timeoutErr as any).code = 'auth/network-request-failed';
+          reject(timeoutErr);
+        }, 2500);
+      });
+
       const res = await Promise.race([
         signInWithEmailAndPassword(auth, email, pass),
         timeoutPromise
       ]);
 
+      if (authTimeoutId) clearTimeout(authTimeoutId);
+
+      // Update the provider immediately from the successful Firebase credential.
+      // Do not depend solely on onAuthStateChanged: its initial callback can be
+      // delayed while navigation is already waiting for an authenticated user.
+      const authenticatedUser = (res as any)?.user as User | undefined;
+      if (authenticatedUser) {
+        setUser(authenticatedUser);
+        setLoading(false);
+      }
+
       // Cache successful login credentials hash/record for verified offline authentication fallback
-      if (res && (res as any).user && typeof window !== 'undefined') {
+      if (authenticatedUser && typeof window !== 'undefined') {
         try {
-          const u = (res as any).user;
+          const u = authenticatedUser;
           const authCache = JSON.parse(localStorage.getItem('app_auth_credentials_cache') || '{}');
           authCache[email.trim().toLowerCase()] = {
             uid: u.uid,
@@ -346,6 +362,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return await performOfflineAuth();
       }
       throw err;
+    } finally {
+      if (authTimeoutId) clearTimeout(authTimeoutId);
     }
   };
 
