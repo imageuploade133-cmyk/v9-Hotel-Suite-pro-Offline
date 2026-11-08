@@ -30,6 +30,7 @@ import { BottomSheet } from '../ui/bottom-sheet';
 import { BookingFormFields, createBookingSchema, type BookingFormValues } from './booking-form-fields';
 import { useBookings } from '@/hooks/use-bookings';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import { format } from 'date-fns';
 
 
@@ -173,12 +174,17 @@ export function WalkInDialog({
         };
 
         let newBooking: Booking | null = null;
+        const localMutations: Array<{ collectionName: string; docId: string; action: 'set' | 'update'; data: Record<string, unknown> }> = [];
 
         if (isEditMode) { // Editing/reassigning a reservation
             const bookingRef = doc(firestore, 'bookings', templateBooking!.id);
-            batch.update(bookingRef, {
-                ...bookingCoreData,
-                updatedAt: serverTimestamp(),
+            const bookingUpdates = { ...bookingCoreData, updatedAt: new Date().toISOString() };
+            batch.update(bookingRef, bookingUpdates);
+            localMutations.push({
+                collectionName: 'bookings',
+                docId: templateBooking!.id,
+                action: 'update',
+                data: bookingUpdates as any,
             });
         } else { // Creating new booking/check-in
             const newBookingRef = doc(collection(firestore, 'bookings'));
@@ -200,25 +206,47 @@ export function WalkInDialog({
                 }),
             };
             batch.set(newBookingRef, newBookingData);
+            localMutations.push({
+                collectionName: 'bookings',
+                docId: newBookingRef.id,
+                action: 'set',
+                data: {
+                    ...newBookingData,
+                    createdAt: new Date().toISOString(),
+                    ...(data.bookingType === 'checkin' ? { checkedInAt: new Date().toISOString() } : {}),
+                } as any,
+            });
 
             newBooking = newBookingData as unknown as Booking;
 
             if (data.bookingType === 'checkin' || data.bookingType === 'reservation-and-pay') {
                 const paymentRef = doc(collection(firestore, 'payments'));
-                batch.set(paymentRef, {
+                const paymentData = {
+                    id: paymentRef.id,
                     bookingId: newBookingRef.id,
                     amount: finalAmount,
                     paymentMethod: data.paymentMethod,
-                    transactionDate: serverTimestamp(),
+                    transactionDate: new Date().toISOString(),
                     createdByUid: user.uid,
                     createdByName: userProfile.name,
                     status: 'Paid',
-                    type: 'Booking'
+                    type: 'Booking',
+                };
+                batch.set(paymentRef, { ...paymentData, transactionDate: serverTimestamp() });
+                localMutations.push({
+                    collectionName: 'payments',
+                    docId: paymentRef.id,
+                    action: 'set',
+                    data: paymentData,
                 });
             }
         }
 
-        await batch.commit();
+        await commitLocalFirstMutations(
+            localMutations,
+            isEditMode ? `booking-reassign:${templateBooking!.id}:${Date.now()}` : `booking-create:${newBooking!.id}`,
+            () => batch.commit()
+        );
 
         if (newBooking && newBooking.source === 'website' && settings?.enableReservationAlerts && settings.reservationAlertPhoneNumber) {
             const message = `
