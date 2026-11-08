@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, GripVertical, Edit, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import Link from 'next/link';
 import {
   AlertDialog,
@@ -113,11 +115,13 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
     if (!newCategoryName.trim()) return;
 
     try {
-      await addDoc(categoriesRef, {
-        name: newCategoryName,
-        createdAt: serverTimestamp(),
-        order: categories ? categories.length : 0,
-      });
+      const categoryRef = doc(categoriesRef);
+      const categoryData = { name: newCategoryName, createdAt: new Date().toISOString(), order: categories ? categories.length : 0 };
+      await commitLocalFirstMutations(
+        [{ collectionName: `menus/${menu.id}/categories`, docId: categoryRef.id, action: 'set', data: categoryData }],
+        `menu-category-create:${menu.id}:${categoryRef.id}`,
+        () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+      );
       setNewCategoryName('');
       toast({ title: 'Category added', description: `"${newCategoryName}" has been added.` });
     } catch (error) {
@@ -141,29 +145,33 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
     }
 
     const batch = writeBatch(firestore);
-
-    // 1. Update the category document itself
-    const categoryRef = doc(firestore, `menus/${menu.id}/categories`, editingCategory.id);
+    const categoryCollectionPath = `menus/${menu.id}/categories`;
+    const itemsCollectionPath = `menus/${menu.id}/items`;
+    const categoryRef = doc(firestore, categoryCollectionPath, editingCategory.id);
     batch.update(categoryRef, { name: newName });
 
-    // 2. Find all menu items with the old category and update them
-    const itemsToUpdateQuery = query(
-        collection(firestore, `menus/${menu.id}/items`),
-        where('category', '==', oldName)
-    );
-
     try {
-        const itemsSnapshot = await getDocs(itemsToUpdateQuery);
-        itemsSnapshot.forEach(itemDoc => {
-            const itemRef = doc(firestore, `menus/${menu.id}/items`, itemDoc.id);
+        const matchingItems = isLocalMasterHost()
+          ? (await fetchLocalLanCollection<MenuItem>(itemsCollectionPath)).filter(item => item.category === oldName)
+          : (await getDocs(query(collection(firestore, itemsCollectionPath), where('category', '==', oldName)))).docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as MenuItem));
+        matchingItems.forEach(menuItem => {
+            const itemRef = doc(firestore, itemsCollectionPath, menuItem.id);
             batch.update(itemRef, { category: newName });
         });
 
-        await batch.commit();
+        const localMutations = [
+          { collectionName: categoryCollectionPath, docId: editingCategory.id, action: 'update' as const, data: { name: newName, updatedAt: new Date().toISOString() } },
+          ...matchingItems.map(menuItem => ({ collectionName: itemsCollectionPath, docId: menuItem.id, action: 'update' as const, data: { category: newName } })),
+        ];
+        await commitLocalFirstMutations(
+          localMutations,
+          `menu-category-rename:${menu.id}:${editingCategory.id}:${Date.now()}`,
+          () => batch.commit()
+        );
 
         toast({
             title: 'Category Updated',
-            description: `"${oldName}" was renamed to "${newName}" and ${itemsSnapshot.size} item(s) were updated.`
+            description: `"${oldName}" was renamed to "${newName}" and ${matchingItems.length} item(s) were updated.`
         });
 
     } catch (error) {
@@ -182,7 +190,12 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
   const confirmDeleteCategory = async () => {
     if (!categoryToDelete) return;
     try {
-      await deleteDoc(doc(categoriesRef, categoryToDelete));
+      const categoryRef = doc(categoriesRef, categoryToDelete);
+      await commitLocalFirstMutations(
+        [{ collectionName: `menus/${menu.id}/categories`, docId: categoryToDelete, action: 'delete' }],
+        `menu-category-delete:${menu.id}:${categoryToDelete}:${Date.now()}`,
+        () => deleteDoc(categoryRef)
+      );
       toast({ title: 'Category deleted', description: 'The category has been removed.' });
       setCategoryToDelete(null);
     } catch (error) {
@@ -205,7 +218,17 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
           const docRef = doc(categoriesRef, category.id);
           batch.update(docRef, { order: index });
         });
-        await batch.commit();
+        const localMutations = newCategories.map((category, index) => ({
+          collectionName: `menus/${menu.id}/categories`,
+          docId: category.id,
+          action: 'update' as const,
+          data: { order: index },
+        }));
+        await commitLocalFirstMutations(
+          localMutations,
+          `menu-category-order:${menu.id}:${newCategories.map(category => category.id).join(',')}:${Date.now()}`,
+          () => batch.commit()
+        );
         toast({ title: 'Order updated', description: 'Category order has been saved.' });
       } catch (error) {
           console.error("Error updating category order:", error);
