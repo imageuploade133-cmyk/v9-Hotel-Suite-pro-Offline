@@ -36,6 +36,7 @@ import {
   where,
   writeBatch,
   Timestamp,
+  setDoc,
 } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -301,11 +302,13 @@ export function AddEditStockItemDialog({
    const handleAddNewCategory = async (name: string): Promise<boolean> => {
     if (!firestore || !userProfile) return false;
     try {
-        await addDoc(collection(firestore, getCollectionPath('stockCategories')), {
-            name: name,
-            createdAt: serverTimestamp(),
-            createdBy: userProfile.name,
-        });
+        const categoryRef = doc(collection(firestore, getCollectionPath('stockCategories')));
+        const categoryData = { name, createdAt: new Date().toISOString(), createdBy: userProfile.name };
+        await commitLocalFirstMutations(
+          [{ collectionName: getCollectionPath('stockCategories'), docId: categoryRef.id, action: 'set', data: categoryData }],
+          `stock-category-inline:${categoryRef.id}`,
+          () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
+        );
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added.` });
         form.setValue('category', name);
         return true;
