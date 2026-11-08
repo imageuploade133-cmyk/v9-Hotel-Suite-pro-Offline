@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import type { Menu, StockCategory, StockItem } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import {
