@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useCollection } from '@/firebase';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
+import { fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface CustomerPanelProps {
@@ -34,6 +36,10 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
   const { userProfile } = useUser();
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
   const currency = settings?.currency || 'USD';
   const [isAddCustomerOpen, setIsAddCustomerOpen] = React.useState(false);
   const [searchTab, setSearchTab] = React.useState<'customers' | 'tables'>('customers');
@@ -44,20 +50,46 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
     if (!firestore) return null;
     return query(collection(firestore, getCollectionPath('heldSales')));
   }, [firestore, getCollectionPath]);
-  const { data: heldSales, isLoading: isLoadingTables } = useCollection<HeldSale>(heldSalesQuery);
+  const { data: heldSales, isLoading: isLoadingCloudTables } = useCollection<HeldSale>(heldSalesQuery);
+  const [localHeldSales, setLocalHeldSales] = React.useState<HeldSale[] | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!isLocalMasterHost()) {
+      setLocalHeldSales(null);
+      return;
+    }
+    fetchLocalLanCollection<HeldSale>(getCollectionPath('heldSales'))
+      .then(records => { if (!cancelled) setLocalHeldSales(records); })
+      .catch(error => {
+        console.warn('[POS] Could not load Local Master running tables:', error);
+        if (!cancelled) setLocalHeldSales([]);
+      });
+    return () => { cancelled = true; };
+  }, [getCollectionPath]);
+  const allRunningTables = React.useMemo(() => {
+    const merged = new Map<string, HeldSale>();
+    (heldSales || []).forEach(sale => merged.set(sale.id, sale));
+    (localHeldSales || []).forEach(sale => merged.set(sale.id, { ...merged.get(sale.id), ...sale }));
+    return [...merged.values()];
+  }, [heldSales, localHeldSales]);
+  const isLoadingTables = isLoadingCloudTables || (isLocalMasterHost() && localHeldSales === null);
 
   const myRunningTables = React.useMemo(() => {
-    if (!heldSales || !userProfile?.uid) return [];
+    if (!userProfile?.uid) return [];
     const term = tableSearch.trim().toLowerCase();
-    return heldSales
-      .filter(sale => sale.heldByUid === userProfile.uid)
-      .filter(sale => !term || [sale.name, sale.customer?.name].some(value => value?.toLowerCase().includes(term)))
+    return allRunningTables
+      .filter(sale => isAdminIdentity || sale.heldByUid === userProfile.uid)
+      .filter(sale => !term || [
+        sale.name, sale.customer?.name, sale.id, sale.heldByName,
+        ...(sale.cart || []).map(item => item.name),
+      ].some(value => String(value || '').toLowerCase().includes(term)))
       .sort((a, b) => {
-        const aTime = a.heldAt instanceof Date ? a.heldAt.getTime() : 0;
-        const bTime = b.heldAt instanceof Date ? b.heldAt.getTime() : 0;
-        return bTime - aTime;
+        const toMillis = (value: any) => value instanceof Date ? value.getTime()
+          : value?.toDate ? value.toDate().getTime()
+          : typeof value === 'string' ? new Date(value).getTime() : 0;
+        return toMillis(b.heldAt) - toMillis(a.heldAt);
       });
-  }, [heldSales, userProfile?.uid, tableSearch]);
+  }, [allRunningTables, userProfile?.uid, isAdminIdentity, tableSearch]);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
   const isRegisteredCustomer = selectedCustomer && selectedCustomer.id;
@@ -145,16 +177,16 @@ export function CustomerPanel({ selectedCustomer, onSelectCustomer, isSaleRestor
                   <Tabs value={searchTab} onValueChange={(value) => setSearchTab(value as 'customers' | 'tables')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="customers">Customers</TabsTrigger>
-                      <TabsTrigger value="tables"><Table2 className="mr-2 h-4 w-4" /> My Running Tables</TabsTrigger>
+                      <TabsTrigger value="tables"><Table2 className="mr-2 h-4 w-4" /> {isAdminIdentity ? 'All Running Tables' : 'My Running Tables'}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="customers" className="mt-3">
                       <CustomerSearch onSelectCustomer={onSelectCustomer} collectionName="posCustomers" />
                     </TabsContent>
                     <TabsContent value="tables" className="mt-3 space-y-2">
-                      <Input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder="Search your running tables..." />
+                      <Input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder={isAdminIdentity ? "Search all running tables..." : "Search your running tables..."} />
                       <div className="max-h-52 space-y-1 overflow-y-auto rounded-md border p-1">
                         {isLoadingTables ? (
-                          <p className="p-3 text-center text-sm text-muted-foreground">Loading your running tables...</p>
+                          <p className="p-3 text-center text-sm text-muted-foreground">{isAdminIdentity ? 'Loading all running tables...' : 'Loading your running tables...'}</p>
                         ) : myRunningTables.length ? myRunningTables.map(sale => (
                           <button key={sale.id} type="button" onClick={() => handleSelectTable(sale)} className="flex w-full items-center justify-between gap-3 rounded-md p-3 text-left hover:bg-accent">
                             <span className="min-w-0">
