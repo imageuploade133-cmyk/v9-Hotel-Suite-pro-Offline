@@ -937,74 +937,30 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           }
 
           if (!savedOnLocalMaster) {
-            // Cloud-only mode retains the existing Firestore transaction path.
-            await ledgerBatch.commit();
+            // Cloud-only mode writes the sale ledger and stock movement in one
+            // Firestore batch, matching the Local Master transaction.
+            allItems.filter(item => !item.isService).forEach(item => {
+              ledgerBatch.update(
+                doc(firestore, getCollectionPath('stock'), item.id),
+                { quantity: increment(-Number(item.sellQuantity || 0)) }
+              );
+            });
             if (restoredSaleId) {
-              await deleteDoc(doc(firestore, getCollectionPath('heldSales'), restoredSaleId));
+              ledgerBatch.delete(doc(firestore, getCollectionPath('heldSales'), restoredSaleId));
             }
+            await ledgerBatch.commit();
           }
 
           return { ...saleData, soldAt: new Date() };
         };
 
         try {
-          if (paymentMethod === 'Credit') {
-            // Credit settlement also writes payment ledger entries and LAN mutations.
-            // Use the same direct-write path as offline mode so both environments record them.
-            createdSale = await executeSaleWrites();
-          } else if (navigator.onLine) {
-            await runTransaction(firestore, async (transaction) => {
-                const newSaleRef = doc(collection(firestore, getCollectionPath('stockSales')));
-                const newSaleId = `SALE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-                const baseSaleData: StockSale = {
-                    id: newSaleRef.id,
-                    saleId: newSaleId,
-                    items: allItems.map(item => ({
-                        itemId: item.id,
-                        itemName: item.name,
-                        quantity: item.sellQuantity,
-                        sellingPrice: item.price || item.sellingPrice,
-                        costPrice: item.costPrice || 0,
-                        isService: item.isService || false,
-                    })),
-                    totalAmount: total,
-                    paymentMethod: paymentMethod as any,
-                    paymentStatus,
-                    soldAt: serverTimestamp() as any,
-                    soldByUid: userProfile.uid,
-                    soldByName: userProfile.name,
-                    customerId: customer?.id || null,
-                    customerName: customer?.name || 'Walk-in Customer',
-                    customerEmail: customer?.email || null,
-                    initialPaymentAmount: initialPaymentAmount || null,
-                    discountType: discount?.type || null,
-                    discountValue: discount?.value || null,
-                    context: context,
-                    printStatus: 'pending',
-                };
-
-                const saleData = getNewDocumentData(baseSaleData, branchContext);
-                transaction.set(newSaleRef, saleData);
-
-                if (restoredSaleId) {
-                    const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), restoredSaleId);
-                    transaction.delete(heldSaleRef);
-                }
-
-                createdSale = { ...saleData, soldAt: new Date() };
-            });
-          } else {
-            createdSale = await executeSaleWrites();
-          }
-        } catch (trxErr) {
-          if (paymentMethod === 'Credit') {
-            // Do not replay a credit sale after a partial write failure; retrying with new IDs
-            // could create duplicate sales or duplicate repayments.
-            throw trxErr;
-          }
-          console.warn('[POS Offline Mode] Transaction failed/offline. Executing direct local sale writes:', trxErr);
+          // Use one transaction implementation in both environments. It
+          // writes to the Local Master first when available, otherwise it
+          // commits the equivalent complete batch to Firestore.
           createdSale = await executeSaleWrites();
+        } catch (trxErr) {
+          throw trxErr;
         }
 
         clearCart();
