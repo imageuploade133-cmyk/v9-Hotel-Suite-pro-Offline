@@ -192,7 +192,17 @@ export default function LoginPage() {
       return;
     }
 
-    const landingPage = userProfile.isFirebaseOnlyAdmin
+    const normalizedRole = typeof userProfile.role === 'string'
+      ? userProfile.role.trim().toLowerCase().replace(/[_-]+/g, ' ')
+      : '';
+    const isAssignedAdmin = normalizedRole === 'admin' ||
+      normalizedRole === 'super admin' ||
+      userProfile.isSuperAdmin === true;
+
+    // Both Firebase-only Admins and Firestore users explicitly assigned an
+    // Admin/Super Admin role should enter the dashboard directly. Keep their
+    // stored permissions unchanged; this only selects the landing destination.
+    const landingPage = userProfile.isFirebaseOnlyAdmin || isAssignedAdmin
       ? '/dashboard'
       : getLandingPage(permissions);
 
