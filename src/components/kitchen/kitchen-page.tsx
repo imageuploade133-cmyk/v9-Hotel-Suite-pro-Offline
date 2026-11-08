@@ -92,6 +92,7 @@ import { LoadingSkeleton, PaginationControls } from '@/components/kitchen/kitche
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { KitchenReport } from '@/components/kitchen/kitchen-report';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 
 
 const PAGE_SIZE = 8;
@@ -145,19 +146,33 @@ function KitchenPanelPage() {
     const billsQuery = query(collectionGroup(firestore, 'bills'));
     const ordersQuery = query(collection(firestore, 'orders'), orderBy('createdAt', 'desc'));
 
+    // Hydrate immediately from the Master PC store; Firestore snapshots then
+    // merge cloud records without replacing locally-created kitchen orders.
+    fetchLocalLanCollection<Order>('orders').then(localOrders => {
+      if (localOrders.length) setAllOrders(current => {
+        const merged = new Map(current.map(order => [order.id, order]));
+        localOrders.forEach(order => merged.set(order.id, { ...(merged.get(order.id) || {} as Order), ...order }));
+        return Array.from(merged.values());
+      });
+    }).catch(error => console.warn('[Kitchen] Local order read failed:', error));
+
     const unsubBills = onSnapshot(billsQuery, (snapshot) => {
         const billsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
         setAllBills(billsData);
-    });
+    }, (error) => console.warn('[Kitchen] Cloud bills unavailable; retaining current local data:', error));
 
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-      setAllOrders(data);
-      setIsLoading(false);
+      const cloudOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      fetchLocalLanCollection<Order>('orders').then(localOrders => {
+        const merged = new Map(cloudOrders.map(order => [order.id, order]));
+        localOrders.forEach(order => merged.set(order.id, { ...(merged.get(order.id) || {} as Order), ...order }));
+        setAllOrders(Array.from(merged.values()));
+      }).catch(() => setAllOrders(cloudOrders)).finally(() => setIsLoading(false));
     }, (error) => {
-      console.error("Error fetching recent orders:", error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch recent orders.' });
-      setIsLoading(false);
+      console.error('Cloud orders unavailable; loading Master PC orders:', error);
+      fetchLocalLanCollection<Order>('orders').then(setAllOrders).catch(() => {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch recent orders from cloud or Local Master.' });
+      }).finally(() => setIsLoading(false));
     });
 
     return () => {
@@ -310,7 +325,23 @@ function KitchenPanelPage() {
     batch.update(orderRef, updateData as any);
 
     try {
-      await batch.commit();
+      const localUpdate: Record<string, unknown> = {
+        status: newStatus,
+        ...(newStatus === 'Preparing' ? {
+          preparingAt: new Date().toISOString(),
+          preparingByUid: user.uid,
+          preparingByName: userProfile?.name || 'System',
+        } : {
+          completedAt: new Date().toISOString(),
+          completedByUid: user.uid,
+          completedByName: userProfile?.name || 'System',
+        }),
+      };
+      await commitLocalFirstMutations(
+        [{ collectionName: 'orders', docId: order.id, action: 'update', data: localUpdate }],
+        `kitchen-order-status:${order.id}:${newStatus}:${Date.now()}`,
+        () => batch.commit()
+      );
       toast({
         variant: 'success',
         title: `Order ${newStatus}`,
@@ -406,7 +437,26 @@ function KitchenPanelPage() {
 
 
     try {
-        await batch.commit();
+        const localBillData = {
+          id: newBillRef.id,
+          items: billItems,
+          total: orderToBill.totalPrice,
+          createdAt: new Date().toISOString(),
+          createdBy: user.uid,
+          createdByName: userProfile.name,
+          paid: false,
+          bookingId: finalBookingId,
+        };
+        const localOrderUpdate = {
+          status: 'Billed',
+          billedAt: new Date().toISOString(),
+          billedByUid: user.uid,
+          billedByName: userProfile.name,
+        };
+        await commitLocalFirstMutations([
+          { collectionName: `bookings/${finalBookingId}/bills`, docId: newBillRef.id, action: 'set', data: localBillData as any },
+          { collectionName: 'orders', docId: orderToBill.id, action: 'update', data: localOrderUpdate },
+        ], `kitchen-bill-order:${orderToBill.id}:${newBillRef.id}`, () => batch.commit());
         let toastDescription = `The charge of ${formatCurrency(orderToBill.totalPrice)} has been added to the guest's bill for Room ${manualRoomNumber}.`;
         toast({
             variant: 'success',
