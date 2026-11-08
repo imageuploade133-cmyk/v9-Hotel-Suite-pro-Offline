@@ -138,7 +138,7 @@ const isNavigationItemActive = (pathname: string, href: string) =>
 
 const normalizeNavigationPath = (href: string) => {
   const path = href.split(/[?#]/, 1)[0] || '/';
-  return path.replace(/\\/+$/, '') || '/';
+  return path.replace(/\/+$/, '') || '/';
 };
 
 const NavLink = ({
