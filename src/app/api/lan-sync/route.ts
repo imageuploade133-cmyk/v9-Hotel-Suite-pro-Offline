@@ -69,13 +69,26 @@ export async function POST(req: NextRequest) {
       if (!valid) {
         return NextResponse.json({ success: false, error: 'Invalid LAN mutation batch.' }, { status: 400 });
       }
-      const saved = mutations.map((mutation) =>
-        lanStore.addMutation(mutation.collectionName!, mutation.docId!, mutation.action!, mutation.data)
+      const transactionKey = typeof body?.transactionKey === 'string' && body.transactionKey.trim()
+        ? body.transactionKey.trim()
+        : undefined;
+      const result = lanStore.applyMutationsAtomic(
+        mutations.map((mutation) => ({
+          collectionName: mutation.collectionName!,
+          docId: mutation.docId!,
+          action: mutation.action!,
+          data: mutation.data,
+        })),
+        transactionKey
       );
       return NextResponse.json({
         success: true,
-        message: 'Mutation batch saved locally to Master PC',
-        mutationIds: saved.map((mutation) => mutation.id),
+        durable: true,
+        duplicate: result.duplicate,
+        message: result.duplicate
+          ? 'This transaction was already saved on the Master PC'
+          : 'Mutation batch durably saved locally to Master PC',
+        mutationIds: result.mutations.map((mutation) => mutation.id),
         summary: lanStore.getStateSummary(),
       });
     }
@@ -89,11 +102,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const mutation = lanStore.addMutation(collectionName, docId, action, data);
+    const transactionKey = typeof body?.transactionKey === 'string' && body.transactionKey.trim()
+      ? body.transactionKey.trim()
+      : undefined;
+    const result = lanStore.applyMutationsAtomic([{ collectionName, docId, action, data }], transactionKey);
+    const mutation = result.mutations[0];
 
     return NextResponse.json({
       success: true,
-      message: 'Mutation saved locally to Master PC',
+      durable: true,
+      duplicate: result.duplicate,
+      message: result.duplicate
+        ? 'This transaction was already saved on the Master PC'
+        : 'Mutation durably saved locally to Master PC',
       mutationId: mutation.id,
       summary: lanStore.getStateSummary(),
     });
