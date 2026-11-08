@@ -16,6 +16,7 @@ import {
   getDocs,
   where,
   orderBy,
+  setDoc,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/branch-context';
@@ -67,6 +68,8 @@ import { StatCard } from '@/components/ui/stat-card';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { TopHeader } from '@/components/top-header';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required.'),
@@ -112,23 +115,24 @@ function CategoryFormDialog({
     if (!firestore || !userProfile) return;
     setIsSaving(true);
 
-    // Check for duplicates
-    const categoryQuery = query(collection(firestore, 'stockCategories'), where('name', '==', data.name));
-    const querySnapshot = await getDocs(categoryQuery);
-    if (!querySnapshot.empty && (!isEditMode || querySnapshot.docs[0].id !== category!.id)) {
-        toast({
-            variant: 'destructive',
-            title: 'Duplicate Category',
-            description: `A category with the name "${data.name}" already exists.`
-        });
+    try {
+      const existingCategories = isLocalMasterHost()
+        ? await fetchLocalLanCollection<StockCategory>('stockCategories')
+        : (await getDocs(query(collection(firestore, 'stockCategories'), where('name', '==', data.name)))).docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as StockCategory));
+      if (existingCategories.some(existing => existing.id !== category?.id && existing.name?.toLowerCase() === data.name.toLowerCase())) {
+        toast({ variant: 'destructive', title: 'Duplicate Category', description: `A category with the name "${data.name}" already exists.` });
         setIsSaving(false);
         return;
-    }
+      }
 
-    try {
       if (isEditMode && category) {
         const docRef = doc(firestore, 'stockCategories', category.id);
-        await updateDoc(docRef, { ...data, updatedBy: userProfile.name });
+        const categoryUpdate = { ...data, updatedBy: userProfile.name, updatedAt: new Date().toISOString() };
+        await commitLocalFirstMutations(
+          [{ collectionName: 'stockCategories', docId: category.id, action: 'update', data: categoryUpdate }],
+          `stock-category-update:${category.id}:${Date.now()}`,
+          () => updateDoc(docRef, categoryUpdate)
+        );
         toast({ variant: 'success', title: 'Category Updated' });
       } else {
         const baseCategoryData = {
@@ -137,7 +141,12 @@ function CategoryFormDialog({
           createdBy: userProfile.name,
         };
         const categoryData = getNewDocumentData(baseCategoryData, branchContext);
-        await addDoc(collection(firestore, 'stockCategories'), categoryData);
+        const categoryRef = doc(collection(firestore, 'stockCategories'));
+        await commitLocalFirstMutations(
+          [{ collectionName: 'stockCategories', docId: categoryRef.id, action: 'set', data: { ...categoryData, createdAt: new Date().toISOString() } as any }],
+          `stock-category-create:${categoryRef.id}`,
+          () => setDoc(categoryRef, categoryData)
+        );
         toast({ variant: 'success', title: 'Category Added' });
       }
       onSuccess();
