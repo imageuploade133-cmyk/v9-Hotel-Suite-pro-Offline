@@ -286,6 +286,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     let saleId = restoredSaleId || `HELD-${Date.now().toString().slice(-6)}`;
 
     const executeOfflineHoldWrites = async () => {
+        if (restoredSaleData?.linkedBillId) {
+          throw new Error('This running table is linked to a room bill. Offline room-bill updates are not yet enabled, so no changes were saved.');
+        }
         const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleId);
         const baseHeldSaleData: Partial<HeldSale> = {
             id: saleId,
