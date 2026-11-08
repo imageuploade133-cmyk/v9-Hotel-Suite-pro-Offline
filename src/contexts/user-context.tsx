@@ -387,6 +387,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
 
     let profileLookupStarted = false;
+    let profileFallbackTimer: ReturnType<typeof setTimeout> | undefined;
     const loadProfile = async () => {
       if (profileLookupStarted) return;
       profileLookupStarted = true;
@@ -469,10 +470,22 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
               staffFilters.push(where('email', '==', normalizedEmail));
             }
 
-            const matchingStaff = await getDocsFromServer(query(
-              collection(firestore, 'users'),
-              or(...staffFilters)
-            ));
+            // Legacy staff profiles may use a custom document ID. Bound this
+            // fallback query as well as the UID lookup above so a stalled
+            // Firestore request can never leave the login screen loading forever.
+            if (lookupTimeout) clearTimeout(lookupTimeout);
+            const matchingStaff = await Promise.race([
+              getDocsFromServer(query(
+                collection(firestore, 'users'),
+                or(...staffFilters)
+              )),
+              new Promise<never>((_, reject) => {
+                lookupTimeout = setTimeout(
+                  () => reject(new Error('Firestore staff identity lookup timed out')),
+                  3000
+                );
+              }),
+            ]);
             const matches = matchingStaff.docs.map(staffDocument => ({
               id: staffDocument.id,
               ...staffDocument.data(),
@@ -490,6 +503,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (!isCancelled) {
+        if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
         if (matchedProfile) {
           setCachedAccountType(user.uid, 'staff');
           const normalizedProfile = toStaffProfile(user, matchedProfile);
@@ -505,6 +519,23 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
       }
     };
+
+    // Safety net: never keep a successfully authenticated user on an
+    // indefinite redirect screen if Firestore/LAN profile resolution stalls.
+    // Only use a previously verified cached identity; otherwise fail closed.
+    profileFallbackTimer = setTimeout(() => {
+      if (isCancelled) return;
+      const lastKnownStaff = findStaffProfile(readCachedStaffUsers(), user.uid, user.email);
+      if (lastKnownStaff) {
+        setUserProfile(toStaffProfile(user, lastKnownStaff));
+      } else if (cachedAccountType === 'firebase-only-admin') {
+        setUserProfile(toFirebaseAdminProfile(user));
+      } else {
+        setUserProfile(toUnverifiedProfile(user));
+      }
+      setLoading(false);
+    }, 8000);
+
     void loadProfile();
 
     const userDocRef = doc(firestore, 'users', user.uid);
@@ -536,6 +567,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       isCancelled = true;
+      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
       unsubscribe();
     };
   }, [user, authLoading, firestore, refreshTrigger]);
