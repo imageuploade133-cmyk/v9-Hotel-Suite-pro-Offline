@@ -81,6 +81,8 @@ import { Switch } from '../ui/switch';
 import { AddCategoryDialog } from '../stock-keeper/add-category-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import {
   Command,
   CommandEmpty,
@@ -319,20 +321,24 @@ export function AddEditStockItemDialog({
     setIsSaving(true);
 
     try {
-        const q = query(
-            collection(firestore, stockCollection),
-            where('name', '==', data.name)
-        );
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty && (!isEditMode || querySnapshot.docs[0].id !== item!.id)) {
-            throw new Error('An item with this name already exists in this inventory.');
-        }
-        if (data.barcode) {
-          const barcodeQuery = query(collection(firestore, stockCollection), where('barcode', '==', data.barcode));
-          const barcodeSnapshot = await getDocs(barcodeQuery);
-          if (!barcodeSnapshot.empty && (!isEditMode || barcodeSnapshot.docs[0].id !== item!.id)) {
-            throw new Error('An item with this barcode already exists.');
+        let duplicateItems: StockItem[] = [];
+        if (isLocalMasterHost()) {
+          duplicateItems = await fetchLocalLanCollection<StockItem>(stockCollection);
+        } else {
+          const q = query(collection(firestore, stockCollection), where('name', '==', data.name));
+          const querySnapshot = await getDocs(q);
+          duplicateItems = querySnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as StockItem));
+          if (data.barcode) {
+            const barcodeQuery = query(collection(firestore, stockCollection), where('barcode', '==', data.barcode));
+            const barcodeSnapshot = await getDocs(barcodeQuery);
+            duplicateItems = [...duplicateItems, ...barcodeSnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as StockItem))];
           }
+        }
+        if (duplicateItems.some(existing => existing.id !== item?.id && existing.name?.toLowerCase() === data.name.toLowerCase())) {
+          throw new Error('An item with this name already exists in this inventory.');
+        }
+        if (data.barcode && duplicateItems.some(existing => existing.id !== item?.id && existing.barcode === data.barcode)) {
+          throw new Error('An item with this barcode already exists.');
         }
 
         let uploadedImageUrls: string[] = data.images || [];
@@ -369,7 +375,12 @@ export function AddEditStockItemDialog({
                 ? `branches/${item.branchId}/stock`
                 : stockCollection;
             const itemRef = doc(firestore, actualCollectionPath, item.id);
-            await updateDoc(itemRef, itemData);
+            const localItemData = { ...itemData, updatedAt: new Date().toISOString() };
+            await commitLocalFirstMutations(
+              [{ collectionName: actualCollectionPath, docId: item.id, action: 'update', data: localItemData }],
+              `stock-item-update:${item.id}:${Date.now()}`,
+              () => updateDoc(itemRef, itemData)
+            );
             toast({ variant: 'success', title: 'Item Updated', description: `${data.name} has been updated.` });
         } else {
             const batch = writeBatch(firestore);
@@ -396,37 +407,24 @@ export function AddEditStockItemDialog({
                 notes: `Initial stock: ${data.quantity}`,
                 keywords: ['create', 'stock', data.name.toLowerCase(), data.category.toLowerCase()]
             });
-            await batch.commit();
+            const localItemData = { ...newItemData, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+            const localAuditData = {
+              timestamp: new Date().toISOString(),
+              userId: userProfile.uid,
+              userName: userProfile.name,
+              changeType: 'Create',
+              entityType: 'Stock Item',
+              entityId: newItemRef.id,
+              details: `Created new stock item: ${data.name}`,
+              changes: [{ field: 'item', before: null, after: 'Created' }],
+              notes: `Initial stock: ${data.quantity}`,
+              keywords: ['create', 'stock', data.name.toLowerCase(), data.category.toLowerCase()],
+            };
+            await commitLocalFirstMutations([
+              { collectionName: stockCollection, docId: newItemRef.id, action: 'set', data: localItemData as any },
+              { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set', data: localAuditData },
+            ], `stock-item-create:${newItemRef.id}`, () => batch.commit());
             toast({ variant: 'success', title: 'Item Added to Stock', description: `${data.name} has been added.` });
-
-            // Sync to Master PC for immediate offline multi-user visibility
-            try {
-              fetch('/api/lan-sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  collectionName: 'stock',
-                  docId: newItemRef.id,
-                  action: 'set',
-                  data: { ...newItemData, id: newItemRef.id },
-                }),
-              }).catch(() => {});
-            } catch {}
-        }
-
-        if (isEditMode && item) {
-          try {
-            fetch('/api/lan-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                collectionName: 'stock',
-                docId: item.id,
-                action: 'update',
-                data: { ...itemData, id: item.id },
-              }),
-            }).catch(() => {});
-          } catch {}
         }
 
         onSuccess();
