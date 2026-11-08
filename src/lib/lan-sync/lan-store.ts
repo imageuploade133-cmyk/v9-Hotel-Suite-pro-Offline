@@ -269,6 +269,11 @@ export class LanStore {
       throw new Error('A non-empty mutation batch or stock adjustment is required.');
     }
 
+    if (transactionKey) {
+      const prior = this.mutationsList.filter((m) => m.transactionKey === transactionKey);
+      if (prior.length > 0) return { mutations: prior, duplicate: true };
+    }
+
     // Validate every stock movement before changing any document.
     const stockUpdates = new Map<string, { collectionName: string; itemId: string; data: Record<string, unknown> }>();
     for (const adjustment of stockAdjustments) {
@@ -299,11 +304,6 @@ export class LanStore {
         data: stock.data,
       })),
     ];
-
-    if (transactionKey) {
-      const prior = this.mutationsList.filter((m) => m.transactionKey === transactionKey);
-      if (prior.length > 0) return { mutations: prior, duplicate: true };
-    }
 
     const previousCollections = new Map<string, Map<string, Record<string, unknown>>>();
     for (const [name, docs] of this.collectionsMap.entries()) {
