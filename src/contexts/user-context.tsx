@@ -140,7 +140,11 @@ const hasStaffAssignment = (profile: Partial<UserProfile> | null | undefined): b
 
   // A personal profile written by the Profile page contains fields such as
   // name/photoURL only. It is not a staff assignment and must not remove Admin access.
-  return hasExplicitRole || hasExplicitPermissions || hasRoleId || profile.isActive === false;
+  return hasExplicitRole ||
+    hasExplicitPermissions ||
+    hasRoleId ||
+    (profile as any).accountType === 'staff' ||
+    profile.isActive === false;
 };
 
 const findMatchingProfile = (
@@ -229,6 +233,8 @@ const cacheFirebaseOnlyAdminForOffline = (
     name: accountProfile?.name || user.displayName || user.email?.split('@')[0] || 'Admin',
     email: user.email || accountProfile?.email || '',
     photoURL: accountProfile?.photoURL || user.photoURL || undefined,
+    phoneNumber: accountProfile?.phoneNumber ?? null,
+    uiPreferences: accountProfile?.uiPreferences,
     role: 'Admin',
     permissions: ALL_PERMISSIONS,
     isActive: true,
