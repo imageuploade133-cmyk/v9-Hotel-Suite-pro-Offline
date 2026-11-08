@@ -385,18 +385,42 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     }
 
     try {
-      await batch.commit();
-
+      const cancelledAt = new Date().toISOString();
       const newStatus = bookingToCancel.status === 'Reserved' || ['Active', 'Checked-in'].includes(bookingToCancel.status) ? 'Refunded' : 'Cancelled';
-      pushLanMutation('bookings', bookingToCancel.id, 'update', {
-        status: newStatus,
-        cancelledAt: new Date().toISOString(),
-      });
+      const localMutations: Array<{ collectionName: string; docId: string; action: 'update'; data: Record<string, unknown> }> = [{
+        collectionName: 'bookings',
+        docId: bookingToCancel.id,
+        action: 'update',
+        data: {
+          status: newStatus,
+          cancelledByUid: user.uid,
+          cancelledByName: userProfile.name,
+          cancelledAt,
+          refundedAt: newStatus === 'Refunded' ? cancelledAt : null,
+          updatedAt: cancelledAt,
+        },
+      }];
       if (['Active', 'Checked-in'].includes(bookingToCancel.status) && bookingToCancel.roomNumber && bookingToCancel.roomNumber !== 'N/A') {
-        pushLanMutation('rooms', bookingToCancel.roomId, 'update', {
-          [`individualRoomStatus.${bookingToCancel.roomNumber}`]: 'Vacant',
+        const roomSnapshot = rooms?.find((item) => item.id === bookingToCancel.roomId);
+        localMutations.push({
+          collectionName: 'rooms',
+          docId: bookingToCancel.roomId,
+          action: 'update',
+          data: {
+            [`individualRoomStatus.${bookingToCancel.roomNumber}`]: 'Vacant',
+            ...(roomSnapshot ? {
+              bookedRooms: Math.max(0, Number(roomSnapshot.bookedRooms || 0) - 1),
+              availableRooms: Number(roomSnapshot.availableRooms || 0) + 1,
+            } : {}),
+            updatedAt: cancelledAt,
+          },
         });
       }
+      await commitLocalFirstMutations(
+        localMutations,
+        `booking-cancel:${bookingToCancel.id}:${cancelledAt}`,
+        () => batch.commit()
+      );
 
       router.push('/reservations');
       onSuccess();
