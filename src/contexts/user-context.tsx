@@ -141,7 +141,7 @@ const hasStaffAssignment = (profile: Partial<UserProfile> | null | undefined): b
 
   // A personal profile written by the Profile page contains fields such as
   // name/photoURL only. It is not a staff assignment and must not remove Admin access.
-  return hasExplicitRole || hasExplicitPermissions || hasRoleId;
+  return hasExplicitRole || hasExplicitPermissions || hasRoleId || profile.isActive === false;
 };
 
 const findMatchingProfile = (
@@ -546,8 +546,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       let lookupSucceeded = false;
 
       try {
-        // On the local Master host, prefer its LAN roster. A successful roster
-        // response is useful immediately when it contains the assigned staff record.
+        // On the local Master host, its local roster is the fastest source of truth.
         if (isLocalMasterHost()) {
           const controller = new AbortController();
           try {
@@ -575,82 +574,78 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
                 accountProfile = findMatchingProfile(usersList, user.uid, user.email);
                 matchedStaffProfile = findStaffProfile(usersList, user.uid, user.email);
-                if (matchedStaffProfile) lookupSucceeded = true;
+                if (accountProfile) lookupSucceeded = true;
               }
             }
           } catch {
             controller.abort();
-            // Continue with the cloud identity lookup when the LAN roster is unavailable.
+            // Continue with the direct Firestore identity lookup.
           }
         }
 
-        // The cloud identity query also finds legacy staff documents whose document
-        // ID is not the Firebase UID. Run it alongside the direct UID lookup.
-        if (!matchedStaffProfile) {
-          const staffFilters = [
-            where('uid', '==', user.uid),
-            where('id', '==', user.uid),
-          ];
-          const exactEmail = user.email?.trim();
-          const normalizedEmail = exactEmail?.toLowerCase();
-          if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
-          if (normalizedEmail && normalizedEmail !== exactEmail) {
-            staffFilters.push(where('email', '==', normalizedEmail));
+        // Staff records are normally stored under the Firebase UID. Check that
+        // document first so the common case needs only one server read.
+        if (!accountProfile && !matchedStaffProfile) {
+          let uidDocumentFound = false;
+          try {
+            const uidDocument = await withTimeout(
+              getDocFromServer(doc(firestore, 'users', user.uid)),
+              2200,
+              'Firestore UID profile lookup timed out'
+            );
+
+            if (uidDocument.exists()) {
+              const uidProfile = {
+                id: uidDocument.id,
+                ...uidDocument.data(),
+              } as UserProfile;
+
+              if (uidProfile.uid && uidProfile.uid !== user.uid) {
+                throw new Error('The profile UID does not match the authenticated account.');
+              }
+
+              accountProfile = uidProfile;
+              matchedStaffProfile = hasStaffAssignment(uidProfile) ? uidProfile : null;
+              uidDocumentFound = true;
+              lookupSucceeded = true;
+            }
+          } catch (error) {
+            if (error instanceof Error &&
+                error.message === 'The profile UID does not match the authenticated account.') {
+              throw error;
+            }
+            // If the UID document is absent or temporarily unavailable, try legacy identities below.
           }
 
-          const [uidLookupResult, identityLookupResult] = await Promise.allSettled([
-            withTimeout(
-              getDocFromServer(doc(firestore, 'users', user.uid)),
-              2600,
-              'Firestore UID profile lookup timed out'
-            ),
-            withTimeout(
+          // Older staff records may have a custom document ID. Query by UID/email
+          // only when the canonical UID document was not found.
+          if (!uidDocumentFound) {
+            const staffFilters = [
+              where('uid', '==', user.uid),
+              where('id', '==', user.uid),
+            ];
+            const exactEmail = user.email?.trim();
+            const normalizedEmail = exactEmail?.toLowerCase();
+            if (exactEmail) staffFilters.push(where('email', '==', exactEmail));
+            if (normalizedEmail && normalizedEmail !== exactEmail) {
+              staffFilters.push(where('email', '==', normalizedEmail));
+            }
+
+            const matchingStaff = await withTimeout(
               getDocsFromServer(query(collection(firestore, 'users'), or(...staffFilters))),
               2600,
               'Firestore staff identity lookup timed out'
-            ),
-          ]);
-
-          const candidates: Partial<UserProfile>[] = [];
-
-          if (uidLookupResult.status === 'fulfilled' && uidLookupResult.value.exists()) {
-            const uidProfile = {
-              id: uidLookupResult.value.id,
-              ...uidLookupResult.value.data(),
-            } as UserProfile;
-            if (!uidProfile.uid || uidProfile.uid === user.uid) {
-              candidates.push(uidProfile);
-            }
-          }
-
-          if (identityLookupResult.status === 'fulfilled') {
-            const matches = identityLookupResult.value.docs.map(staffDocument => ({
+            );
+            const matches = matchingStaff.docs.map(staffDocument => ({
               id: staffDocument.id,
               ...staffDocument.data(),
             } as UserProfile));
-            candidates.push(...matches);
+
+            accountProfile = findMatchingProfile(matches, user.uid, user.email);
+            matchedStaffProfile = findStaffProfile(matches, user.uid, user.email);
             lookupSucceeded = true;
-          }
-
-          accountProfile = findMatchingProfile(candidates, user.uid, user.email);
-          matchedStaffProfile = findStaffProfile(candidates, user.uid, user.email);
-
-          // A direct UID read can still confirm a role assignment when a separate
-          // legacy query is unavailable. Do not infer Admin from an unsuccessful lookup.
-          if (matchedStaffProfile) lookupSucceeded = true;
-          if (uidLookupResult.status === 'fulfilled' || identityLookupResult.status === 'fulfilled') {
-            lookupSucceeded = true;
-          }
-
-          if (
-            uidLookupResult.status === 'rejected' &&
-            identityLookupResult.status === 'rejected' &&
-            !matchedStaffProfile
-          ) {
-            throw uidLookupResult.reason;
           }
         }
-
         if (isCancelled) return;
 
         if (matchedStaffProfile) {
