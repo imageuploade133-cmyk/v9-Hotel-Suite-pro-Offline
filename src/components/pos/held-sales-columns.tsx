@@ -215,7 +215,16 @@ export const getHeldSalesColumns = ({ currency, onRestore, onDelete, onPrint, on
       },
     },
     {
-      accessorKey: 'name',
+      id: 'name',
+      accessorFn: (sale) => [
+        sale.name,
+        sale.customer?.name,
+        sale.customer?.id,
+        sale.heldByName,
+        sale.heldByUid,
+        sale.linkedBillId,
+        ...(sale.cart || []).map(item => item.name),
+      ].filter(Boolean).join(' '),
       header: 'Table Name',
       cell: ({ row }) => (
         <div className="font-medium">{row.original.name}</div>
