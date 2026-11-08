@@ -5,9 +5,8 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { useAuth } from '@/components/auth/auth-provider';
 import type { User } from 'firebase/auth';
 import type { UserProfile } from '@/lib/types';
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
-import { useRouter } from 'next/navigation';
-import { useFirestore, useCollection } from '@/firebase';
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
+import { useFirestore } from '@/firebase';
 import { collection, query, onSnapshot, doc, getDocs, getDocsFromServer, getDocFromServer, where, or } from 'firebase/firestore';
 import { sanitizeForUrl } from '@/lib/helpers';
 import { firestoreCache, CacheTTL, CacheKeys } from '@/lib/firestore-cache';
