@@ -32,7 +32,13 @@ export function CustomerSearch({ onSelectCustomer, collectionName = 'customers' 
   const { settings } = useSettings();
   const currency = settings?.currency || 'USD';
   const isPOSCustomerCollection = collectionName === 'posCustomers';
-  const canViewAllPOSCustomers = settings?.posUsersCanViewAllCustomers === true;
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
+  // Administrators always have access to the complete POS customer directory.
+  // The shared/private setting controls non-admin POS users only.
+  const canViewAllPOSCustomers = isAdminIdentity || settings?.posUsersCanViewAllCustomers === true;
   const searchRef = React.useRef<HTMLDivElement>(null);
 
   useOnClickOutside(searchRef, () => setIsFocused(false));
