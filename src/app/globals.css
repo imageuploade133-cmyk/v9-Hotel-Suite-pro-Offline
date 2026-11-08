@@ -899,3 +899,41 @@
     padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
   }
 }
+
+
+/*
+ * New Laundry Order: pin the dialog to the physical mobile viewport edges.
+ * Do not rely on sm: breakpoints or 100vw/100dvh: browser zoom can change the
+ * CSS viewport width and cause those utilities to switch back to a centered
+ * desktop dialog. Fixed inset sizing remains edge-to-edge on touch devices.
+ */
+@media (pointer: coarse) {
+  [data-dialog-content].mobile-fullscreen-laundry-dialog {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    translate: none !important;
+    overflow: hidden !important;
+  }
+
+  [data-dialog-content].mobile-fullscreen-laundry-dialog .mobile-fullscreen-dialog-laundry-body {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
+  }
+}
