@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const DATE_FIELD_NAMES = new Set([
   'checkInDate', 'checkOutDate', 'actualCheckOutDate', 'createdAt', 'updatedAt',
   'checkedInAt', 'checkedOutAt', 'cancelledAt', 'refundedAt', 'transactionDate', 'restockedAt', 'transferredAt', 'preparingAt', 'completedAt', 'billedAt', 'date',
-  'promoStartDate', 'promoEndDate', 'lastVisit', 'paidAt', 'checkedOutAt', 'timestamp',
+  'promoStartDate', 'promoEndDate', 'expiryDate', 'lastVisit', 'paidAt', 'checkedOutAt', 'timestamp', 'saleDate', 'soldAt', 'paymentDate', 'returnedAt', 'reversedAt',
 ]);
 
 /** Restore Firestore Timestamp values from ISO dates stored in the JSON LAN DB. */
