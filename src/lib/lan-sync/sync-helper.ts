@@ -62,7 +62,7 @@ export async function commitLocalFirstMutations(
   mutations: LanMutationInput[],
   transactionKey: string,
   cloudCommit: () => Promise<unknown>,
-  stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number }> = []
+  stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number; initialData?: Record<string, unknown> }> = []
 ): Promise<{ local: boolean; duplicate?: boolean }> {
   if (typeof window === 'undefined' || !isLocalMasterHost()) {
     await cloudCommit();
