@@ -57,16 +57,16 @@ export interface UseDocResult<T> {
 }
 
 
-function mergeCloudAndLanData<T extends { id?: string }>(cloud: T[], local: T[]): T[] {
+function mergeCloudAndLanData<T>(cloud: T[], local: T[]): T[] {
   if (!local.length) return cloud;
   const merged = new Map<string, T>();
   cloud.forEach((item, index) => {
-    const key = item.id || `cloud-${index}`;
+    const key = (item as any)?.id || `cloud-${index}`;
     merged.set(key, item);
   });
   // Master-PC documents win for matching IDs and are added when not yet in cloud.
   local.forEach((item, index) => {
-    const key = item.id || `local-${index}`;
+    const key = (item as any)?.id || `local-${index}`;
     merged.set(key, { ...(merged.get(key) || {} as T), ...item });
   });
   return Array.from(merged.values());
