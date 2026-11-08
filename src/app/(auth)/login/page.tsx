@@ -181,16 +181,49 @@ export default function LoginPage() {
   });
 
   const { loading: profileLoading, permissions, userProfile } = useUser();
+  const redirectDestinationRef = React.useRef<string | null>(null);
+  const redirectFallbackRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
-    if (user && !profileLoading) {
-      // Redirect user to their appropriate landing page based on permissions
-      const landingPage = userProfile?.isFirebaseOnlyAdmin
-        ? '/dashboard'
-        : getLandingPage(permissions);
+    // Firebase sign-in alone is not enough to choose a destination. Wait until
+    // the matching profile/role has been resolved so staff never flash Admin access.
+    if (!user || profileLoading || !userProfile) {
+      redirectDestinationRef.current = null;
+      return;
+    }
+
+    const landingPage = userProfile.isFirebaseOnlyAdmin
+      ? '/dashboard'
+      : getLandingPage(permissions);
+
+    if (typeof window === 'undefined' || window.location.pathname === landingPage) {
+      return;
+    }
+
+    // Start the normal client transition once. On mobile Safari, recover with a
+    // document navigation only if Next.js has not changed the URL after a short
+    // grace period. The destination is cached before this fallback can reload.
+    if (redirectDestinationRef.current !== landingPage) {
+      redirectDestinationRef.current = landingPage;
       router.replace(landingPage);
     }
-  }, [user, profileLoading, permissions, userProfile, router]);
+
+    if (redirectFallbackRef.current) {
+      clearTimeout(redirectFallbackRef.current);
+    }
+    redirectFallbackRef.current = window.setTimeout(() => {
+      if (window.location.pathname !== landingPage) {
+        window.location.replace(landingPage);
+      }
+    }, 1200);
+
+    return () => {
+      if (redirectFallbackRef.current) {
+        clearTimeout(redirectFallbackRef.current);
+        redirectFallbackRef.current = null;
+      }
+    };
+  }, [user, profileLoading, userProfile, permissions, router]);
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoggingIn(true);
@@ -200,7 +233,7 @@ export default function LoginPage() {
       toast({
         variant: 'success',
         title: 'Login Successful',
-        description: 'Glad to see you again! Redirecting to your dashboard...',
+        description: 'Your account is verified. Opening your assigned workspace...',
       });
       // Don't redirect here - let the useEffect handle it once profile is loaded
     } catch (error: any) {
