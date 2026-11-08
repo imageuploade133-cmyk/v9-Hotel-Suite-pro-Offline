@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from 'react';
-import { collection, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, writeBatch, getDocs, query, where, setDoc } from 'firebase/firestore';
 import { useFirestore, useCollection } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
