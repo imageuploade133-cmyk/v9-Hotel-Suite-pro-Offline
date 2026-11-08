@@ -180,15 +180,17 @@ export default function LoginPage() {
     },
   });
 
-  const { loading: profileLoading, permissions } = useUser();
+  const { loading: profileLoading, permissions, userProfile } = useUser();
 
   React.useEffect(() => {
     if (user && !profileLoading) {
       // Redirect user to their appropriate landing page based on permissions
-      const landingPage = getLandingPage(permissions);
+      const landingPage = userProfile?.isFirebaseOnlyAdmin
+        ? '/dashboard'
+        : getLandingPage(permissions);
       router.replace(landingPage);
     }
-  }, [user, profileLoading, permissions, router]);
+  }, [user, profileLoading, permissions, userProfile, router]);
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoggingIn(true);
