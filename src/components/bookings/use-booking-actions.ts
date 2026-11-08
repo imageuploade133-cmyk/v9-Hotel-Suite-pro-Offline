@@ -600,15 +600,30 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     }
 
     try {
-        await batch.commit();
-
-        pushLanMutation('bookings', booking.id, 'update', {
-            status: 'Reserved',
-            paymentMethod: hasPayment ? paymentMethod : null,
-        });
+        const updatedAt = new Date().toISOString();
+        const localMutations = [{
+            collectionName: 'bookings',
+            docId: booking.id,
+            action: 'update' as const,
+            data: {
+                status: 'Reserved',
+                paymentMethod: hasPayment ? paymentMethod : null,
+                updatedAt,
+            },
+        }];
         if (hasPayment && paymentRef && paymentData) {
-            pushLanMutation('payments', paymentRef.id, 'set', paymentData);
+            localMutations.push({
+                collectionName: 'payments',
+                docId: paymentRef.id,
+                action: 'update' as const,
+                data: { ...paymentData, id: paymentRef.id } as any,
+            });
         }
+        await commitLocalFirstMutations(
+            localMutations,
+            `booking-mark-paid:${booking.id}:${updatedAt}`,
+            () => batch.commit()
+        );
 
         toast({
             variant: 'success',
