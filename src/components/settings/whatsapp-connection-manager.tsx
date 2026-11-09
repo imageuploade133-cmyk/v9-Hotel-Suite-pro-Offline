@@ -79,6 +79,7 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
   const [isSendingTest, setIsSendingTest] = React.useState(false);
   const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
   const previousState = React.useRef<ConnectionState>('unknown');
+  const qrValueRef = React.useRef('');
   const refreshInFlight = React.useRef(false);
 
   const configured = Boolean(config.baseUrl.trim() && config.apiKey.trim() && config.instanceId.trim());
@@ -109,7 +110,8 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
       }
     }
     const qr = getQr(payload);
-    if (qr) {
+    if (qr && qr !== qrValueRef.current) {
+      qrValueRef.current = qr;
       setQrValue(qr);
       setExpiresAt(getExpiryMs(payload));
     }
@@ -144,6 +146,7 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
       const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}/start`, 'POST', {});
       const qr = getQr(payload);
       if (qr) {
+        qrValueRef.current = qr;
         setQrValue(qr);
         setExpiresAt(getExpiryMs(payload));
       }
