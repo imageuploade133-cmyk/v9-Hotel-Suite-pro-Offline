@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'bulkMessages' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type WhatsAppConfig = { enabled: boolean; baseUrl: string; apiKey: string; instanceId: string; channels: ChannelMap };
+type WhatsAppConfig = { enabled: boolean; baseUrl: string; apiKey: string; instanceId: string; username: string; password: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -28,7 +28,7 @@ const DEFAULT_CHANNELS: ChannelMap = {
   otherNotifications: false,
 };
 const DEFAULT_CONFIG: WhatsAppConfig = {
-  enabled: false, baseUrl: '', apiKey: '', instanceId: '', channels: { ...DEFAULT_CHANNELS },
+  enabled: false, baseUrl: '', apiKey: '', instanceId: '', username: '', password: '', channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
   { id: 'newReservation', title: 'New Reservation Alerts', description: 'Notify staff about newly created reservations.' },
@@ -47,6 +47,8 @@ function normalizeConfig(value: unknown): WhatsAppConfig {
     baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl : '',
     apiKey: typeof saved.apiKey === 'string' ? saved.apiKey : '',
     instanceId: typeof saved.instanceId === 'string' ? saved.instanceId : '',
+    username: typeof saved.username === 'string' ? saved.username : '',
+    password: typeof saved.password === 'string' ? saved.password : '',
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -58,6 +60,7 @@ export function WhatsAppSettingsForm() {
   const { settings, isLoading, refreshSettings } = useSettings();
   const [config, setConfig] = React.useState<WhatsAppConfig>(DEFAULT_CONFIG);
   const [showApiKey, setShowApiKey] = React.useState(false);
+  const [showGatewayPassword, setShowGatewayPassword] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
 
@@ -162,6 +165,19 @@ export function WhatsAppSettingsForm() {
             <p className="text-sm text-muted-foreground">Enter these details once. They will be used by all channels you enable below.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-gateway-username">Render Saver Username</Label>
+              <Input id="whatsapp-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-gateway-password">Render Saver Password</Label>
+              <div className="relative">
+                <Input id="whatsapp-gateway-password" type={showGatewayPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Gateway account password" value={config.password} onChange={event => updateConfig({ password: event.target.value })} className="pr-11" />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" aria-label={showGatewayPassword ? 'Hide gateway password' : 'Show gateway password'} onClick={() => setShowGatewayPassword(value => !value)}>
+                  {showGatewayPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="whatsapp-base-url">API Base URL</Label>
               <Input id="whatsapp-base-url" type="url" autoComplete="url" placeholder="https://your-whatsapp-gateway.example.com" value={config.baseUrl} onChange={event => updateConfig({ baseUrl: event.target.value })} />
