@@ -1008,3 +1008,80 @@
     animation-duration: 1ms !important;
   }
 }
+
+
+/*
+ * Global mobile modal standard.
+ * All shared DialogContent and AlertDialogContent surfaces use the same
+ * edge-to-edge, upward-drawer presentation on phones and touch devices.
+ * The rule is independent of Tailwind breakpoints so browser zoom cannot
+ * turn a touch device back into a constrained desktop-sized dialog.
+ */
+@keyframes global-mobile-modal-enter {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes global-mobile-modal-exit {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 100%, 0); }
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  [data-dialog-content] {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    translate: none !important;
+    transform: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  [data-dialog-content][data-state="open"] {
+    animation: global-mobile-modal-enter 320ms cubic-bezier(.22, 1, .36, 1) both !important;
+  }
+
+  [data-dialog-content][data-state="closed"] {
+    animation: global-mobile-modal-exit 220ms cubic-bezier(.4, 0, 1, 1) both !important;
+  }
+
+  [data-dialog-content] > [data-slot="dialog-header"],
+  [data-dialog-content] > [data-slot="alert-dialog-header"],
+  [data-dialog-content] > div:has(> [data-slot="dialog-title"]),
+  [data-dialog-content] > div:has(> [data-slot="alert-dialog-title"]) {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  [data-dialog-content] [data-slot="dialog-footer"],
+  [data-dialog-content] [data-slot="alert-dialog-footer"] {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding-bottom: max(.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dialog-content][data-state="open"],
+  [data-dialog-content][data-state="closed"] {
+    animation-duration: 1ms !important;
+  }
+}
