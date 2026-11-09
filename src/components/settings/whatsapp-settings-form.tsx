@@ -103,7 +103,7 @@ export function WhatsAppSettingsForm() {
       toast({ variant: 'destructive', title: 'Sign-in required', description: 'Sign in with an authorized account to save WhatsApp settings.' });
       return;
     }
-    const baseUrl = config.baseUrl.trim().replace(/\\/+$/, '');
+    const baseUrl = config.baseUrl.trim().replace(/\/+$/, '');
     const hasSelectedChannel = Object.values(config.channels).some(Boolean);
     if (config.enabled && (!baseUrl || !config.apiKey.trim() || !config.instanceId.trim())) {
       toast({ variant: 'destructive', title: 'WhatsApp configuration incomplete', description: 'Enter the API Base URL, API Key, and Instance ID before enabling WhatsApp.' });
@@ -113,7 +113,7 @@ export function WhatsAppSettingsForm() {
       toast({ variant: 'destructive', title: 'Select at least one channel', description: 'Choose which notification channels should use this WhatsApp connection.' });
       return;
     }
-    if (baseUrl && !/^https?:\\/\\//i.test(baseUrl)) {
+    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
       toast({ variant: 'destructive', title: 'Invalid API Base URL', description: 'The Base URL must start with http:// or https://.' });
       return;
     }
