@@ -159,8 +159,41 @@ export function EmailChannelSettingsForm() {
       const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName: config.senderName.trim() || undefined, fromName: config.senderName.trim() || undefined, html: '<div style="font-family:Arial,sans-serif;line-height:1.6">' + (config.logoDataUrl ? '<img src="' + config.logoDataUrl + '" alt="' + (config.senderName || 'Business') + '" style="max-width:180px;max-height:80px;object-fit:contain;margin-bottom:16px" />' : '') + (config.senderName.trim() ? '<h2 style="margin:0 0 12px">' + config.senderName.replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char] || char)) + '</h2>' : '') + '<div style="white-space:pre-wrap">' + escapedMessage + '</div></div>', ...(attachments.length ? { attachments } : {}) }) });
       const raw = await response.text(); let payload: any = {};
       try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
-      if (!response.ok || payload.success === false || payload.error) throw new Error(payload.message || payload.error || ('Email gateway returned HTTP ' + response.status));
-      toast({ title: 'Test email sent successfully', description: 'A test email was accepted for delivery to ' + recipient + '.' });
+      if (!response.ok || payload.success !== true || payload.error || !payload.messageId) {
+        throw new Error(payload.message || payload.error || ('Email gateway did not confirm that the message was queued (HTTP ' + response.status + ').'));
+      }
+
+      // /send confirms queue acceptance, not final delivery. Check the gateway log
+      // when this API key has email.view permission so provider failures are visible.
+      let deliveryStatus: string | null = null;
+      let deliveryError: string | null = null;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+          const statusResponse = await fetch(baseUrl + '/api/email/status/' + encodeURIComponent(payload.messageId), {
+            method: 'GET',
+            headers: { 'X-API-Key': config.apiKey.trim() },
+          });
+          if (statusResponse.status === 401 || statusResponse.status === 403 || statusResponse.status === 404) break;
+          if (!statusResponse.ok) continue;
+          const statusPayload = await statusResponse.json();
+          deliveryStatus = String(statusPayload.status || '').toUpperCase();
+          deliveryError = statusPayload.errorMessage || null;
+          if (deliveryStatus === 'SENT' || deliveryStatus === 'FAILED' || deliveryStatus === 'DELIVERED') break;
+        } catch {
+          // A status lookup failure must not turn a successfully queued email into a false failure.
+          break;
+        }
+      }
+
+      if (deliveryStatus === 'FAILED') {
+        throw new Error(deliveryError || 'The gateway accepted the email but the email provider reported a sending failure. Check the gateway email logs and provider configuration.');
+      }
+      if (deliveryStatus === 'SENT' || deliveryStatus === 'DELIVERED') {
+        toast({ title: 'Test email sent', description: 'The email gateway reports that the provider accepted the message for ' + recipient + '.' });
+      } else {
+        toast({ title: 'Test email queued', description: 'The gateway accepted the test email for ' + recipient + ', but final sending is not yet confirmed. Check the Email Logs in your gateway dashboard if it does not arrive.' });
+      }
     } catch (error: any) { console.error('Email test failed:', error); toast({ variant: 'destructive', title: 'Test email failed', description: error?.message || 'Check your API URL, API key, gateway and attachment format.' }); }
     finally { setIsSendingTest(false); }
   }
