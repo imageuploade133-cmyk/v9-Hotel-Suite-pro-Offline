@@ -475,7 +475,9 @@ export default function ProtectedLayout({
   const { permissions: contextPermissions } = useUser();
   const finalPermissions = contextPermissions || [];
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
-    || userProfile?.isSuperAdmin === true;
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
   const hasPosAccess = finalPermissions.includes(PagePermission.VIEW_POS)
     || finalPermissions.includes(PagePermission.PROCESS_SALES);
   const isPosAssignedStaff = !isAdminIdentity && hasPosAccess;
