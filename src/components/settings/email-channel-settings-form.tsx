@@ -79,7 +79,7 @@ export function EmailChannelSettingsForm() {
       toast({ variant: 'destructive', title: 'Sign-in required', description: 'Sign in with an authorized account to save Email settings.' });
       return;
     }
-    const baseUrl = config.baseUrl.trim().replace(/\\/+$/, '');
+    const baseUrl = config.baseUrl.trim().replace(/\/+$/, '');
     if (config.enabled && (!baseUrl || !config.apiKey.trim())) {
       toast({ variant: 'destructive', title: 'Email configuration incomplete', description: 'Enter the API Base URL and API Key before enabling Email.' });
       return;
@@ -88,7 +88,7 @@ export function EmailChannelSettingsForm() {
       toast({ variant: 'destructive', title: 'Select at least one channel', description: 'Choose which notification channels should use this Email connection.' });
       return;
     }
-    if (baseUrl && !/^https?:\\/\\//i.test(baseUrl)) {
+    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
       toast({ variant: 'destructive', title: 'Invalid API Base URL', description: 'The Base URL must begin with http:// or https://.' });
       return;
     }
@@ -140,7 +140,7 @@ export function EmailChannelSettingsForm() {
             <div className="space-y-2">
               <Label htmlFor="email-api-base-url">API Base URL</Label>
               <Input id="email-api-base-url" type="url" autoComplete="url" placeholder="https://your-email-api.example.com" value={config.baseUrl} onChange={event => updateConfig({ baseUrl: event.target.value })} />
-              <p className="text-xs text-muted-foreground">Email send endpoint: {config.baseUrl.trim().replace(/\\/+$/, '') || 'your Base URL'}/api/email/send.</p>
+              <p className="text-xs text-muted-foreground">Email send endpoint: {config.baseUrl.trim().replace(/\/+$/, '') || 'your Base URL'}/api/email/send.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email-api-key">Email API Key</Label>
