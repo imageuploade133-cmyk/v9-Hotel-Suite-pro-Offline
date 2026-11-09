@@ -143,7 +143,7 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
             totalDiscount: 0, todaysDiscount: 0, discountsByStaff: [],
             totalRoomIncome: 0, totalRoomOutstanding: 0, totalReservations: 0, activeReservations: 0,
             todaysHotelPosIncome: 0, todaysMainPosIncome: 0, posIncomeLabel: "Today's POS Income",
-            totalOutstandingBill: 0
+            totalOutstandingBill: 0, grandTotalPaidRoomIncome: 0
         };
 
         if (!data) {
@@ -423,7 +423,44 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
         const myTotalIncome = calculateIncome(myPayments);
         const myTodaysPayments = filterPaymentsByDate(myPayments, startOfDay(today), endOfDay(today));
         const myTodaysIncome = calculateIncome(myTodaysPayments);
-        const grandTotalIncome = calculateIncome(payments);
+
+        // Payments created when a guest pays room charges or additional room bills
+        // are already included in the all-time payment total. Only add a paid bill
+        // fallback when its linked payment record is absent, preventing double-counting.
+        const paymentIds = new Set(payments.map(payment => payment.id));
+        const getUnrepresentedPaidBillIncome = (sourceBills: Bill[], bookingIds?: Set<string>) =>
+            sourceBills.reduce((sum, bill) => {
+                if (bookingIds && !bookingIds.has(bill.bookingId)) return sum;
+
+                if (bill.paid) {
+                    return sum + (bill.paymentId && paymentIds.has(bill.paymentId) ? 0 : (bill.total || 0));
+                }
+
+                const unrepresentedPaidItems = (bill.items || []).filter(item =>
+                    item.paid && (!item.paymentId || !paymentIds.has(item.paymentId))
+                );
+                return sum + unrepresentedPaidItems.reduce(
+                    (itemSum, item) => itemSum + ((item.price || 0) * (item.quantity || 0)),
+                    0
+                );
+            }, 0);
+
+        const grandTotalIncome = calculateIncome(payments) + getUnrepresentedPaidBillIncome(bills);
+
+        const checkedInBookingIds = new Set(
+            bookings
+                .filter(booking => ['Active', 'Checked-in'].includes(booking.status))
+                .map(booking => booking.id)
+        );
+        const paidRoomAndBillPayments = payments.filter(payment =>
+            payment.status === 'Paid' &&
+            !!payment.bookingId &&
+            checkedInBookingIds.has(payment.bookingId) &&
+            (payment.type === 'Booking' || payment.type === 'Additional Charges')
+        );
+        const grandTotalPaidRoomIncome =
+            calculateIncome(paidRoomAndBillPayments) +
+            getUnrepresentedPaidBillIncome(bills, checkedInBookingIds);
 
         const totalRoomIncome = bookings
             .filter(b => b.status !== 'Cancelled' && b.status !== 'Refunded')
@@ -446,7 +483,7 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
             ...defaultReturn,
             data: data,
             metrics, stockMetrics, totalStockProfit, filteredIncome, filteredIncomeLabel,
-            grandTotalIncome, filteredMonthlyIncome, filteredMonthlyIncomeLabel, allMonths,
+            grandTotalIncome, grandTotalPaidRoomIncome, filteredMonthlyIncome, filteredMonthlyIncomeLabel, allMonths,
             filteredYearlyIncome, filteredYearlyIncomeLabel, allYears, netProfit,
             totalExpenses, totalInventoryValue, netIncomeByMethod, totalOutstanding,
             topSellingItems, weeklyOccupancyData, weeklyIncomeData, recentPaidBookings,
