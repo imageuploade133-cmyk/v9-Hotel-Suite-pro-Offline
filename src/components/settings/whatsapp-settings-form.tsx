@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'bulkMessages' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type WhatsAppConfig = { enabled: boolean; baseUrl: string; apiKey: string; instanceId: string; username: string; password: string; channels: ChannelMap };
+type WhatsAppConfig = { enabled: boolean; baseUrl: string; apiKey: string; instanceId: string; username: string; password: string; senderName: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -29,7 +29,7 @@ const DEFAULT_CHANNELS: ChannelMap = {
   otherNotifications: false,
 };
 const DEFAULT_CONFIG: WhatsAppConfig = {
-  enabled: false, baseUrl: '', apiKey: '', instanceId: '', username: '', password: '', channels: { ...DEFAULT_CHANNELS },
+  enabled: false, baseUrl: '', apiKey: '', instanceId: '', username: '', password: '', senderName: '', channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
   { id: 'newReservation', title: 'New Reservation Alerts', description: 'Notify staff about newly created reservations.' },
@@ -50,6 +50,7 @@ function normalizeConfig(value: unknown): WhatsAppConfig {
     instanceId: typeof saved.instanceId === 'string' ? saved.instanceId : '',
     username: typeof saved.username === 'string' ? saved.username : '',
     password: typeof saved.password === 'string' ? saved.password : '',
+    senderName: typeof saved.senderName === 'string' ? saved.senderName : '',
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -166,6 +167,7 @@ export function WhatsAppSettingsForm() {
             <p className="text-sm text-muted-foreground">Enter these details once. They will be used by all channels you enable below.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2"><Label htmlFor="whatsapp-sender-name">Business / sender name</Label><Input id="whatsapp-sender-name" maxLength={80} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">This name is added to outgoing WhatsApp text and media captions.</p></div>
             <div className="space-y-2">
               <Label htmlFor="whatsapp-gateway-username">Render Saver Username</Label>
               <Input id="whatsapp-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />

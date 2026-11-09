@@ -15,6 +15,7 @@ export type WhatsAppConnectionConfig = {
   baseUrl: string;
   apiKey: string;
   instanceId: string;
+  senderName?: string;
 };
 
 type ConnectionState = 'unknown' | 'connected' | 'connecting' | 'disconnected';
@@ -77,6 +78,8 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
   const [testNumber, setTestNumber] = React.useState('');
   const [testMessage, setTestMessage] = React.useState('This is a test message from your hotel management system. WhatsApp connection is working.');
   const [isSendingTest, setIsSendingTest] = React.useState(false);
+  const [testFile, setTestFile] = React.useState<File | null>(null);
+  const testFileInputRef = React.useRef<HTMLInputElement>(null);
   const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
   const previousState = React.useRef<ConnectionState>('unknown');
   const qrValueRef = React.useRef('');
@@ -246,14 +249,34 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
       toast({ variant: 'destructive', title: 'Enter a valid phone number', description: 'Include the country code, for example 2348012345678.' });
       return;
     }
-    if (!testMessage.trim()) {
-      toast({ variant: 'destructive', title: 'Message is empty', description: 'Enter a short test message.' });
+    if (!testMessage.trim() && !testFile) {
+      toast({ variant: 'destructive', title: 'Message is empty', description: 'Enter a message or attach a file.' });
+      return;
+    }
+    if (testFile && testFile.size > 16 * 1024 * 1024) {
+      toast({ variant: 'destructive', title: 'File is too large', description: 'Choose a file smaller than 16 MB.' });
       return;
     }
     setIsSendingTest(true);
     try {
-      await request('/api/send/text', 'POST', { number, message: testMessage.trim() });
-      toast({ title: 'Test message sent', description: `The gateway accepted the test message for +${number}.` });
+      const brandedMessage = [config.senderName?.trim() ? '*' + config.senderName.trim() + '*' : '', testMessage.trim()].filter(Boolean).join('\n\n');
+      if (testFile) {
+        const form = new FormData();
+        form.append('number', number);
+        form.append('caption', brandedMessage);
+        form.append('file', testFile, testFile.name);
+        const response = await fetch(endpoint + '/api/send/media', {
+          method: 'POST',
+          headers: { 'X-API-Key': config.apiKey.trim(), 'X-Instance-ID': config.instanceId.trim(), Accept: 'application/json' },
+          body: form,
+        });
+        await readResponse(response);
+      } else {
+        await request('/api/send/text', 'POST', { number, message: brandedMessage });
+      }
+      toast({ title: 'Test message sent', description: 'The gateway accepted the test message for +' + number + '.' });
+      setTestFile(null);
+      if (testFileInputRef.current) testFileInputRef.current.value = '';
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Test message failed', description: error?.message || 'Confirm WhatsApp is connected and try again.' });
     } finally {
@@ -292,9 +315,9 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
         <p className="text-sm text-muted-foreground">Send a real WhatsApp message to confirm that the gateway and linked device can deliver messages.</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-2"><Label htmlFor="whatsapp-test-number">Recipient phone number</Label><Input id="whatsapp-test-number" inputMode="tel" placeholder="2348012345678" value={testNumber} onChange={event => setTestNumber(event.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="whatsapp-test-message">Test message</Label><Input id="whatsapp-test-message" value={testMessage} onChange={event => setTestMessage(event.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="whatsapp-test-message">Test message / media caption</Label><Input id="whatsapp-test-message" value={testMessage} onChange={event => setTestMessage(event.target.value)} /></div>
         </div>
-        <div className="flex justify-end"><Button type="button" variant="outline" onClick={() => void sendTestMessage()} disabled={!configured || isSendingTest}><Send className="mr-2 h-4 w-4" />{isSendingTest ? 'Sending test...' : 'Send Test Message'}</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><input ref={testFileInputRef} type="file" className="hidden" onChange={event => setTestFile(event.target.files?.[0] || null)} /><Button type="button" variant="outline" onClick={() => testFileInputRef.current?.click()}>Attach media / file</Button>{testFile && <span className="max-w-48 truncate text-xs text-muted-foreground">{testFile.name}<Button type="button" size="sm" variant="ghost" onClick={() => { setTestFile(null); if (testFileInputRef.current) testFileInputRef.current.value = ""; }}>Remove</Button></span>}</div><Button type="button" variant="outline" onClick={() => void sendTestMessage()} disabled={!configured || isSendingTest}><Send className="mr-2 h-4 w-4" />{isSendingTest ? 'Sending test...' : 'Send Test Message'}</Button></div>
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
