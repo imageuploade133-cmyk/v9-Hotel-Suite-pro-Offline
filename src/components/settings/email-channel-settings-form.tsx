@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; channels: ChannelMap };
+type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -33,6 +33,8 @@ const DEFAULT_CONFIG: EmailConfig = {
   apiKey: '',
   username: '',
   password: '',
+  senderName: '',
+  logoDataUrl: '',
   channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
@@ -52,6 +54,8 @@ function normalizeConfig(value: unknown): EmailConfig {
     apiKey: typeof saved.apiKey === 'string' ? saved.apiKey : '',
     username: typeof saved.username === 'string' ? saved.username : '',
     password: typeof saved.password === 'string' ? saved.password : '',
+    senderName: typeof saved.senderName === 'string' ? saved.senderName : '',
+    logoDataUrl: typeof saved.logoDataUrl === 'string' ? saved.logoDataUrl : '',
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -72,6 +76,7 @@ export function EmailChannelSettingsForm() {
   const [testFiles, setTestFiles] = React.useState<File[]>([]);
   const [isSendingTest, setIsSendingTest] = React.useState(false);
   const testFileInputRef = React.useRef<HTMLInputElement>(null);
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setConfig(normalizeConfig((settings as any)?.emailChannel));
@@ -142,7 +147,7 @@ export function EmailChannelSettingsForm() {
         reader.readAsDataURL(file);
       })));
       const escapedMessage = testMessage.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char] || char));
-      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), html: '<div style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-wrap">' + escapedMessage + '</div>', ...(attachments.length ? { attachments } : {}) }) });
+      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName: config.senderName.trim() || undefined, fromName: config.senderName.trim() || undefined, html: '<div style="font-family:Arial,sans-serif;line-height:1.6">' + (config.logoDataUrl ? '<img src="' + config.logoDataUrl + '" alt="' + (config.senderName || 'Business') + '" style="max-width:180px;max-height:80px;object-fit:contain;margin-bottom:16px" />' : '') + (config.senderName.trim() ? '<h2 style="margin:0 0 12px">' + config.senderName.replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char] || char)) + '</h2>' : '') + '<div style="white-space:pre-wrap">' + escapedMessage + '</div></div>', ...(attachments.length ? { attachments } : {}) }) });
       const raw = await response.text(); let payload: any = {};
       try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
       if (!response.ok || payload.success === false || payload.error) throw new Error(payload.message || payload.error || ('Email gateway returned HTTP ' + response.status));
@@ -180,6 +185,8 @@ export function EmailChannelSettingsForm() {
             <p className="text-sm text-muted-foreground">Enter the API details once. All selected notification channels will use this connection.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2"><Label htmlFor="email-sender-name">Sender / business name</Label><Input id="email-sender-name" maxLength={120} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">Shown as the branded sender name in supported email gateway messages.</p></div>
+            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 1024 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose an image smaller than 1 MB.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 1 MB. The logo is embedded in branded test email content.</p></div>
             <div className="space-y-2">
               <Label htmlFor="email-gateway-username">Render Saver Username</Label>
               <Input id="email-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />
