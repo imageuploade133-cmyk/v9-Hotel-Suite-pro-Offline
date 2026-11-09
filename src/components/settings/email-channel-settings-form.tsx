@@ -130,7 +130,7 @@ export function EmailChannelSettingsForm() {
     const recipient = testTo.trim();
     const baseUrl = config.baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
     if (!config.enabled) { toast({ variant: 'destructive', title: 'Email Integration is disabled', description: 'Enable the Email provider before sending a test email.' }); return; }
-    if (!recipient || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) { toast({ variant: 'destructive', title: 'Enter a valid recipient', description: 'Provide the email address that should receive the test message.' }); return; }
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) { toast({ variant: 'destructive', title: 'Enter a valid recipient', description: 'Provide the email address that should receive the test message.' }); return; }
     if (!baseUrl || !config.apiKey.trim()) { toast({ variant: 'destructive', title: 'Email configuration incomplete', description: 'Enter and save the API Base URL and API Key first.' }); return; }
     if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
     setIsSendingTest(true);
