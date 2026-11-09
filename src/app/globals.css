@@ -879,7 +879,7 @@
     margin: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
-    transform: none !important;
+    
     translate: none !important;
     overflow: hidden !important;
     padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
@@ -924,7 +924,7 @@
     margin: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
-    transform: none !important;
+    
     translate: none !important;
     overflow: hidden !important;
   }
@@ -1047,7 +1047,7 @@
     border: 0 !important;
     border-radius: 0 !important;
     translate: none !important;
-    transform: none !important;
+    
     overflow-x: hidden !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
@@ -1061,6 +1061,15 @@
 
   [data-dialog-content][data-state="closed"] {
     animation: global-mobile-modal-exit 220ms cubic-bezier(.4, 0, 1, 1) both !important;
+  }
+
+  /* Keep the transform-based drawer transition composited on iOS Safari.
+     Do not reset transform to none here: that suppresses the keyframe motion. */
+  [data-dialog-content][data-state="open"],
+  [data-dialog-content][data-state="closed"] {
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 
   [data-dialog-content] > [data-slot="dialog-header"],
