@@ -529,7 +529,7 @@ function LaundryManagementPage() {
       </div>
 
       <Dialog open={!!actionsOrder} onOpenChange={(open) => !open && handleCloseActions()}>
-        <DialogContent>
+        <DialogContent className="laundry-mobile-drawer">
             <DialogHeader>
                 <DialogTitle>{showCancelConfirm ? 'Confirm Cancellation' : `Actions for Order #${actionsOrder?.orderNumber}`}</DialogTitle>
                 {showCancelConfirm ? (
