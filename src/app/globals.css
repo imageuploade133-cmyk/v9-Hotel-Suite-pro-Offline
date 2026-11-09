@@ -110,6 +110,34 @@
 }
 
 @layer components {
+    /* Red, white-text notification counts reserved for the two priority booking tabs. */
+    .bookings-priority-notification {
+        background-color: #dc2626 !important;
+        color: #ffffff !important;
+        border-color: #dc2626 !important;
+        font-weight: 700;
+        animation: bookings-priority-notification-blink 1.15s ease-in-out infinite;
+        will-change: opacity, box-shadow;
+    }
+
+    @keyframes bookings-priority-notification-blink {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgb(220 38 38 / 0.42);
+        }
+        50% {
+            opacity: 0.68;
+            box-shadow: 0 0 0 3px rgb(220 38 38 / 0.16);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bookings-priority-notification {
+            animation: none;
+            will-change: auto;
+        }
+    }
+
     .blinking-red-badge {
         animation: blink 1.5s infinite;
     }
