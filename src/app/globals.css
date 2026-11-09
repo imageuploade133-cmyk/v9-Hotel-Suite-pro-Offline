@@ -1048,8 +1048,10 @@
     border-radius: 0 !important;
     translate: none !important;
     transform: none !important;
-    overflow: hidden !important;
-    overscroll-behavior: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
   }
 
