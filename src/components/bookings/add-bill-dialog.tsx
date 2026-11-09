@@ -375,7 +375,7 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="mobile-fullscreen-dialog flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+        <DialogContent className="mobile-fullscreen-dialog laundry-mobile-drawer flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle>Add to Room Bill: Room {booking.roomNumber}</DialogTitle>
             <DialogDescription>

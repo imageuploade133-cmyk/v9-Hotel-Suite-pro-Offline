@@ -187,7 +187,7 @@ export function GymReceiptDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen laundry-mobile-drawer">
         <DialogHeader>
           <DialogTitle>Gym Membership Receipt</DialogTitle>
           <DialogDescription>
