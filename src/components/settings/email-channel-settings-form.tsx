@@ -29,7 +29,7 @@ const DEFAULT_CHANNELS: ChannelMap = {
 };
 const DEFAULT_CONFIG: EmailConfig = {
   enabled: false,
-  baseUrl: 'https://what-1vs4.onrender.com',
+  baseUrl: '',
   apiKey: '',
   username: '',
   password: '',
@@ -50,7 +50,7 @@ function normalizeConfig(value: unknown): EmailConfig {
   const saved = value as Partial<EmailConfig>;
   return {
     enabled: saved.enabled === true,
-    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl : DEFAULT_CONFIG.baseUrl,
+    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl : '',
     apiKey: typeof saved.apiKey === 'string' ? saved.apiKey : '',
     username: typeof saved.username === 'string' ? saved.username : '',
     password: typeof saved.password === 'string' ? saved.password : '',
@@ -67,7 +67,9 @@ export function EmailChannelSettingsForm() {
   const { settings, isLoading, refreshSettings } = useSettings();
   const [config, setConfig] = React.useState<EmailConfig>(DEFAULT_CONFIG);
   const [showApiKey, setShowApiKey] = React.useState(false);
-  const [showGatewayPassword, setShowGatewayPassword] = React.useState(false);
+  const [showGatewayCredentials, setShowGatewayCredentials] = React.useState(false);
+  const [gatewayUsernameDraft, setGatewayUsernameDraft] = React.useState('');
+  const [gatewayPasswordDraft, setGatewayPasswordDraft] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   const [testTo, setTestTo] = React.useState('');
@@ -79,7 +81,11 @@ export function EmailChannelSettingsForm() {
   const logoInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    setConfig(normalizeConfig((settings as any)?.emailChannel));
+    const normalized = normalizeConfig((settings as any)?.emailChannel);
+    setConfig(normalized);
+    setShowGatewayCredentials(!normalized.username && !normalized.password);
+    setGatewayUsernameDraft('');
+    setGatewayPasswordDraft('');
   }, [settings]);
 
   const updateConfig = (patch: Partial<EmailConfig>) => {
@@ -112,7 +118,7 @@ export function EmailChannelSettingsForm() {
     setIsSaving(true);
     try {
       const ref = doc(firestore, 'settings', 'global');
-      const savedConfig = { ...config, baseUrl, updatedAt: new Date().toISOString() };
+      const savedConfig = { ...config, username: gatewayUsernameDraft.trim() || config.username, password: gatewayPasswordDraft || config.password, baseUrl, updatedAt: new Date().toISOString() };
       try {
         await updateDoc(ref, { emailChannel: savedConfig });
       } catch (error: any) {
@@ -120,6 +126,9 @@ export function EmailChannelSettingsForm() {
         else throw error;
       }
       setConfig(savedConfig);
+      setGatewayUsernameDraft('');
+      setGatewayPasswordDraft('');
+      setShowGatewayCredentials(false);
       setIsSaved(true);
       refreshSettings();
       toast({ title: 'Email settings saved', description: 'One Email connection is now configured for your selected channels.' });
@@ -187,18 +196,16 @@ export function EmailChannelSettingsForm() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="email-sender-name">Sender / business name</Label><Input id="email-sender-name" maxLength={120} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">Shown as the branded sender name in supported email gateway messages.</p></div>
             <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 1024 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose an image smaller than 1 MB.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 1 MB. The logo is embedded in branded test email content.</p></div>
-            <div className="space-y-2">
-              <Label htmlFor="email-gateway-username">Render Saver Username</Label>
-              <Input id="email-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email-gateway-password">Render Saver Password</Label>
-              <div className="relative">
-                <Input id="email-gateway-password" type={showGatewayPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Gateway account password" value={config.password} onChange={event => updateConfig({ password: event.target.value })} className="pr-11" />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" aria-label={showGatewayPassword ? 'Hide gateway password' : 'Show gateway password'} onClick={() => setShowGatewayPassword(value => !value)}>
-                  {showGatewayPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+            <div className="md:col-span-2 space-y-2 rounded-md border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><p className="text-sm font-medium">Gateway account credentials</p><p className="text-xs text-muted-foreground">{config.username || config.password ? 'Credentials are saved and hidden from the settings inputs.' : 'No optional gateway account credentials have been saved.'}</p></div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setShowGatewayCredentials(value => !value)}>{showGatewayCredentials ? 'Cancel' : config.username || config.password ? 'Replace credentials' : 'Add credentials'}</Button>
               </div>
+              {showGatewayCredentials && <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="email-gateway-username">New username</Label><Input id="email-gateway-username" autoComplete="off" value={gatewayUsernameDraft} onChange={event => { setGatewayUsernameDraft(event.target.value); setIsSaved(false); }} placeholder="Enter new username" /></div>
+                <div className="space-y-2"><Label htmlFor="email-gateway-password">New password</Label><Input id="email-gateway-password" type="password" autoComplete="new-password" value={gatewayPasswordDraft} onChange={event => { setGatewayPasswordDraft(event.target.value); setIsSaved(false); }} placeholder="Enter new password" /></div>
+                <p className="text-xs text-muted-foreground md:col-span-2">Existing values are never loaded into these inputs. Leave blank to keep saved credentials unchanged.</p>
+              </div>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email-api-base-url">API Base URL</Label>
