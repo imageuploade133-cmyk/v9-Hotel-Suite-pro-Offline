@@ -62,14 +62,20 @@ export function WhatsAppSettingsForm() {
   const { settings, isLoading, refreshSettings } = useSettings();
   const [config, setConfig] = React.useState<WhatsAppConfig>(DEFAULT_CONFIG);
   const [showApiKey, setShowApiKey] = React.useState(false);
-  const [showGatewayPassword, setShowGatewayPassword] = React.useState(false);
+  const [showGatewayCredentials, setShowGatewayCredentials] = React.useState(false);
+  const [gatewayUsernameDraft, setGatewayUsernameDraft] = React.useState('');
+  const [gatewayPasswordDraft, setGatewayPasswordDraft] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
 
   React.useEffect(() => {
     const saved = (settings as any)?.whatsappChannel;
     if (saved) {
-      setConfig(normalizeConfig(saved));
+      const normalized = normalizeConfig(saved);
+      setConfig(normalized);
+      setShowGatewayCredentials(!normalized.username && !normalized.password);
+      setGatewayUsernameDraft('');
+      setGatewayPasswordDraft('');
       return;
     }
     // Backward-compatible migration from the first draft's per-event credentials:
@@ -125,7 +131,7 @@ export function WhatsAppSettingsForm() {
     setIsSaving(true);
     try {
       const ref = doc(firestore, 'settings', 'global');
-      const savedConfig = { ...config, baseUrl, updatedAt: new Date().toISOString() };
+      const savedConfig = { ...config, username: gatewayUsernameDraft.trim() || config.username, password: gatewayPasswordDraft || config.password, baseUrl, updatedAt: new Date().toISOString() };
       try {
         await updateDoc(ref, { whatsappChannel: savedConfig });
       } catch (error: any) {
@@ -133,6 +139,9 @@ export function WhatsAppSettingsForm() {
         else throw error;
       }
       setConfig(savedConfig);
+      setGatewayUsernameDraft('');
+      setGatewayPasswordDraft('');
+      setShowGatewayCredentials(false);
       setIsSaved(true);
       refreshSettings();
       toast({ title: 'WhatsApp settings saved', description: 'One WhatsApp connection is now configured for your selected channels.' });
@@ -168,18 +177,16 @@ export function WhatsAppSettingsForm() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="whatsapp-sender-name">Business / sender name</Label><Input id="whatsapp-sender-name" maxLength={80} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">This name is added to outgoing WhatsApp text and media captions.</p></div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp-gateway-username">Render Saver Username</Label>
-              <Input id="whatsapp-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp-gateway-password">Render Saver Password</Label>
-              <div className="relative">
-                <Input id="whatsapp-gateway-password" type={showGatewayPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Gateway account password" value={config.password} onChange={event => updateConfig({ password: event.target.value })} className="pr-11" />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" aria-label={showGatewayPassword ? 'Hide gateway password' : 'Show gateway password'} onClick={() => setShowGatewayPassword(value => !value)}>
-                  {showGatewayPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+            <div className="md:col-span-2 space-y-2 rounded-md border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><p className="text-sm font-medium">Gateway account credentials</p><p className="text-xs text-muted-foreground">{config.username || config.password ? 'Credentials are saved securely from this form and are hidden.' : 'No optional gateway account credentials have been saved.'}</p></div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setShowGatewayCredentials(value => !value)}>{showGatewayCredentials ? 'Cancel' : config.username || config.password ? 'Replace credentials' : 'Add credentials'}</Button>
               </div>
+              {showGatewayCredentials && <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="whatsapp-gateway-username">New username</Label><Input id="whatsapp-gateway-username" autoComplete="off" value={gatewayUsernameDraft} onChange={event => { setGatewayUsernameDraft(event.target.value); setIsSaved(false); }} placeholder="Enter new username" /></div>
+                <div className="space-y-2"><Label htmlFor="whatsapp-gateway-password">New password</Label><Input id="whatsapp-gateway-password" type="password" autoComplete="new-password" value={gatewayPasswordDraft} onChange={event => { setGatewayPasswordDraft(event.target.value); setIsSaved(false); }} placeholder="Enter new password" /></div>
+                <p className="text-xs text-muted-foreground md:col-span-2">Existing values are never loaded into these inputs. Leave them blank to keep the saved credentials unchanged.</p>
+              </div>}
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="whatsapp-base-url">API Base URL</Label>
