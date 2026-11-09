@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; channels: ChannelMap };
+type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -30,6 +30,8 @@ const DEFAULT_CONFIG: EmailConfig = {
   enabled: false,
   baseUrl: 'https://what-1vs4.onrender.com',
   apiKey: '',
+  username: '',
+  password: '',
   channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
@@ -47,6 +49,8 @@ function normalizeConfig(value: unknown): EmailConfig {
     enabled: saved.enabled === true,
     baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl : DEFAULT_CONFIG.baseUrl,
     apiKey: typeof saved.apiKey === 'string' ? saved.apiKey : '',
+    username: typeof saved.username === 'string' ? saved.username : '',
+    password: typeof saved.password === 'string' ? saved.password : '',
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -58,6 +62,7 @@ export function EmailChannelSettingsForm() {
   const { settings, isLoading, refreshSettings } = useSettings();
   const [config, setConfig] = React.useState<EmailConfig>(DEFAULT_CONFIG);
   const [showApiKey, setShowApiKey] = React.useState(false);
+  const [showGatewayPassword, setShowGatewayPassword] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
 
@@ -136,7 +141,20 @@ export function EmailChannelSettingsForm() {
             <h3 className="font-medium">Shared Email connection</h3>
             <p className="text-sm text-muted-foreground">Enter the API details once. All selected notification channels will use this connection.</p>
           </div>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="email-gateway-username">Render Saver Username</Label>
+              <Input id="email-gateway-username" autoComplete="username" placeholder="Gateway account username" value={config.username} onChange={event => updateConfig({ username: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-gateway-password">Render Saver Password</Label>
+              <div className="relative">
+                <Input id="email-gateway-password" type={showGatewayPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Gateway account password" value={config.password} onChange={event => updateConfig({ password: event.target.value })} className="pr-11" />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" aria-label={showGatewayPassword ? 'Hide gateway password' : 'Show gateway password'} onClick={() => setShowGatewayPassword(value => !value)}>
+                  {showGatewayPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email-api-base-url">API Base URL</Label>
               <Input id="email-api-base-url" type="url" autoComplete="url" placeholder="https://your-email-api.example.com" value={config.baseUrl} onChange={event => updateConfig({ baseUrl: event.target.value })} />
