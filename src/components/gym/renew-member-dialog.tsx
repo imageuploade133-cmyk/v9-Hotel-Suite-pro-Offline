@@ -145,7 +145,7 @@ export function RenewMemberDialog({ open, onOpenChange, onSuccess, member }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="laundry-mobile-drawer">
         <DialogHeader>
           <DialogTitle>Renew Membership for {member.name}</DialogTitle>
           <DialogDescription>Set a new expiry date for the member's gym access.</DialogDescription>

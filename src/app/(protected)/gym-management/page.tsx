@@ -730,7 +730,7 @@ function GymManagementPage() {
       />
 
       <Dialog open={!!actionsMember} onOpenChange={handleCloseActions}>
-        <DialogContent>
+        <DialogContent className="laundry-mobile-drawer">
           {actionsMember && (
             <>
               <DialogHeader>

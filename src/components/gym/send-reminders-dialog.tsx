@@ -141,7 +141,7 @@ export function SendRemindersDialog({ isOpen, onClose, members, onSendReminder }
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl laundry-mobile-drawer">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquareText />
