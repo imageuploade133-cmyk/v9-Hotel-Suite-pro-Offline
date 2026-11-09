@@ -79,10 +79,11 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
   const [isSendingTest, setIsSendingTest] = React.useState(false);
   const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
   const previousState = React.useRef<ConnectionState>('unknown');
+  const qrValueRef = React.useRef('');
   const refreshInFlight = React.useRef(false);
 
   const configured = Boolean(config.baseUrl.trim() && config.apiKey.trim() && config.instanceId.trim());
-  const endpoint = React.useMemo(() => config.baseUrl.trim().replace(/\/+$/, ''), [config.baseUrl]);
+  const endpoint = React.useMemo(() => config.baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, ''), [config.baseUrl]);
 
   const request = React.useCallback(async (path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) => {
     if (!configured) throw new Error('Save the WhatsApp API URL, API Key, and Instance ID first.');
@@ -109,7 +110,8 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
       }
     }
     const qr = getQr(payload);
-    if (qr) {
+    if (qr && qr !== qrValueRef.current) {
+      qrValueRef.current = qr;
       setQrValue(qr);
       setExpiresAt(getExpiryMs(payload));
     }
@@ -123,7 +125,7 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     }
     setIsChecking(true);
     try {
-      const payload = await request(`/instances/${encodeURIComponent(config.instanceId.trim())}`);
+      const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}`);
       const status = applyStatus(payload, showToast);
       if (showToast) toast({ title: 'WhatsApp status refreshed', description: status === 'unknown' ? 'The gateway responded, but did not include a recognized connection status.' : `Connection status: ${status}.` });
     } catch (error: any) {
@@ -141,9 +143,10 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     setIsConnecting(true);
     setConnectionState('connecting');
     try {
-      const payload = await request(`/instances/${encodeURIComponent(config.instanceId.trim())}/start`, 'POST', {});
+      const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}/start`, 'POST', {});
       const qr = getQr(payload);
       if (qr) {
+        qrValueRef.current = qr;
         setQrValue(qr);
         setExpiresAt(getExpiryMs(payload));
       }
@@ -271,7 +274,7 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
             <DialogDescription>Open WhatsApp on your phone, go to Linked devices, choose Link a device, then scan this QR code.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
-            {qrValue ? <div className="rounded-xl border bg-white p-4"><QRCodeSVG value={qrValue} size={240} level="M" includeMargin /></div> : <div className="flex h-64 w-64 items-center justify-center rounded-xl border bg-muted/30"><div className="space-y-3 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" /><p className="text-sm text-muted-foreground">Waiting for QR code from gateway...</p></div></div>}
+            {qrValue ? <div className="flex h-64 w-64 items-center justify-center rounded-xl border bg-white p-3">{/^data:image\//i.test(qrValue) || /^https?:\/\//i.test(qrValue) ? <img src={qrValue} alt="WhatsApp device pairing QR code" className="h-full w-full object-contain" /> : <QRCodeSVG value={qrValue} size={240} level="M" includeMargin />}</div> : <div className="flex h-64 w-64 items-center justify-center rounded-xl border bg-muted/30"><div className="space-y-3 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" /><p className="text-sm text-muted-foreground">Waiting for QR code from gateway...</p></div></div>}
             <div className="w-full rounded-lg bg-muted/50 p-3 text-center">
               {connectionState === 'connected' ? <p className="font-medium text-emerald-600">Device linked successfully</p> : <p className="text-sm font-medium">{secondsLeft > 0 ? `QR code expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}` : 'QR code expired — generating a new one...'}</p>}
               <p className="mt-1 text-xs text-muted-foreground">The connection status is checked automatically while this window is open.</p>
