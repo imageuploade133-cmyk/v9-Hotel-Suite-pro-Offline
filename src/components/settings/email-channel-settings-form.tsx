@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
-import { CheckCircle2, Eye, EyeOff, Loader2, Mail, Save } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, Loader2, Mail, Save, Send, Paperclip, X } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
@@ -65,6 +66,12 @@ export function EmailChannelSettingsForm() {
   const [showGatewayPassword, setShowGatewayPassword] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
+  const [testTo, setTestTo] = React.useState('');
+  const [testSubject, setTestSubject] = React.useState('Email integration test');
+  const [testMessage, setTestMessage] = React.useState('This is a test email from your hotel management system. If you received this message, your email integration is working.');
+  const [testFiles, setTestFiles] = React.useState<File[]>([]);
+  const [isSendingTest, setIsSendingTest] = React.useState(false);
+  const testFileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setConfig(normalizeConfig((settings as any)?.emailChannel));
@@ -119,6 +126,31 @@ export function EmailChannelSettingsForm() {
     }
   }
 
+  async function sendTestEmail() {
+    const recipient = testTo.trim();
+    const baseUrl = config.baseUrl.trim().replace(/\\/+$/, '').replace(/\\/api$/i, '');
+    if (!config.enabled) { toast({ variant: 'destructive', title: 'Email Integration is disabled', description: 'Enable the Email provider before sending a test email.' }); return; }
+    if (!recipient || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) { toast({ variant: 'destructive', title: 'Enter a valid recipient', description: 'Provide the email address that should receive the test message.' }); return; }
+    if (!baseUrl || !config.apiKey.trim()) { toast({ variant: 'destructive', title: 'Email configuration incomplete', description: 'Enter and save the API Base URL and API Key first.' }); return; }
+    if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
+    setIsSendingTest(true);
+    try {
+      const attachments = await Promise.all(testFiles.map(file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => { const result = String(reader.result || ''); const comma = result.indexOf(','); if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name)); resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1) }); };
+        reader.onerror = () => reject(new Error('Could not read attachment: ' + file.name));
+        reader.readAsDataURL(file);
+      })));
+      const escapedMessage = testMessage.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char] || char));
+      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), html: '<div style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-wrap">' + escapedMessage + '</div>', ...(attachments.length ? { attachments } : {}) }) });
+      const raw = await response.text(); let payload: any = {};
+      try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 240) }; }
+      if (!response.ok || payload.success === false || payload.error) throw new Error(payload.message || payload.error || ('Email gateway returned HTTP ' + response.status));
+      toast({ title: 'Test email sent successfully', description: 'A test email was accepted for delivery to ' + recipient + '.' });
+    } catch (error: any) { console.error('Email test failed:', error); toast({ variant: 'destructive', title: 'Test email failed', description: error?.message || 'Check your API URL, API key, gateway and attachment format.' }); }
+    finally { setIsSendingTest(false); }
+  }
+
   if (isLoading) return <Card><CardHeader><Skeleton className="h-6 w-44" /><Skeleton className="h-4 w-full" /></CardHeader><CardContent className="space-y-3"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></CardContent></Card>;
 
   return (
@@ -136,7 +168,13 @@ export function EmailChannelSettingsForm() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <section className="space-y-4 rounded-lg border p-4">
+        <section className="space-y-4 rounded-lg border p-4" aria-disabled={!config.enabled}>
+          {!config.enabled && <p className="mb-2 text-xs font-medium text-muted-foreground">Email provider is OFF. Settings are minimised and inputs are disabled.</p>}
+          <fieldset disabled={!config.enabled} className="space-y-4 disabled:pointer-events-none">
+          <div>
+            <h3 className="font-medium">Shared Email connection</h3>
+            <p className="text-sm text-muted-foreground">Enter the API details once. All selected notification channels will use this connection.</p>
+          </div>
           <div>
             <h3 className="font-medium">Shared Email connection</h3>
             <p className="text-sm text-muted-foreground">Enter the API details once. All selected notification channels will use this connection.</p>
@@ -170,9 +208,11 @@ export function EmailChannelSettingsForm() {
               </div>
             </div>
           </div>
+          </fieldset>
         </section>
 
         <section className="space-y-3 rounded-lg border p-4">
+          <fieldset disabled={!config.enabled} className="space-y-3 disabled:pointer-events-none">
           <div>
             <h3 className="font-medium">Select Email channels</h3>
             <p className="text-sm text-muted-foreground">Turn ON the events that should use this shared Email connection.</p>
@@ -186,6 +226,21 @@ export function EmailChannelSettingsForm() {
               <Switch id={`email-channel-${channel.id}`} checked={config.channels[channel.id]} disabled={!config.enabled} onCheckedChange={enabled => updateChannel(channel.id, enabled)} />
             </div>
           ))}
+          </fieldset>
+        </section>
+
+        <section className="space-y-4 rounded-lg border p-4" aria-disabled={!config.enabled}>
+          <div><h3 className="flex items-center gap-2 font-medium"><Send className="h-4 w-4" /> Test Email & Attachments</h3><p className="text-sm text-muted-foreground">Send a real test email to verify delivery. Images, PDFs, documents and other file types are supported.</p></div>
+          <fieldset disabled={!config.enabled || isSendingTest} className="space-y-3 disabled:pointer-events-none">
+            <div className="space-y-2"><Label htmlFor="email-test-recipient">Recipient email address</Label><Input id="email-test-recipient" type="email" placeholder="you@example.com" value={testTo} onChange={event => setTestTo(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="email-test-subject">Subject</Label><Input id="email-test-subject" value={testSubject} onChange={event => setTestSubject(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="email-test-message">Message</Label><Textarea id="email-test-message" value={testMessage} onChange={event => setTestMessage(event.target.value)} rows={4} /></div>
+            <div className="space-y-2"><Label>Attachments</Label><input ref={testFileInputRef} type="file" multiple className="hidden" onChange={event => { const selected = Array.from(event.target.files || []); const total = [...testFiles, ...selected]; if (total.length > 10) { toast({ variant: "destructive", title: "Too many attachments", description: "You can attach up to 10 files." }); event.target.value = ""; return; } if (total.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) { toast({ variant: "destructive", title: "Attachments too large", description: "Combined attachment size must not exceed 20 MB." }); event.target.value = ""; return; } setTestFiles(total); event.target.value = ""; }} /><Button type="button" variant="outline" onClick={() => testFileInputRef.current?.click()}><Paperclip className="mr-2 h-4 w-4" />Add files</Button>
+              {testFiles.map((file, index) => <div key={file.name + index} className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-2 text-sm"><span className="min-w-0 truncate">{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span><Button type="button" size="icon" variant="ghost" aria-label={"Remove " + file.name} onClick={() => setTestFiles(current => current.filter((_, i) => i !== index))}><X className="h-4 w-4" /></Button></div>)}
+              <p className="text-xs text-muted-foreground">Up to 10 files and 20 MB combined. Files are Base64-encoded for the gateway JSON attachment interface.</p></div>
+            <Button type="button" onClick={sendTestEmail} disabled={isSendingTest || !testTo.trim()}>{isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{isSendingTest ? "Sending test email..." : "Send Test Email"}</Button>
+          </fieldset>
+          {!config.enabled && <p className="text-xs text-muted-foreground">Enable Email Integration to test delivery and manage attachments.</p>}
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
