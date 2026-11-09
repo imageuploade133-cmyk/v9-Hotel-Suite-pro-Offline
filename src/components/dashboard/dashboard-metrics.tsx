@@ -43,6 +43,7 @@ export function DashboardMetrics({
     filteredIncome,
     filteredIncomeLabel,
     grandTotalIncome,
+    grandTotalPaidRoomIncome,
     filteredMonthlyIncome,
     filteredMonthlyIncomeLabel,
     allMonths,
@@ -157,6 +158,7 @@ export function DashboardMetrics({
           value={formatCurrency(grandTotalIncome)}
           icon={Landmark}
           description="All-time revenue from all sources."
+          secondaryDescription={`Grand Total Paid Room Income: ${formatCurrency(grandTotalPaidRoomIncome || 0)}`}
           className="bg-primary/10 text-primary"
         />
       </div>
