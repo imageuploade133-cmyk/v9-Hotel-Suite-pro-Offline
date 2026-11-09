@@ -274,7 +274,7 @@ export function AddEditMemberDialog({ open, onOpenChange, onSuccess, member }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg laundry-mobile-drawer">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit Gym Member' : 'Register New Gym Member'}</DialogTitle>
           <DialogDescription>Fill in the details below.</DialogDescription>
