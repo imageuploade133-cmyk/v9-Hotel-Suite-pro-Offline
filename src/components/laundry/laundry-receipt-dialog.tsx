@@ -159,7 +159,7 @@ export function LaundryReceiptDialog({ isOpen, onClose, order, allBills }: Laund
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="receipt-dialog-fullscreen">
+      <DialogContent className="receipt-dialog-fullscreen laundry-mobile-drawer">
         <DialogHeader>
           <DialogTitle>Laundry Order Receipt</DialogTitle>
           <DialogDescription>
