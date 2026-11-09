@@ -54,6 +54,7 @@ const posSettingsSchema = z.object({
   posShowPaymentMethod: z.boolean().default(true),
   posShowBarcode: z.boolean().default(false),
   posShowCategorySeparator: z.boolean().default(true),
+  posShowRunningTableTotal: z.boolean().default(true),
 
   // Tax Settings
   posEnableTax: z.boolean().default(false),
@@ -151,6 +152,7 @@ const defaultValues: Partial<POSSettingsFormValues> = {
   posShowCashierName: true,
   posShowPaymentMethod: true,
   posShowBarcode: false,
+  posShowRunningTableTotal: true,
   posEnableTax: false,
   posTaxLabel: 'Tax',
   posTaxRate: 0,
@@ -245,6 +247,7 @@ export function POSSettingsForm() {
       posShowCashierName: posSettings.posShowCashierName ?? true,
       posShowPaymentMethod: posSettings.posShowPaymentMethod ?? true,
       posShowBarcode: posSettings.posShowBarcode ?? false,
+      posShowRunningTableTotal: posSettings.posShowRunningTableTotal ?? true,
       posEnableTax: posSettings.posEnableTax ?? false,
       posTaxLabel: posSettings.posTaxLabel || 'Tax',
       posTaxRate: posSettings.posTaxRate || 0,
@@ -374,6 +377,7 @@ export function POSSettingsForm() {
         posShowCashierName: data.posShowCashierName,
         posShowPaymentMethod: data.posShowPaymentMethod,
         posShowBarcode: data.posShowBarcode,
+        posShowRunningTableTotal: data.posShowRunningTableTotal,
         posEnableTax: data.posEnableTax,
         posTaxLabel: data.posTaxLabel,
         posTaxRate: data.posTaxRate,
@@ -1012,6 +1016,24 @@ export function POSSettingsForm() {
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                               <FormLabel className="text-sm font-normal">Show Barcode</FormLabel>
+                              <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="posShowRunningTableTotal"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-sm font-normal">Show Running Table Total</FormLabel>
+                                <FormDescription className="text-xs">
+                                  Show or hide the total amount on running-table dockets and printouts.
+                                </FormDescription>
+                              </div>
                               <FormControl>
                                 <Switch checked={field.value} onCheckedChange={field.onChange} />
                               </FormControl>
