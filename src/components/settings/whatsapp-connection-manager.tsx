@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle2, CircleAlert, Loader2, MessageSquare, QrCode, RefreshCw, RotateCcw, Send, Signal, WifiOff } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Loader2, MessageSquare, QrCode, RefreshCw, RotateCcw, Send, Signal, WifiOff, PowerOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,8 +126,15 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     setIsChecking(true);
     try {
       const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}`);
-      const status = applyStatus(payload, showToast);
-      if (showToast) toast({ title: 'WhatsApp status refreshed', description: status === 'unknown' ? 'The gateway responded, but did not include a recognized connection status.' : `Connection status: ${status}.` });
+      const status = applyStatus(payload, false);
+      if (status === 'connected') {
+        setDialogOpen(false); setQrValue(''); setExpiresAt(null);
+        if (showToast) toast({ title: 'WhatsApp is connected', description: 'Your linked device is online and ready.' });
+      } else if (status === 'disconnected') {
+        if (showToast) toast({ variant: 'destructive', title: 'WhatsApp is disconnected', description: 'Connect your device by scanning a new QR code.' });
+      } else if (showToast) {
+        toast({ title: 'WhatsApp status', description: status === 'connecting' ? 'The device is still connecting.' : 'The gateway did not return a recognizable connection status.' });
+      }
     } catch (error: any) {
       if (showToast) toast({ variant: 'destructive', title: 'Could not retrieve WhatsApp status', description: error?.message || 'Check the gateway URL and credentials.' });
     } finally {
@@ -173,9 +180,10 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     refreshInFlight.current = true;
     setIsRefreshing(true);
     try {
-      const payload = await request(`/instances/${encodeURIComponent(config.instanceId.trim())}/start`, 'POST', {});
+      const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}/start`, 'POST', {});
       const qr = getQr(payload);
       if (qr) {
+        qrValueRef.current = qr;
         setQrValue(qr);
         setExpiresAt(getExpiryMs(payload));
         if (!automatic) toast({ title: 'New QR code generated', description: 'Scan the refreshed QR code with your WhatsApp phone.' });
@@ -190,6 +198,25 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
       refreshInFlight.current = false;
     }
   }, [applyStatus, config.instanceId, configured, request, toast]);
+
+  const disconnect = React.useCallback(async () => {
+    if (!configured || connectionState !== 'connected') return;
+    setIsConnecting(true);
+    try {
+      await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}/disconnect`, 'POST', {});
+      setConnectionState('disconnected');
+      previousState.current = 'disconnected';
+      qrValueRef.current = '';
+      setQrValue('');
+      setExpiresAt(null);
+      setDialogOpen(false);
+      toast({ title: 'WhatsApp disconnected', description: 'The linked WhatsApp device has been disconnected.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Could not disconnect WhatsApp', description: error?.message || 'Please try again.' });
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [config.instanceId, configured, connectionState, request, toast]);
 
   React.useEffect(() => {
     if (!configured) return;
@@ -232,6 +259,7 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     }
   };
 
+  const isConnected = connectionState === 'connected';
   const statusLabel = connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting' : connectionState === 'disconnected' ? 'Disconnected' : 'Not checked';
   const StatusIcon = connectionState === 'connected' ? CheckCircle2 : connectionState === 'disconnected' ? WifiOff : connectionState === 'connecting' ? Loader2 : CircleAlert;
 
@@ -248,10 +276,10 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => void startConnection(true)} disabled={!configured || isConnecting}><RotateCcw className="mr-2 h-4 w-4" />Reconnect</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => void refreshQr(false)} disabled={!configured || isRefreshing}><RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />Refresh</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => void startConnection(true)} disabled={!configured || isConnecting || isConnected}><RotateCcw className="mr-2 h-4 w-4" />Reconnect</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => void refreshQr(false)} disabled={!configured || isRefreshing || isConnected}><RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />Refresh</Button>
             <Button type="button" size="sm" variant="outline" onClick={() => void checkStatus(true)} disabled={!configured || isChecking}><Signal className="mr-2 h-4 w-4" />Status</Button>
-            <Button type="button" size="sm" onClick={() => void startConnection(false)} disabled={!configured || isConnecting}><QrCode className="mr-2 h-4 w-4" />Connect</Button>
+            <Button type="button" size="sm" variant={isConnected ? "destructive" : "default"} onClick={() => isConnected ? void disconnect() : void startConnection(false)} disabled={!configured || isConnecting}>{isConnected ? <><PowerOff className="mr-2 h-4 w-4" />Disconnect</> : <><QrCode className="mr-2 h-4 w-4" />Connect</>}</Button>
           </div>
         </div>
         {!configured && <p className="text-xs text-muted-foreground">Save the API Base URL, API Key, and Instance ID above to enable connection controls.</p>}
