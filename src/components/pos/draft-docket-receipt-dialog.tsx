@@ -81,6 +81,7 @@ export function DraftDocketReceiptDialog({
   const posShowBusinessName = effectivePosSettings.posShowBusinessName !== false;
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posShowCashier = effectivePosSettings.posShowCashierName !== false;
+  const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
 
   // Display name - use effective POS settings business name
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -438,10 +439,12 @@ export function DraftDocketReceiptDialog({
                     );
                   })}
                 </div>
-                <div className="flex justify-between font-bold text-base pt-2">
-                  <span>{isUpdate ? 'NEW ITEMS TOTAL:' : 'TOTAL:'}</span>
-                  <span>{formatCurrency(total)}</span>
-                </div>
+                {posShowRunningTableTotal && (
+                  <div className="flex justify-between font-bold text-base pt-2">
+                    <span>{isUpdate ? 'NEW ITEMS TOTAL:' : 'TOTAL:'}</span>
+                    <span>{formatCurrency(total)}</span>
+                  </div>
+                )}
                 <div className="text-center text-xs mt-6 text-red-600 font-semibold">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
@@ -493,10 +496,12 @@ export function DraftDocketReceiptDialog({
                 </table>
                 <div className="flex justify-end">
                   <div className="w-full max-w-xs space-y-2">
-                    <div className="flex justify-between font-bold text-lg border-t-2 border-gray-300 pt-2">
-                      <span>{isUpdate ? 'New Items Total' : 'Total'}</span>
-                      <span>{formatCurrency(total)}</span>
-                    </div>
+                    {posShowRunningTableTotal && (
+                      <div className="flex justify-between font-bold text-lg border-t-2 border-gray-300 pt-2">
+                        <span>{isUpdate ? 'New Items Total' : 'Total'}</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-6 text-center text-red-600 font-semibold text-sm">

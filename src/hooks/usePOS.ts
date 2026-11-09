@@ -285,6 +285,18 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     const currentUid = userProfile.uid || (userProfile as any).id;
     let saleId = restoredSaleId || `HELD-${Date.now().toString().slice(-6)}`;
+    // Keep one idempotency key for every retry of this exact save. The Master PC
+    // deduplicates it, so a lost HTTP response cannot apply stock movements twice.
+    const holdTransactionKey = `held-table-${saleId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
     const executeOfflineHoldWrites = async () => {
         if (restoredSaleData?.linkedBillId) {
@@ -326,23 +338,38 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           });
         }
 
-        const response = await fetch('/api/lan-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transactionKey: `held-table-${saleId}-${Date.now()}`,
-            mutations: [{
-              collectionName: getCollectionPath('heldSales'),
-              docId: heldSaleRef.id,
-              action: 'set',
-              data: heldSaleData,
-            }],
-            stockAdjustments,
-          }),
+        const mutationBody = JSON.stringify({
+          transactionKey: holdTransactionKey,
+          mutations: [{
+            collectionName: getCollectionPath('heldSales'),
+            docId: heldSaleRef.id,
+            action: 'set',
+            data: heldSaleData,
+          }],
+          stockAdjustments,
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.success !== true || result?.durable !== true) {
-          throw new Error(result?.error || 'The Local Master PC did not confirm that the running table was saved.');
+        let confirmed = false;
+        let lastError: unknown = null;
+        // A retry is safe because the Master PC deduplicates this stable transaction key.
+        for (let attempt = 0; attempt < 2 && !confirmed; attempt += 1) {
+          try {
+            const response = await fetchWithTimeout('/api/lan-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: mutationBody,
+            }, 1800);
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result?.success !== true || result?.durable !== true) {
+              throw new Error(result?.error || 'The Local Master PC did not confirm that the running table was saved.');
+            }
+            confirmed = true;
+          } catch (error) {
+            lastError = error;
+            if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 120));
+          }
+        }
+        if (!confirmed) {
+          throw new Error(lastError instanceof Error ? lastError.message : 'The Local Master PC did not confirm that the running table was saved.');
         }
 
         if (typeof navigator !== 'undefined' && navigator.onLine) {
@@ -352,7 +379,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         let localMasterAvailable = false;
         if (!isOffline) {
           try {
-            const masterStatus = await fetch('/api/lan-sync', { cache: 'no-store' });
+            const masterStatus = await fetchWithTimeout('/api/lan-sync', { cache: 'no-store' }, 700);
             if (masterStatus.ok) {
               const statusPayload = await masterStatus.json();
               localMasterAvailable = statusPayload?.success === true && statusPayload?.mode === 'LAN_MASTER_SERVER';
@@ -369,7 +396,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             await executeOfflineHoldWrites();
         } else {
             try {
-                const txPromise = runTransaction(firestore, async (transaction) => {
+                await runTransaction(firestore, async (transaction) => {
             const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleId);
 
             // ===== PHASE 1: Perform ALL reads first =====
@@ -458,15 +485,12 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
             transaction.set(heldSaleRef, heldSaleData, { merge: true });
         });
-
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Transaction network timeout')), 1500)
-                );
-
-                await Promise.race([txPromise, timeoutPromise]);
             } catch (txErr) {
-                console.warn('[HoldSale] Online transaction failed/timed out, falling back to offline LAN writes:', txErr);
-                await executeOfflineHoldWrites();
+                // Do not start a second save path after an uncertain Firestore
+                // transaction result: the first transaction may still commit.
+                // This avoids duplicate stock deductions and conflicting writes.
+                console.error('[HoldSale] Online running-table transaction failed:', txErr);
+                throw txErr;
             }
         }
 

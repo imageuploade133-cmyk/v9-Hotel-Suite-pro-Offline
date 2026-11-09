@@ -475,7 +475,9 @@ export default function ProtectedLayout({
   const { permissions: contextPermissions } = useUser();
   const finalPermissions = contextPermissions || [];
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
-    || userProfile?.isSuperAdmin === true;
+    || userProfile?.isSuperAdmin === true
+    || userProfile?.role === 'Admin'
+    || userProfile?.role === 'Super Admin';
   const hasPosAccess = finalPermissions.includes(PagePermission.VIEW_POS)
     || finalPermissions.includes(PagePermission.PROCESS_SALES);
   const isPosAssignedStaff = !isAdminIdentity && hasPosAccess;
@@ -578,7 +580,7 @@ export default function ProtectedLayout({
 
     // Check if user has any POS permissions to show the POS section
     // Uses requiredPermission to ensure we check the actual permission needed for each item
-    const hasPosPermissions = isPosAssignedStaff || posSectionItems.some(item =>
+    const hasPosPermissions = isAdminIdentity || isPosAssignedStaff || posSectionItems.some(item =>
       finalPermissions.includes(item.requiredPermission || item.permission)
     );
     // Check if user has any Management permissions to show the Management section

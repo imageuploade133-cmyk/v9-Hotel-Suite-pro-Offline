@@ -51,6 +51,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
 
   // Get effective POS settings based on current context (Global vs Branch)
   const effectivePosSettings = getEffectivePosSettings();
+  const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
 
   // Use branch-specific information if available, otherwise fall back to global settings
   const branchLogoUrl = currentBranch?.logoUrl;
@@ -309,10 +310,12 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                         );
                       })}
                     </div>
-                    <div className="flex justify-between font-bold text-base pt-2">
-                      <span>TOTAL (THIS DOCKET):</span>
-                      <span>{formatCurrency(total)}</span>
-                    </div>
+                    {posShowRunningTableTotal && (
+                      <div className="flex justify-between font-bold text-base pt-2">
+                        <span>TOTAL (THIS DOCKET):</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
@@ -387,10 +390,12 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                     </table>
                     <div className="flex justify-end">
                       <div className="w-full max-w-xs space-y-2">
-                        <div className="flex justify-between font-bold text-lg text-slate-800 border-t-2 border-slate-300 pt-2">
-                          <span>Total</span>
-                          <span>{formatCurrency(total)}</span>
-                        </div>
+                        {posShowRunningTableTotal && (
+                          <div className="flex justify-between font-bold text-lg text-slate-800 border-t-2 border-slate-300 pt-2">
+                            <span>Total</span>
+                            <span>{formatCurrency(total)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="mt-8 text-center text-xs text-slate-500">
