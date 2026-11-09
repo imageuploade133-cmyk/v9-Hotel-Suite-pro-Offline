@@ -937,3 +937,74 @@
     overflow: hidden !important;
   }
 }
+
+
+/*
+ * Laundry Management dialogs: mobile/tablet edge-to-edge drawer.
+ * This is deliberately independent of Tailwind's sm breakpoint and viewport
+ * width so browser zoom cannot turn the drawer back into a centered modal.
+ */
+@keyframes laundry-mobile-drawer-enter {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes laundry-mobile-drawer-exit {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 100%, 0); }
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  [data-dialog-content].laundry-mobile-drawer {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    translate: none !important;
+    overflow: hidden !important;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+    overscroll-behavior: none !important;
+  }
+
+  [data-dialog-content].laundry-mobile-drawer[data-state="open"] {
+    animation: laundry-mobile-drawer-enter 320ms cubic-bezier(.22, 1, .36, 1) both !important;
+  }
+
+  [data-dialog-content].laundry-mobile-drawer[data-state="closed"] {
+    animation: laundry-mobile-drawer-exit 220ms cubic-bezier(.4, 0, 1, 1) both !important;
+  }
+
+  [data-dialog-content].laundry-mobile-drawer > [data-slot="dialog-header"],
+  [data-dialog-content].laundry-mobile-drawer > div:has(> [data-slot="dialog-title"]) {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  [data-dialog-content].laundry-mobile-drawer .mobile-fullscreen-dialog-laundry-body {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dialog-content].laundry-mobile-drawer[data-state="open"],
+  [data-dialog-content].laundry-mobile-drawer[data-state="closed"] {
+    animation-duration: 1ms !important;
+  }
+}
