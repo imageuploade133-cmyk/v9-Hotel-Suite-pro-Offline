@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { CheckCircle2, Eye, EyeOff, Loader2, MessageSquareText, Save } from 'lucide-react';
+import { WhatsAppConnectionManager } from '@/components/settings/whatsapp-connection-manager';
 
 import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -198,6 +199,8 @@ export function WhatsAppSettingsForm() {
             </div>
           </div>
         </section>
+
+        <WhatsAppConnectionManager config={config} />
 
         <section className="space-y-3 rounded-lg border p-4">
           <div>
