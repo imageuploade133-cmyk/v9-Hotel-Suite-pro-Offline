@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
-import { Eye, EyeOff, Loader2, MessageSquareText, Save, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, Loader2, MessageSquareText, Save } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -15,75 +15,39 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type ProviderId =
-  | 'newReservation'
-  | 'stockTransfer'
-  | 'dailyIncome'
-  | 'bulkMessages'
-  | 'guestNotifications'
-  | 'otherNotifications';
+type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'bulkMessages' | 'guestNotifications' | 'otherNotifications';
+type ChannelMap = Record<ChannelId, boolean>;
+type WhatsAppConfig = { enabled: boolean; baseUrl: string; apiKey: string; instanceId: string; channels: ChannelMap };
 
-type ProviderConfig = {
-  enabled: boolean;
-  baseUrl: string;
-  apiKey: string;
-  instanceId: string;
+const DEFAULT_CHANNELS: ChannelMap = {
+  newReservation: true,
+  stockTransfer: true,
+  dailyIncome: true,
+  bulkMessages: false,
+  guestNotifications: true,
+  otherNotifications: false,
 };
-
-type ProviderMap = Partial<Record<ProviderId, ProviderConfig>>;
-
-const PROVIDERS: Array<{
-  id: ProviderId;
-  title: string;
-  description: string;
-}> = [
-  {
-    id: 'newReservation',
-    title: 'New Reservation Alerts',
-    description: 'Send WhatsApp alerts when a new reservation is created.',
-  },
-  {
-    id: 'stockTransfer',
-    title: 'Stock Transfer Alerts',
-    description: 'Send stock transfer notifications and receipts.',
-  },
-  {
-    id: 'dailyIncome',
-    title: 'Daily Income Reports',
-    description: 'Send daily income summaries to your configured recipients.',
-  },
-  {
-    id: 'bulkMessages',
-    title: 'Bulk WhatsApp Messaging',
-    description: 'Configure the independent connection used for approved bulk messages.',
-  },
-  {
-    id: 'guestNotifications',
-    title: 'Guest Notifications',
-    description: 'Send guest-related booking, billing, and service notifications.',
-  },
-  {
-    id: 'otherNotifications',
-    title: 'Other Notifications',
-    description: 'Reserve a separate WhatsApp connection for additional hotel alerts.',
-  },
+const DEFAULT_CONFIG: WhatsAppConfig = {
+  enabled: false, baseUrl: '', apiKey: '', instanceId: '', channels: { ...DEFAULT_CHANNELS },
+};
+const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
+  { id: 'newReservation', title: 'New Reservation Alerts', description: 'Notify staff about newly created reservations.' },
+  { id: 'stockTransfer', title: 'Stock Transfer Alerts', description: 'Send stock transfer notifications and receipts.' },
+  { id: 'dailyIncome', title: 'Daily Income Reports', description: 'Send scheduled or manually requested daily income summaries.' },
+  { id: 'bulkMessages', title: 'Bulk WhatsApp Messages', description: 'Use this connection for authorized bulk messaging.' },
+  { id: 'guestNotifications', title: 'Guest Notifications', description: 'Send booking, billing, and guest service updates to guests.' },
+  { id: 'otherNotifications', title: 'Other Notifications', description: 'Allow other supported hotel notification events.' },
 ];
 
-const EMPTY_CONFIG: ProviderConfig = {
-  enabled: false,
-  baseUrl: '',
-  apiKey: '',
-  instanceId: '',
-};
-
-function normalizeConfig(value: unknown): ProviderConfig {
-  if (!value || typeof value !== 'object') return { ...EMPTY_CONFIG };
-  const config = value as Partial<ProviderConfig>;
+function normalizeConfig(value: unknown): WhatsAppConfig {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_CONFIG, channels: { ...DEFAULT_CHANNELS } };
+  const saved = value as Partial<WhatsAppConfig>;
   return {
-    enabled: config.enabled === true,
-    baseUrl: typeof config.baseUrl === 'string' ? config.baseUrl : '',
-    apiKey: typeof config.apiKey === 'string' ? config.apiKey : '',
-    instanceId: typeof config.instanceId === 'string' ? config.instanceId : '',
+    enabled: saved.enabled === true,
+    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl : '',
+    apiKey: typeof saved.apiKey === 'string' ? saved.apiKey : '',
+    instanceId: typeof saved.instanceId === 'string' ? saved.instanceId : '',
+    channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
 
@@ -91,206 +55,159 @@ export function WhatsAppSettingsForm() {
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  const { settings, isLoading: isSettingsLoading, refreshSettings } = useSettings();
-  const [providers, setProviders] = React.useState<ProviderMap>({});
-  const [savingProvider, setSavingProvider] = React.useState<ProviderId | null>(null);
-  const [visibleKeys, setVisibleKeys] = React.useState<Partial<Record<ProviderId, boolean>>>({});
-  const [savedProviders, setSavedProviders] = React.useState<Partial<Record<ProviderId, boolean>>>({});
+  const { settings, isLoading, refreshSettings } = useSettings();
+  const [config, setConfig] = React.useState<WhatsAppConfig>(DEFAULT_CONFIG);
+  const [showApiKey, setShowApiKey] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isSaved, setIsSaved] = React.useState(false);
 
   React.useEffect(() => {
-    const saved = (settings as any)?.whatsappProviders || {};
-    const next: ProviderMap = {};
-    PROVIDERS.forEach((provider) => {
-      next[provider.id] = normalizeConfig(saved[provider.id]);
-    });
-    setProviders(next);
+    const saved = (settings as any)?.whatsappChannel;
+    if (saved) {
+      setConfig(normalizeConfig(saved));
+      return;
+    }
+    // Backward-compatible migration from the first draft's per-event credentials:
+    // reuse the first configured connection once, then store one shared connection.
+    const legacy = (settings as any)?.whatsappProviders || {};
+    const firstConfigured = Object.values(legacy).find((item: any) => item?.baseUrl || item?.apiKey || item?.instanceId) as any;
+    if (firstConfigured) {
+      setConfig({
+        ...normalizeConfig(firstConfigured),
+        channels: {
+          ...DEFAULT_CHANNELS,
+          newReservation: legacy.newReservation?.enabled ?? DEFAULT_CHANNELS.newReservation,
+          stockTransfer: legacy.stockTransfer?.enabled ?? DEFAULT_CHANNELS.stockTransfer,
+          dailyIncome: legacy.dailyIncome?.enabled ?? DEFAULT_CHANNELS.dailyIncome,
+          bulkMessages: legacy.bulkMessages?.enabled ?? DEFAULT_CHANNELS.bulkMessages,
+          guestNotifications: legacy.guestNotifications?.enabled ?? DEFAULT_CHANNELS.guestNotifications,
+          otherNotifications: legacy.otherNotifications?.enabled ?? DEFAULT_CHANNELS.otherNotifications,
+        },
+      });
+    } else {
+      setConfig(normalizeConfig(saved));
+    }
   }, [settings]);
 
-  const updateProvider = (id: ProviderId, patch: Partial<ProviderConfig>) => {
-    setProviders((current) => ({
-      ...current,
-      [id]: { ...normalizeConfig(current[id]), ...patch },
-    }));
-    setSavedProviders((current) => ({ ...current, [id]: false }));
+  const updateConfig = (patch: Partial<WhatsAppConfig>) => {
+    setConfig(current => ({ ...current, ...patch }));
+    setIsSaved(false);
+  };
+  const updateChannel = (id: ChannelId, enabled: boolean) => {
+    setConfig(current => ({ ...current, channels: { ...current.channels, [id]: enabled } }));
+    setIsSaved(false);
   };
 
-  async function saveProvider(id: ProviderId) {
+  async function saveSettings() {
     if (!user || !firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign-in required',
-        description: 'You must be logged in to save WhatsApp provider settings.',
-      });
+      toast({ variant: 'destructive', title: 'Sign-in required', description: 'Sign in with an authorized account to save WhatsApp settings.' });
       return;
     }
-
-    const config = normalizeConfig(providers[id]);
-    const normalizedBaseUrl = config.baseUrl.trim().replace(/\/+$/, '');
-    if (config.enabled && (!normalizedBaseUrl || !config.apiKey.trim() || !config.instanceId.trim())) {
-      toast({
-        variant: 'destructive',
-        title: 'Incomplete provider configuration',
-        description: 'Enter the API Base URL, API Key, and Instance ID before enabling this provider.',
-      });
+    const baseUrl = config.baseUrl.trim().replace(/\\/+$/, '');
+    const hasSelectedChannel = Object.values(config.channels).some(Boolean);
+    if (config.enabled && (!baseUrl || !config.apiKey.trim() || !config.instanceId.trim())) {
+      toast({ variant: 'destructive', title: 'WhatsApp configuration incomplete', description: 'Enter the API Base URL, API Key, and Instance ID before enabling WhatsApp.' });
       return;
     }
-    if (normalizedBaseUrl && !/^https?:\/\//i.test(normalizedBaseUrl)) {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid API Base URL',
-        description: 'The Base URL must start with http:// or https://.',
-      });
+    if (config.enabled && !hasSelectedChannel) {
+      toast({ variant: 'destructive', title: 'Select at least one channel', description: 'Choose which notification channels should use this WhatsApp connection.' });
       return;
     }
-
-    setSavingProvider(id);
+    if (baseUrl && !/^https?:\\/\\//i.test(baseUrl)) {
+      toast({ variant: 'destructive', title: 'Invalid API Base URL', description: 'The Base URL must start with http:// or https://.' });
+      return;
+    }
+    setIsSaving(true);
     try {
-      const settingsRef = doc(firestore, 'settings', 'global');
-      const savedConfig = { ...config, baseUrl: normalizedBaseUrl, updatedAt: new Date().toISOString() };
+      const ref = doc(firestore, 'settings', 'global');
+      const savedConfig = { ...config, baseUrl, updatedAt: new Date().toISOString() };
       try {
-        // Dot-path update keeps every provider independent and prevents one save
-        // from replacing the credentials of another provider.
-        await updateDoc(settingsRef, { [`whatsappProviders.${id}`]: savedConfig });
-      } catch (updateError: any) {
-        // First-time setup: create the settings document if it does not exist.
-        if (updateError?.code === 'not-found') {
-          await setDoc(settingsRef, { whatsappProviders: { [id]: savedConfig } }, { merge: true });
-        } else {
-          throw updateError;
-        }
+        await updateDoc(ref, { whatsappChannel: savedConfig });
+      } catch (error: any) {
+        if (error?.code === 'not-found') await setDoc(ref, { whatsappChannel: savedConfig }, { merge: true });
+        else throw error;
       }
-      setProviders((current) => ({ ...current, [id]: savedConfig }));
-      setSavedProviders((current) => ({ ...current, [id]: true }));
+      setConfig(savedConfig);
+      setIsSaved(true);
       refreshSettings();
-      toast({
-        title: 'Provider settings saved',
-        description: `${PROVIDERS.find((provider) => provider.id === id)?.title} configuration was saved independently.`,
-      });
+      toast({ title: 'WhatsApp settings saved', description: 'One WhatsApp connection is now configured for your selected channels.' });
     } catch (error: any) {
-      console.error(`Failed to save WhatsApp provider ${id}:`, error);
-      toast({
-        variant: 'destructive',
-        title: 'Could not save provider',
-        description: error?.message || 'Please check your connection and try again.',
-      });
+      console.error('Failed to save WhatsApp settings:', error);
+      toast({ variant: 'destructive', title: 'Could not save WhatsApp settings', description: error?.message || 'Check your connection and try again.' });
     } finally {
-      setSavingProvider(null);
+      setIsSaving(false);
     }
   }
 
-  if (isSettingsLoading) {
-    return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>;
-  }
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>;
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquareText className="h-5 w-5" />
-            WhatsApp Providers
-          </CardTitle>
-          <CardDescription>
-            Configure each WhatsApp connection separately. Every provider has its own Base URL, API Key,
-            Instance ID, and enable switch. Saving one provider does not replace another provider's settings.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {PROVIDERS.map((provider) => {
-        const config = normalizeConfig(providers[provider.id]);
-        const isSaving = savingProvider === provider.id;
-        return (
-          <Card key={provider.id}>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-base">{provider.title}</CardTitle>
-                  <CardDescription>{provider.description}</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={`whatsapp-${provider.id}-enabled`} className="text-sm">
-                    {config.enabled ? 'Enabled' : 'Disabled'}
-                  </Label>
-                  <Switch
-                    id={`whatsapp-${provider.id}-enabled`}
-                    checked={config.enabled}
-                    onCheckedChange={(enabled) => updateProvider(provider.id, { enabled })}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor={`whatsapp-${provider.id}-base-url`}>API Base URL</Label>
-                  <Input
-                    id={`whatsapp-${provider.id}-base-url`}
-                    type="url"
-                    autoComplete="url"
-                    placeholder="https://your-whatsapp-gateway.example.com"
-                    value={config.baseUrl}
-                    onChange={(event) => updateProvider(provider.id, { baseUrl: event.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter the gateway address only, without the /api/send/... endpoint.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`whatsapp-${provider.id}-api-key`}>API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id={`whatsapp-${provider.id}-api-key`}
-                      type={visibleKeys[provider.id] ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      placeholder="Paste this provider's API Key"
-                      value={config.apiKey}
-                      onChange={(event) => updateProvider(provider.id, { apiKey: event.target.value })}
-                      className="pr-11"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0"
-                      aria-label={visibleKeys[provider.id] ? 'Hide API key' : 'Show API key'}
-                      onClick={() => setVisibleKeys((current) => ({ ...current, [provider.id]: !current[provider.id] }))}
-                    >
-                      {visibleKeys[provider.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`whatsapp-${provider.id}-instance-id`}>Instance ID</Label>
-                  <Input
-                    id={`whatsapp-${provider.id}-instance-id`}
-                    placeholder="Paste this provider's Instance ID"
-                    value={config.instanceId}
-                    onChange={(event) => updateProvider(provider.id, { instanceId: event.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                <p className="text-xs text-muted-foreground">
-                  {savedProviders[provider.id] ? (
-                    <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Saved</span>
-                  ) : 'Changes are not saved until you select Save Provider.'}
-                </p>
-                <Button type="button" onClick={() => saveProvider(provider.id)} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  {isSaving ? 'Saving...' : 'Save Provider'}
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2"><MessageSquareText className="h-5 w-5" /> WhatsApp Integration</CardTitle>
+            <CardDescription>Connect WhatsApp once, then select every hotel channel that should use this same connection. Credentials are shared globally across the selected channels.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="whatsapp-master-enabled">{config.enabled ? 'WhatsApp Enabled' : 'WhatsApp Disabled'}</Label>
+            <Switch id="whatsapp-master-enabled" checked={config.enabled} onCheckedChange={enabled => updateConfig({ enabled })} />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <section className="space-y-4 rounded-lg border p-4">
+          <div>
+            <h3 className="font-medium">Shared WhatsApp connection</h3>
+            <p className="text-sm text-muted-foreground">Enter these details once. They will be used by all channels you enable below.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="whatsapp-base-url">API Base URL</Label>
+              <Input id="whatsapp-base-url" type="url" autoComplete="url" placeholder="https://your-whatsapp-gateway.example.com" value={config.baseUrl} onChange={event => updateConfig({ baseUrl: event.target.value })} />
+              <p className="text-xs text-muted-foreground">Enter the gateway base address only, without /api/send/text or /api/send/media.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-api-key">API Key</Label>
+              <div className="relative">
+                <Input id="whatsapp-api-key" type={showApiKey ? 'text' : 'password'} autoComplete="new-password" placeholder="Paste your WhatsApp API Key" value={config.apiKey} onChange={event => updateConfig({ apiKey: event.target.value })} className="pr-11" />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" aria-label={showApiKey ? 'Hide API key' : 'Show API key'} onClick={() => setShowApiKey(value => !value)}>
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-instance-id">Instance ID</Label>
+              <Input id="whatsapp-instance-id" placeholder="Paste your WhatsApp Instance ID" value={config.instanceId} onChange={event => updateConfig({ instanceId: event.target.value })} />
+            </div>
+          </div>
+        </section>
 
-      <p className="text-xs text-muted-foreground">
-        QR-code pairing, live connection checks, and message delivery require the gateway's instance-management
-        endpoints. The supplied API reference currently documents sending endpoints only; no QR or connection
-        endpoint is assumed here.
-      </p>
-    </div>
+        <section className="space-y-3 rounded-lg border p-4">
+          <div>
+            <h3 className="font-medium">Select WhatsApp channels</h3>
+            <p className="text-sm text-muted-foreground">Turn ON only the notification channels that should use this shared WhatsApp connection.</p>
+          </div>
+          {CHANNELS.map(channel => (
+            <div key={channel.id} className="flex items-center justify-between gap-4 border-t pt-3 first:border-t-0 first:pt-0">
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor={`whatsapp-channel-${channel.id}`} className="text-sm font-medium">{channel.title}</Label>
+                <p className="text-xs text-muted-foreground">{channel.description}</p>
+              </div>
+              <Switch id={`whatsapp-channel-${channel.id}`} checked={config.channels[channel.id]} disabled={!config.enabled} onCheckedChange={enabled => updateChannel(channel.id, enabled)} />
+            </div>
+          ))}
+        </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className="text-xs text-muted-foreground">{isSaved ? <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Saved</span> : 'Save once to apply this connection and your selected channels globally.'}</p>
+          <Button type="button" onClick={saveSettings} disabled={isSaving}>
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {isSaving ? 'Saving...' : 'Save WhatsApp Settings'}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">QR pairing and live connection status still require the gateway's documented instance-management endpoints. Message delivery also requires the application event handlers to use this shared configuration; the supplied reference documents send endpoints but not QR-management endpoints.</p>
+      </CardContent>
+    </Card>
   );
 }
