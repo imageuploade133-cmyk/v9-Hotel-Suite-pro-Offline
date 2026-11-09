@@ -128,7 +128,7 @@ export function EmailChannelSettingsForm() {
 
   async function sendTestEmail() {
     const recipient = testTo.trim();
-    const baseUrl = config.baseUrl.trim().replace(/\\/+$/, '').replace(/\\/api$/i, '');
+    const baseUrl = config.baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/i, '');
     if (!config.enabled) { toast({ variant: 'destructive', title: 'Email Integration is disabled', description: 'Enable the Email provider before sending a test email.' }); return; }
     if (!recipient || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) { toast({ variant: 'destructive', title: 'Enter a valid recipient', description: 'Provide the email address that should receive the test message.' }); return; }
     if (!baseUrl || !config.apiKey.trim()) { toast({ variant: 'destructive', title: 'Email configuration incomplete', description: 'Enter and save the API Base URL and API Key first.' }); return; }
@@ -144,7 +144,7 @@ export function EmailChannelSettingsForm() {
       const escapedMessage = testMessage.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char] || char));
       const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), html: '<div style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-wrap">' + escapedMessage + '</div>', ...(attachments.length ? { attachments } : {}) }) });
       const raw = await response.text(); let payload: any = {};
-      try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 240) }; }
+      try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
       if (!response.ok || payload.success === false || payload.error) throw new Error(payload.message || payload.error || ('Email gateway returned HTTP ' + response.status));
       toast({ title: 'Test email sent successfully', description: 'A test email was accepted for delivery to ' + recipient + '.' });
     } catch (error: any) { console.error('Email test failed:', error); toast({ variant: 'destructive', title: 'Test email failed', description: error?.message || 'Check your API URL, API key, gateway and attachment format.' }); }
