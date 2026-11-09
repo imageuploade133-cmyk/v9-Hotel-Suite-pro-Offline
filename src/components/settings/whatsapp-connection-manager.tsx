@@ -126,12 +126,14 @@ export function WhatsAppConnectionManager({ config }: { config: WhatsAppConnecti
     setIsChecking(true);
     try {
       const payload = await request(`/api/instances/${encodeURIComponent(config.instanceId.trim())}`);
+      const previous = previousState.current;
       const status = applyStatus(payload, false);
       if (status === 'connected') {
         setDialogOpen(false); setQrValue(''); setExpiresAt(null);
-        if (showToast) toast({ title: 'WhatsApp is connected', description: 'Your linked device is online and ready.' });
+        if (previous !== 'connected') toast({ title: 'WhatsApp connected successfully', description: 'Your linked device is online and ready.' });
+        else if (showToast) toast({ title: 'WhatsApp is connected', description: 'Your linked device is online and ready.' });
       } else if (status === 'disconnected') {
-        if (showToast) toast({ variant: 'destructive', title: 'WhatsApp is disconnected', description: 'Connect your device by scanning a new QR code.' });
+        if (previous === 'connected' || showToast) toast({ variant: 'destructive', title: 'WhatsApp is disconnected', description: 'Connect your device by scanning a new QR code.' });
       } else if (showToast) {
         toast({ title: 'WhatsApp status', description: status === 'connecting' ? 'The device is still connecting.' : 'The gateway did not return a recognizable connection status.' });
       }
