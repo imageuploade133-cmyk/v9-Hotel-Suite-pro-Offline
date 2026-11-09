@@ -12,6 +12,7 @@ interface StatCardProps {
   value: React.ReactNode;
   icon: React.ComponentType<LucideProps> | string;
   description?: string;
+  secondaryDescription?: React.ReactNode;
   isLoading?: boolean;
   className?: string;
   iconClassName?: string;
@@ -22,6 +23,7 @@ export function StatCard({
   value,
   icon,
   description,
+  secondaryDescription,
   isLoading,
   className,
   iconClassName,
@@ -55,6 +57,11 @@ export function StatCard({
         <div className="text-2xl font-bold">{value}</div>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+        {secondaryDescription && (
+          <p className="mt-1 text-[11px] font-medium leading-snug text-yellow-600/80 dark:text-yellow-400/70">
+            {secondaryDescription}
+          </p>
         )}
       </CardContent>
     </Card>
