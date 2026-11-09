@@ -11,6 +11,7 @@ import { TopHeader } from '@/components/ui/top-header';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { WhatsAppSettingsForm } from '@/components/settings/whatsapp-settings-form';
+import { EmailChannelSettingsForm } from '@/components/settings/email-channel-settings-form';
 import { DailyReportSettingsForm } from '@/components/settings/daily-report-settings-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TagManagement } from '@/components/settings/tag-management';
@@ -29,6 +30,7 @@ function SettingsPage2() {
       />
       <GoogleAppsScriptSettingsForm />
       <WhatsAppSettingsForm />
+      <EmailChannelSettingsForm />
       <DailyReportSettingsForm />
       <CreditSaleBankAccountForm />
       <EbulkSmsSettingsForm />
