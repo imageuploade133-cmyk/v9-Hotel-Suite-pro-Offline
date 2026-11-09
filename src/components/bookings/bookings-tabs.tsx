@@ -224,11 +224,25 @@ export function BookingsTabs(props: any) {
             {visibleTabs.map((tab) => {
               const count = roomCounts[tab] ?? 0;
               const shouldBlink = count > 0 && tab !== 'All' && tab !== 'Vacant' && activeTab !== tab;
+              const isPriorityNotification = count > 0 && (tab === 'Active Check-ins' || tab === 'Reserved');
               return (
                 <TabsTrigger key={tab} value={tab} className="flex items-center gap-2">
                   <DynamicIcon iconName={tab} className="h-4 w-4" />
                   {tab}
-                  {count > 0 && (<Badge variant={activeTab === tab ? 'default' : 'secondary'} className={cn("rounded-full px-2", shouldBlink && 'blinking-red-badge')}>{count}</Badge>)}
+                  {count > 0 && (
+                    <Badge
+                      variant={activeTab === tab ? 'default' : 'secondary'}
+                      className={cn(
+                        "rounded-full px-2",
+                        isPriorityNotification
+                          ? 'bookings-priority-notification'
+                          : shouldBlink && 'blinking-red-badge'
+                      )}
+                      aria-label={`${count} ${tab.toLowerCase()} notifications`}
+                    >
+                      {count}
+                    </Badge>
+                  )}
                 </TabsTrigger>
               );
             })}
@@ -245,7 +259,18 @@ export function BookingsTabs(props: any) {
                         <div className="flex items-center gap-2">
                           <DynamicIcon iconName={tab} className="h-4 w-4" />
                           <span>{tab}</span>
-                          {count > 0 && <Badge variant={activeTab === tab ? 'default' : 'secondary'} className="rounded-full px-2">{count}</Badge>}
+                          {count > 0 && (
+                            <Badge
+                              variant={activeTab === tab ? 'default' : 'secondary'}
+                              className={cn(
+                                "rounded-full px-2",
+                                (tab === 'Active Check-ins' || tab === 'Reserved') && 'bookings-priority-notification'
+                              )}
+                              aria-label={`${count} ${tab.toLowerCase()} notifications`}
+                            >
+                              {count}
+                            </Badge>
+                          )}
                         </div>
                       </DropdownMenuItem>
                     );
