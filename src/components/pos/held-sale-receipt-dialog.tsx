@@ -96,6 +96,7 @@ export function HeldSaleReceiptDialog({
   const posShowBusinessName = effectivePosSettings.posShowBusinessName !== false;
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posShowCashier = effectivePosSettings.posShowCashierName !== false;
+  const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
 
   // Set up real-time listener for the held sale document
   React.useEffect(() => {
@@ -429,10 +430,12 @@ export function HeldSaleReceiptDialog({
                         </div>
                       ))}
                     </div>
-                    <div className="flex justify-between font-bold text-base pt-2">
-                      <span>{isUpdateDocket ? 'NEW ITEMS TOTAL:' : 'TOTAL:'}</span>
-                      <span>{formatCurrency(total)}</span>
-                    </div>
+                    {posShowRunningTableTotal && (
+                      <div className="flex justify-between font-bold text-base pt-2">
+                        <span>{isUpdateDocket ? 'NEW ITEMS TOTAL:' : 'TOTAL:'}</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
+                    )}
                     <div className="text-center text-xs mt-6 whitespace-pre-line">
                       <p>{posFooter}</p>
                     </div>
@@ -475,10 +478,12 @@ export function HeldSaleReceiptDialog({
                     </table>
                     <div className="flex justify-end">
                       <div className="w-full max-w-xs space-y-2">
-                        <div className="flex justify-between font-bold text-lg border-t-2 border-gray-300 pt-2">
-                          <span>{isUpdateDocket ? 'New Items Total' : 'Total'}</span>
-                          <span>{formatCurrency(total)}</span>
-                        </div>
+                        {posShowRunningTableTotal && (
+                          <div className="flex justify-between font-bold text-lg border-t-2 border-gray-300 pt-2">
+                            <span>{isUpdateDocket ? 'New Items Total' : 'Total'}</span>
+                            <span>{formatCurrency(total)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
