@@ -51,15 +51,19 @@ export default function withAuth<P extends object>(
     }
 
     // Use the centralized permission calculation. Missing profiles resolve to no permissions.
-    // This keeps explicit role-based permissions working without creating an Admin fallback.
     const finalPermissions = contextPermissions || [];
+    const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
+      || userProfile?.isSuperAdmin === true
+      || userProfile?.role === 'Admin'
+      || userProfile?.role === 'Super Admin';
 
     const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
     // Every authenticated account may view its own profile, regardless of
     // whether it has a staff role or the optional MANAGE_OWN_PROFILE permission.
     const isOwnProfileRoute = pathname === '/profile';
-    let hasRequiredPermission = isOwnProfileRoute ||
+    const isEmailMarketingAdminAccess = requiredPermission === PagePermission.MANAGE_EMAIL_MARKETING && isAdminIdentity;
+    let hasRequiredPermission = isOwnProfileRoute || isEmailMarketingAdminAccess ||
       (requiredPermission ? finalPermissions.includes(requiredPermission) : true);
 
     // POS-assigned staff may open Running Tables; the page itself scopes them
