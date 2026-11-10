@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { Mail, Users, UserRound, Plus, Search, Send, Loader2, CheckCircle2, AlertCircle, FileUp } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
@@ -186,11 +186,23 @@ function EmailMarketingPage() {
     try {
       const parsed = parseContactFile(await file.text());
       if (!parsed.length) throw new Error('No valid email addresses were found. Use CSV or TXT with an email column.');
+      if (!firestore) throw new Error('Database is not ready. Please try again.');
       const existing = new Set(contacts.map(item => item.email));
-      const imported: string[] = [];
-      for (const item of parsed) {
-        await addManualContact(item.email, item.name, 'Import');
-        imported.push(item.email);
+      const imported = parsed.map(item => item.email);
+      // Firestore batches are limited to 500 writes; use 400 per batch to
+      // leave headroom and avoid one network round-trip per imported address.
+      for (let index = 0; index < parsed.length; index += 400) {
+        const batch = writeBatch(firestore);
+        parsed.slice(index, index + 400).forEach(item => {
+          const contactRef = doc(firestore, 'email-marketing-contacts', encodeURIComponent(item.email));
+          batch.set(contactRef, {
+            email: item.email,
+            name: item.name,
+            source: 'Import',
+            createdAt: serverTimestamp(),
+          }, { merge: true });
+        });
+        await batch.commit();
       }
       setSelectedEmails(prev => [...new Set([...prev, ...imported])]);
       toast({ title: 'Contacts imported', description: `${imported.length} valid contact(s) saved and selected. ${parsed.filter(item => existing.has(item.email)).length} were already in your contacts and updated.` });
