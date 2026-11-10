@@ -81,11 +81,26 @@ export const getStockColumns = ({ onEdit, onDelete, settings }: GetStockColumnsP
       accessorKey: 'quantity',
       header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          Quantity
+          Main Stock (On Hand)
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
-      cell: ({ row }) => <div className="text-center font-bold text-lg">{row.original.quantity}</div>,
+      cell: ({ row }) => <div className="text-center font-bold text-lg">{Number(row.original.quantity || 0)}</div>,
+    },
+    {
+      id: 'runningTableStock',
+      accessorFn: (row) => Number(row.reservedQuantity || 0),
+      header: () => <div className="text-center">Running Tables</div>,
+      cell: ({ row }) => <div className="text-center font-semibold text-amber-600">{Number(row.original.reservedQuantity || 0)}</div>,
+    },
+    {
+      id: 'availableStock',
+      accessorFn: (row) => Math.max(0, Number(row.quantity || 0) - Number(row.reservedQuantity || 0)),
+      header: () => <div className="text-center">Available to Sell</div>,
+      cell: ({ row }) => {
+        const available = Number(row.original.quantity || 0) - Number(row.original.reservedQuantity || 0);
+        return <div className={`text-center font-bold ${available <= 0 ? 'text-destructive' : 'text-emerald-600'}`}>{Math.max(0, available)}</div>;
+      },
     },
     {
       accessorKey: 'costPrice',
