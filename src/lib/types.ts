@@ -234,6 +234,8 @@ export interface StockItem {
   expiryDate?: Timestamp | Date | string | null;
   images?: string[];
   held?: number;
+  /** Quantity currently reserved by POS running tables; does not reduce on-hand stock until sale completion. */
+  reservedQuantity?: number;
   promoPrice?: number;
   promoType?: 'fixed' | 'percentage';
   promoStartDate?: Timestamp | Date;
