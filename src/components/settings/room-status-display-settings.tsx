@@ -16,6 +16,17 @@ export function RoomStatusDisplaySettings() {
   const { settings, isLoading } = useSettings();
   const { toast } = useToast();
   const [saving, setSaving] = React.useState<PreferenceKey | null>(null);
+  const [localPreferences, setLocalPreferences] = React.useState<Record<PreferenceKey, boolean>>({
+    expandBookingAvailabilityCalendarOnOpen: settings?.expandBookingAvailabilityCalendarOnOpen === true,
+    expandRoomServiceOrdersOnOpen: settings?.expandRoomServiceOrdersOnOpen === true,
+  });
+
+  React.useEffect(() => {
+    setLocalPreferences({
+      expandBookingAvailabilityCalendarOnOpen: settings?.expandBookingAvailabilityCalendarOnOpen === true,
+      expandRoomServiceOrdersOnOpen: settings?.expandRoomServiceOrdersOnOpen === true,
+    });
+  }, [settings?.expandBookingAvailabilityCalendarOnOpen, settings?.expandRoomServiceOrdersOnOpen]);
 
   const preferences: { key: PreferenceKey; title: string; description: string; icon: React.ElementType }[] = [
     {
@@ -38,6 +49,8 @@ export function RoomStatusDisplaySettings() {
       return;
     }
 
+    const previousValue = localPreferences[key];
+    setLocalPreferences(previous => ({ ...previous, [key]: enabled }));
     setSaving(key);
     try {
       await setDoc(doc(firestore, 'settings', 'global'), { [key]: enabled }, { merge: true });
@@ -56,6 +69,7 @@ export function RoomStatusDisplaySettings() {
         variant: 'success',
       });
     } catch (error) {
+      setLocalPreferences(previous => ({ ...previous, [key]: previousValue }));
       toast({
         title: 'Could not save display preference',
         description: error instanceof Error ? error.message : 'Please try again.',
@@ -89,7 +103,7 @@ export function RoomStatusDisplaySettings() {
               <div className="flex shrink-0 items-center gap-2">
                 {saving === key && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                 <Switch
-                  checked={settings?.[key] === true}
+                  checked={localPreferences[key]}
                   onCheckedChange={(checked) => void handleToggle(key, checked)}
                   disabled={isLoading || saving !== null || !firestore}
                   aria-label={`Automatically expand ${title}`}
