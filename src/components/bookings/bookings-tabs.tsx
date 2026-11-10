@@ -213,7 +213,7 @@ export function BookingsTabs(props: any) {
   };
 
   const handleTabChange = (tabValue: string) => {
-    router.push(`/bookings?tab=${tabValue}`);
+    router.push(`/bookings?tab=${encodeURIComponent(tabValue)}`, { scroll: false });
   };
 
   return (
@@ -236,7 +236,7 @@ export function BookingsTabs(props: any) {
                         "rounded-full px-2",
                         isPriorityNotification
                           ? 'bookings-priority-notification'
-                          : shouldBlink && 'blinking-red-badge'
+                          : shouldBlink && 'bookings-status-yellow-notification'
                       )}
                       aria-label={`${count} ${tab.toLowerCase()} notifications`}
                     >
@@ -264,7 +264,11 @@ export function BookingsTabs(props: any) {
                               variant={activeTab === tab ? 'default' : 'secondary'}
                               className={cn(
                                 "rounded-full px-2",
-                                (tab === 'Active Check-ins' || tab === 'Reserved') && 'bookings-priority-notification'
+                                (tab === 'Active Check-ins' || tab === 'Reserved')
+                                  ? 'bookings-priority-notification'
+                                  : count > 0 && tab !== 'All' && tab !== 'Vacant' && activeTab !== tab
+                                    ? 'bookings-status-yellow-notification'
+                                    : undefined
                               )}
                               aria-label={`${count} ${tab.toLowerCase()} notifications`}
                             >

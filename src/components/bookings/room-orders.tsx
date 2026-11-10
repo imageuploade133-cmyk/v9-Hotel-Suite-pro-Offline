@@ -89,13 +89,20 @@ export function RoomOrders({ rooms }: { rooms: Room[] }) {
   const firestore = useFirestore();
   const { user, userProfile } = useUser();
   const { toast } = useToast();
-  const { settings } = useSettings();
+  const { settings, isLoading: isSettingsLoading } = useSettings();
   const currency = settings?.currency || 'USD';
   const enableNotificationSound = settings?.enableNotificationSound ?? true;
   const notificationSoundUrl = settings?.notificationSoundUrl || 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_16cc9a1f7d.mp3';
 
   const [isOpen, setIsOpen] = React.useState(false);
+  const hasAppliedInitialExpandPreference = React.useRef(false);
   const [allOrders, setAllOrders] = React.useState<Order[]>([]);
+
+  React.useEffect(() => {
+    if (isSettingsLoading || hasAppliedInitialExpandPreference.current) return;
+    setIsOpen(settings?.expandRoomServiceOrdersOnOpen === true);
+    hasAppliedInitialExpandPreference.current = true;
+  }, [isSettingsLoading, settings?.expandRoomServiceOrdersOnOpen]);
   const [isLoading, setIsLoading] = React.useState(true);
   const printRef = React.useRef<HTMLDivElement>(null);
 
