@@ -230,7 +230,13 @@ export function EmailChannelSettingsForm() {
       // messages; multipart/form-data with repeated "attachments" fields for
       // browser-selected files. Let fetch set the multipart boundary itself.
       let requestBody: BodyInit;
-      const headers: Record<string, string> = { 'X-API-Key': config.apiKey.trim() };
+      const apiKey = config.apiKey.trim();
+      const headers: Record<string, string> = {
+        'X-API-Key': apiKey,
+        'x-api-key': apiKey,
+        apikey: apiKey,
+        Authorization: 'Bearer ' + apiKey,
+      };
       if (testFiles.length > 0) {
         const formData = new FormData();
         formData.append('to', recipient);
@@ -238,7 +244,6 @@ export function EmailChannelSettingsForm() {
         formData.append('html', html);
         formData.append('text', templateText);
         formData.append('fromName', senderName);
-        formData.append('attachments', ''); // Keep the gateway's attachments field present alongside uploaded files.
         testFiles.forEach(file => formData.append('attachments', file, file.name));
         requestBody = formData;
       } else {
@@ -272,7 +277,12 @@ export function EmailChannelSettingsForm() {
         try {
           const statusResponse = await fetch(baseUrl + '/api/email/status/' + encodeURIComponent(payload.messageId), {
             method: 'GET',
-            headers: { 'X-API-Key': config.apiKey.trim() },
+            headers: {
+              'X-API-Key': config.apiKey.trim(),
+              'x-api-key': config.apiKey.trim(),
+              apikey: config.apiKey.trim(),
+              Authorization: 'Bearer ' + config.apiKey.trim(),
+            },
           });
           if (statusResponse.status === 401 || statusResponse.status === 403 || statusResponse.status === 404) break;
           if (!statusResponse.ok) continue;
