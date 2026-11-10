@@ -833,7 +833,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               status: 'Paid',
               transactionDate: new Date(),
               type: 'POS',
-              customerId: customer?.id || undefined,
+              ...(customer?.id ? { customerId: customer.id } : {}),
               createdByUid: userProfile.uid,
               createdByName: userProfile.name,
               items: saleData.items,
