@@ -295,6 +295,47 @@ export function EmailChannelSettingsForm() {
           </fieldset>
         </section>
 
+        <section className="space-y-4 rounded-lg border p-4" aria-disabled={!config.enabled}>
+          <fieldset disabled={!config.enabled} className="space-y-4 disabled:pointer-events-none">
+            <div>
+              <h3 className="font-medium">Email Template & Branding</h3>
+              <p className="text-sm text-muted-foreground">Customize the layout used by the Email test message. Use the placeholders shown below to insert dynamic details.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-top-banner-text">Top banner text</Label>
+                <Input id="email-top-banner-text" maxLength={120} value={config.topBannerText} onChange={event => updateConfig({ topBannerText: event.target.value })} placeholder="OFFICIAL HOTEL NOTIFICATION" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-top-banner-color">Top banner colour</Label>
+                <div className="flex items-center gap-3">
+                  <Input id="email-top-banner-color" type="color" className="h-10 w-16 p-1" value={config.topBannerColor} onChange={event => updateConfig({ topBannerColor: event.target.value })} />
+                  <span className="text-sm text-muted-foreground">{config.topBannerColor}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-footer-text">Email footer</Label>
+                <Textarea id="email-footer-text" rows={3} maxLength={1000} value={config.footerText} onChange={event => updateConfig({ footerText: event.target.value })} placeholder="Thank you for choosing us." />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-template-body">Email message template</Label>
+                <Textarea id="email-template-body" rows={7} maxLength={6000} value={config.templateBody} onChange={event => updateConfig({ templateBody: event.target.value })} placeholder="Hello,\n\n{{message}}\n\nRegards,\n{{businessName}}" />
+                <p className="text-xs text-muted-foreground">Available placeholders: <code>{'{{message}}'}</code>, <code>{'{{businessName}}'}</code>, <code>{'{{recipient}}'}</code>, <code>{'{{date}}'}</code>. Keep {'{{message}}'} in the template to include the test message.</p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border bg-background">
+              <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Branding preview</div>
+              <div className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-white" style={{ backgroundColor: config.topBannerColor }}>{config.topBannerText || config.senderName || 'HOTEL NOTIFICATION'}</div>
+              <div className="space-y-3 p-4 text-center">
+                {config.logoDataUrl && <img src={config.logoDataUrl} alt="Email logo preview" className="mx-auto max-h-16 max-w-40 object-contain" />}
+                <p className="font-semibold">{config.senderName || 'Your Hotel Name'}</p>
+                <p className="whitespace-pre-wrap text-left text-sm text-muted-foreground">{config.templateBody.replace(/\{\{\s*message\s*\}\}/gi, testMessage).replace(/\{\{\s*businessName\s*\}\}/gi, config.senderName || 'Your Hotel Name').replace(/\{\{\s*recipient\s*\}\}/gi, testTo || 'recipient@example.com').replace(/\{\{\s*date\s*\}\}/gi, new Date().toLocaleString())}</p>
+              </div>
+              <div className="border-t bg-muted/40 px-4 py-3 text-center text-xs text-muted-foreground">{config.footerText}</div>
+            </div>
+          </fieldset>
+        </section>
+
         <section className="space-y-3 rounded-lg border p-4">
           <fieldset disabled={!config.enabled} className="space-y-3 disabled:pointer-events-none">
           <div>
