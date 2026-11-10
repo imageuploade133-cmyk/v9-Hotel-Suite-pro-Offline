@@ -208,7 +208,7 @@ export function EmailChannelSettingsForm() {
       // messages; multipart/form-data with repeated "attachments" fields for
       // browser-selected files. Let fetch set the multipart boundary itself.
       let requestBody: BodyInit;
-      const headers: HeadersInit = { 'X-API-Key': config.apiKey.trim() };
+      const headers: Record<string, string> = { 'X-API-Key': config.apiKey.trim() };
       if (testFiles.length > 0) {
         const formData = new FormData();
         formData.append('to', recipient);
