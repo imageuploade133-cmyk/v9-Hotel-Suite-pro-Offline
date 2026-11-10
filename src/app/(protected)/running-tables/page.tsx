@@ -481,7 +481,7 @@ function RunningTablesPage() {
         }
 
         // Always return items to stock (except services), regardless of whether it was billed to room
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
+        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
@@ -569,7 +569,7 @@ function RunningTablesPage() {
         }
 
         // Always return items to stock (except services), regardless of whether it was billed to room
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
+        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
