@@ -310,11 +310,7 @@ We hope you enjoy your stay!
 
 Need assistance? Just message us anytime. 🛎️`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -337,11 +333,7 @@ Please ensure you:
 
 Thank you for staying with us! We hope to see you again soon. 👋`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -364,11 +356,7 @@ Method: ${paymentMethod}
 Your payment has been processed and your booking is confirmed.
 Thank you for your payment! ✅`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
