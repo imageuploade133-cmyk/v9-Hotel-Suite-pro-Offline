@@ -93,7 +93,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
     }
 
-    if (hasFiniteStock && currentStock <= 0) {
+    const heldQty = Number((item as any).held || 0);
+    const ownRunningQty = activeRunningItems.find(runningItem => runningItem.id === item.id)?.sellQuantity || 0;
+    const availableQty = Math.max(0, Number(currentStock || 0) - heldQty + ownRunningQty);
+
+    if (hasFiniteStock && availableQty <= 0 && ownRunningQty <= 0) {
       toast({
         variant: 'destructive',
         title: 'Out of Stock',
@@ -106,10 +110,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     const totalInCart = cart.find((cartItem) => cartItem.id === item.id)?.sellQuantity || 0;
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === item.id)?.sellQuantity || 0;
 
-    // Calculate how many more can be added:
-    // - Items in activeRunningItems have already been deducted from stock
-    // - So we can add up to (currentStock + totalInRunning) total
-    const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
+    // On-hand includes running-table stock; held quantities protect other tables.
+    const maxAllowed = hasFiniteStock ? availableQty : Infinity;
     const totalExisting = totalInCart + totalInRunning;
 
     // Always add to Current Sale (cart), not Active Running Table
@@ -217,11 +219,10 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
     }
 
-    // Calculate how many can be in the cart:
-    // - Items in activeRunningItems have already been deducted from stock
-    // - So cart can have up to (currentStock + totalInRunning) total
+    // Allow this table to use its own reservation, not another table's stock.
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === itemId)?.sellQuantity || 0;
-    const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
+    const heldQty = Number((itemInCart as any).held || 0);
+    const maxAllowed = hasFiniteStock ? Math.max(0, Number(currentStock || 0) - heldQty + totalInRunning) : Infinity;
 
     if (hasFiniteStock && quantity > maxAllowed) {
         toast({
@@ -314,29 +315,27 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             heldByName: userProfile.name,
             heldAt: new Date() as any,
             printStatus: 'pending',
+            stockReserved: !restoredSaleData?.linkedBillId,
         };
         if (restoredSaleData?.linkedBillId) baseHeldSaleData.linkedBillId = restoredSaleData.linkedBillId;
         const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
 
-        const stockAdjustments: { collectionName: string; itemId: string; quantityDelta: number }[] = [];
+        const stockDeltaMap = new Map<string, { collectionName: string; itemId: string; quantityDelta: number; heldDelta: number }>();
+        const addStockDelta = (item: UnifiedItem, quantityDelta: number, heldDelta: number) => {
+          if (item.isService) return;
+          const entry = stockDeltaMap.get(item.id) || { collectionName: getCollectionPath('stock'), itemId: item.id, quantityDelta: 0, heldDelta: 0 };
+          entry.quantityDelta += quantityDelta;
+          entry.heldDelta += heldDelta;
+          stockDeltaMap.set(item.id, entry);
+        };
         if (!restoredSaleData?.linkedBillId) {
-          if (restoredSaleId && restoredSaleData) {
-            restoredSaleData.cart.filter(item => !item.isService).forEach(item => {
-              stockAdjustments.push({
-                collectionName: getCollectionPath('stock'),
-                itemId: item.id,
-                quantityDelta: Number(item.sellQuantity || 0),
-              });
-            });
-          }
-          combinedItems.filter(item => !item.isService).forEach(item => {
-            stockAdjustments.push({
-              collectionName: getCollectionPath('stock'),
-              itemId: item.id,
-              quantityDelta: -Number(item.sellQuantity || 0),
-            });
-          });
+          const legacyHeld = !!restoredSaleId && restoredSaleData?.stockReserved !== true;
+          if (restoredSaleId && restoredSaleData) restoredSaleData.cart.forEach(item => addStockDelta(item as UnifiedItem,
+            legacyHeld ? Number(item.sellQuantity || 0) : 0,
+            legacyHeld ? 0 : -Number(item.sellQuantity || 0)));
+          combinedItems.forEach(item => addStockDelta(item, 0, Number(item.sellQuantity || 0)));
         }
+        const stockAdjustments = [...stockDeltaMap.values()].filter(entry => entry.quantityDelta !== 0 || entry.heldDelta !== 0);
 
         const mutationBody = JSON.stringify({
           transactionKey: holdTransactionKey,
@@ -412,14 +411,15 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     const billRef = doc(firestore, `bookings/${restoredSaleData.customer.id}/bills`, restoredSaleData.linkedBillId);
                     billDoc = await transaction.get(billRef);
                 }
-            } else {
-                // New running table - read all stock docs
-                const stockItemsInCart = combinedItems.filter(item => !item.isService);
-                for (const cartItem of stockItemsInCart) {
+            }
+            if (!restoredSaleData?.linkedBillId) {
+                for (const cartItem of combinedItems.filter(item => !item.isService)) {
                     const stockDocRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
                     const stockDoc = await transaction.get(stockDocRef);
-                    if (!stockDoc.exists() || stockDoc.data().quantity < cartItem.sellQuantity) {
-                        throw new Error(`Not enough stock for ${cartItem.name}. Available: ${stockDoc.data()?.quantity || 0}, In Cart: ${cartItem.sellQuantity}`);
+                    const oldQty = restoredSaleData?.cart.find(old => old.id === cartItem.id)?.sellQuantity || 0;
+                    const available = Number(stockDoc.data()?.quantity || 0) - Number(stockDoc.data()?.held || 0) + oldQty;
+                    if (!stockDoc.exists() || available < Number(cartItem.sellQuantity || 0)) {
+                        throw new Error(`Not enough available stock for ${cartItem.name}. Available: ${Math.max(0, available)}, Requested: ${cartItem.sellQuantity}`);
                     }
                     stockDocs.push({ ref: stockDocRef, data: stockDoc.data() });
                 }
@@ -449,21 +449,26 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     const newTotal = newBillItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                     transaction.update(billDoc.ref, { items: newBillItems, total: newTotal });
                 } else if (originalHeldSaleDoc) {
-                    // It's a regular running table, so adjust stock
-                    const originalCart = originalHeldSaleDoc.data().cart as CartItem[];
-                    // Return old items to stock
-                    for (const oldItem of originalCart.filter(i => !i.isService)) {
-                        transaction.update(doc(firestore, getCollectionPath('stock'), oldItem.id), { quantity: increment(oldItem.sellQuantity) });
+                    const originalData = originalHeldSaleDoc.data() as HeldSale;
+                    const wasReserved = originalData.stockReserved === true;
+                    const oldItems = originalData.cart.filter(item => !item.isService);
+                    for (const newItem of combinedItems.filter(item => !item.isService)) {
+                        const oldQty = oldItems.find(item => item.id === newItem.id)?.sellQuantity || 0;
+                        transaction.update(doc(firestore, getCollectionPath('stock'), newItem.id), {
+                            held: increment(Number(newItem.sellQuantity || 0) - (wasReserved ? Number(oldQty) : 0)),
+                            ...(!wasReserved ? { quantity: increment(Number(oldQty)) } : {}),
+                        });
                     }
-                    // Remove new items from stock
-                    for (const newItem of combinedItems.filter(i => !i.isService)) {
-                        transaction.update(doc(firestore, getCollectionPath('stock'), newItem.id), { quantity: increment(-newItem.sellQuantity) });
+                    for (const oldItem of oldItems.filter(item => !combinedItems.some(next => next.id === item.id))) {
+                        transaction.update(doc(firestore, getCollectionPath('stock'), oldItem.id), wasReserved
+                          ? { held: increment(-Number(oldItem.sellQuantity || 0)) }
+                          : { quantity: increment(Number(oldItem.sellQuantity || 0)) });
                     }
                 }
             } else {
-                // New running table - update stock
                 for (const stockItem of stockDocs) {
-                    transaction.update(stockItem.ref, { quantity: increment(-combinedItems.find(i => i.id === stockItem.ref.id)?.sellQuantity || 0) });
+                    const item = combinedItems.find(i => i.id === stockItem.ref.id);
+                    if (item && !item.isService) transaction.update(stockItem.ref, { held: increment(Number(item.sellQuantity || 0)) });
                 }
             }
 
@@ -476,6 +481,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 heldByName: userProfile.name,
                 heldAt: serverTimestamp() as any,
                 printStatus: 'pending',
+                stockReserved: !restoredSaleData?.linkedBillId,
             };
 
             if (restoredSaleData?.linkedBillId) {
@@ -550,7 +556,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const stockDoc = stockItemDocs[i];
             const cartItem = saleData.cart.filter(item => !item.isService)[i];
             if (stockDoc.exists()) {
-                transaction.update(stockDoc.ref, { quantity: increment(cartItem.sellQuantity) });
+                transaction.update(stockDoc.ref, saleData.stockReserved === true
+                  ? { held: increment(-Number(cartItem.sellQuantity || 0)) }
+                  : { quantity: increment(Number(cartItem.sellQuantity || 0)) });
             }
         }
       }
