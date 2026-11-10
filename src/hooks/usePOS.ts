@@ -518,6 +518,50 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const deleteHeldSale = async (saleToDelete: HeldSale): Promise<void> => {
     if (!firestore) throw new Error('Firestore is not initialized.');
 
+    // When a Local Master is active, release the reservation in the same
+    // durable LAN transaction that removes the running-table record.
+    try {
+      const statusResponse = await fetch('/api/lan-sync', { cache: 'no-store' });
+      if (statusResponse.ok) {
+        const status = await statusResponse.json();
+        if (status?.success && status?.mode === 'LAN_MASTER_SERVER' && !saleToDelete.linkedBillId) {
+          const collectionName = getCollectionPath('heldSales');
+          const heldResponse = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+          if (!heldResponse.ok) throw new Error('Unable to verify the running table on the Local Master PC.');
+          const heldPayload = await heldResponse.json();
+          const saleData = (heldPayload?.data?.[saleToDelete.id] || saleToDelete) as HeldSale;
+          const stockAdjustments = !saleData.isCreditSale
+            ? saleData.cart.filter(item => !item.isService).map(item => ({
+                collectionName: getCollectionPath('stock'),
+                itemId: item.id,
+                quantityDelta: saleData.stockReserved === true ? 0 : Number(item.sellQuantity || 0),
+                heldDelta: saleData.stockReserved === true ? -Number(item.sellQuantity || 0) : 0,
+              }))
+            : [];
+          const response = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transactionKey: `delete-held-table-${saleToDelete.id}-${Date.now()}`,
+              mutations: [{ collectionName, docId: saleToDelete.id, action: 'delete' }],
+              stockAdjustments,
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result?.success !== true || result?.durable !== true) {
+            throw new Error(result?.error || 'The Local Master PC could not release this running-table stock.');
+          }
+          if (typeof navigator !== 'undefined' && navigator.onLine) {
+            fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
+          }
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('[DeleteHeldSale] Local Master transaction failed:', error);
+      throw error;
+    }
+
     await runTransaction(firestore, async (transaction) => {
       const heldSaleRef = doc(firestore, getCollectionPath('heldSales'), saleToDelete.id);
 
