@@ -452,6 +452,32 @@ function RunningTablesPage() {
     setSelectedSale(null);
   };
 
+  const releaseRunningTableStock = async (transaction: any, saleData: HeldSale) => {
+    const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
+    const stockDocs = new Map<string, { ref: any; data: any }>();
+
+    for (const cartItem of itemsToReturnToStock) {
+      const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
+      const stockDoc = await transaction.get(stockRef);
+      if (!stockDoc.exists()) throw new Error(`Stock item "${cartItem.name}" no longer exists.`);
+      const stockData = stockDoc.data();
+      if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
+        throw new Error(`The reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
+      }
+      stockDocs.set(cartItem.id, { ref: stockRef, data: stockData });
+    }
+
+    for (const cartItem of itemsToReturnToStock) {
+      const stock = stockDocs.get(cartItem.id)!;
+      if (saleData.stockReservationMode === 'reserved') {
+        transaction.update(stock.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
+      } else {
+        transaction.update(stock.ref, { quantity: increment(cartItem.sellQuantity) });
+      }
+    }
+    return itemsToReturnToStock;
+  };
+
   const handleDeleteSale = async () => {
     if (!firestore || !selectedSale) return;
     setIsProcessing(true);
@@ -480,27 +506,7 @@ function RunningTablesPage() {
           }
         }
 
-        // Release reserved quantities or restore legacy physical deductions.
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
-        const stockDocs = new Map<string, { ref: any; data: any }>();
-        for (const cartItem of itemsToReturnToStock) {
-          const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-          const stockDoc = await transaction.get(stockRef);
-          if (!stockDoc.exists()) throw new Error(`Stock item "${cartItem.name}" no longer exists.`);
-          const stockData = stockDoc.data();
-          if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
-            throw new Error(`The reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
-          }
-          stockDocs.set(cartItem.id, { ref: stockRef, data: stockData });
-        }
-        for (const cartItem of itemsToReturnToStock) {
-          const stock = stockDocs.get(cartItem.id)!;
-          if (saleData.stockReservationMode === 'reserved') {
-            transaction.update(stock.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
-          } else {
-            transaction.update(stock.ref, { quantity: increment(cartItem.sellQuantity) });
-          }
-        }
+        const itemsToReturnToStock = await releaseRunningTableStock(transaction, saleData);
 
         // Record docket history before deleting
         const docketHistoryRef = doc(collection(firestore, getCollectionPath('docketHistory')));
@@ -577,27 +583,7 @@ function RunningTablesPage() {
           }
         }
 
-        // Release reserved quantities or restore legacy physical deductions.
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
-        const stockDocs = new Map<string, { ref: any; data: any }>();
-        for (const cartItem of itemsToReturnToStock) {
-          const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-          const stockDoc = await transaction.get(stockRef);
-          if (!stockDoc.exists()) throw new Error(`Stock item "${cartItem.name}" no longer exists.`);
-          const stockData = stockDoc.data();
-          if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
-            throw new Error(`The reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
-          }
-          stockDocs.set(cartItem.id, { ref: stockRef, data: stockData });
-        }
-        for (const cartItem of itemsToReturnToStock) {
-          const stock = stockDocs.get(cartItem.id)!;
-          if (saleData.stockReservationMode === 'reserved') {
-            transaction.update(stock.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
-          } else {
-            transaction.update(stock.ref, { quantity: increment(cartItem.sellQuantity) });
-          }
-        }
+        const itemsToReturnToStock = await releaseRunningTableStock(transaction, saleData);
 
         // Record docket history before deleting
         const docketHistoryRef = doc(collection(firestore, getCollectionPath('docketHistory')));
