@@ -832,7 +832,7 @@ function RunningTablesPage() {
         // Return items to stock (only for non-service items)
         const stockItems = itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
-          return originalItem && !originalItem.isService;
+          return originalItem && !originalItem.isService && !saleData.linkedBillId;
         });
 
         for (const returnItem of stockItems) {
