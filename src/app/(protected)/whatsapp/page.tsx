@@ -148,7 +148,7 @@ function WhatsAppPage() {
     try {
       for (let index = 0; index < numbers.length; index += 100) {
         const chunk = numbers.slice(index, index + 100);
-        const result = await sendWhatsAppMessage({ recipients: chunk, subject: `Bulk Message from ${settings?.businessName || 'Hotel Suite Pro'}`, message: messageText });
+        const result = await sendWhatsAppMessage({ recipients: chunk, subject: `Bulk Message from ${settings?.businessName || 'Hotel Suite Pro'}`.slice(0, 100), message: messageText });
         if (result.success) successCount += chunk.length; else failedCount += chunk.length;
         setSendProgress({ completed: Math.min(index + chunk.length, numbers.length), total: numbers.length });
       }
