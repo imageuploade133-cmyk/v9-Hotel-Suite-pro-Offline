@@ -198,11 +198,11 @@ export function EmailChannelSettingsForm() {
       const escapeHtml = (value: string) => value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char] || char));
       const senderName = config.senderName.trim() || 'Hotel';
       const renderTemplateValue = (template: string) => template
-        .replace(/\\{\\{\\s*message\\s*\\}\\}/gi, () => testMessage)
-        .replace(/\\{\\{\\s*subject\\s*\\}\\}/gi, () => testSubject.trim())
-        .replace(/\\{\\{\\s*businessName\\s*\\}\\}/gi, () => senderName)
-        .replace(/\\{\\{\\s*recipient\\s*\\}\\}/gi, () => recipient)
-        .replace(/\\{\\{\\s*date\\s*\\}\\}/gi, () => new Date().toLocaleString());
+        .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
+        .replace(/\{\{\s*subject\s*\}\}/gi, () => testSubject.trim())
+        .replace(/\{\{\s*businessName\s*\}\}/gi, () => senderName)
+        .replace(/\{\{\s*recipient\s*\}\}/gi, () => recipient)
+        .replace(/\{\{\s*date\s*\}\}/gi, () => new Date().toLocaleString());
       const renderedSubject = renderTemplateValue(config.templateSubject || '{{subject}}').trim() || testSubject.trim();
       const templateText = config.templateBody
         .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
