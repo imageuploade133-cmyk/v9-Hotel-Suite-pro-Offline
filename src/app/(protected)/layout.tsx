@@ -700,7 +700,7 @@ export default function ProtectedLayout({
                 // Use requiredPermission if available, otherwise fall back to permission
                 const permissionId = (item as any).requiredPermission || (item as any).permission;
                 const itemHref = (item as any).href;
-                const hasPerm = itemHref === '/profile'
+                const hasPerm = (itemHref === '/profile' && isAdminIdentity)
                   || finalPermissions.includes(permissionId)
                   || (itemHref === '/email-marketing' && isAdminIdentity)
                   || (itemHref === '/running-tables' && (isPosAssignedStaff || isAdminIdentity));
@@ -1151,12 +1151,14 @@ export default function ProtectedLayout({
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                   <DropdownMenuItem asChild>
+                  {(isAdminIdentity || finalPermissions.includes(PagePermission.MANAGE_OWN_PROFILE)) && (
+                    <DropdownMenuItem asChild>
                       <Link href="/profile">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
                       </Link>
-                  </DropdownMenuItem>
+                    </DropdownMenuItem>
+                  )}
                   {canInstall && (
                     <DropdownMenuItem onClick={triggerInstall}>
                       <Download className="mr-2 h-4 w-4" />
