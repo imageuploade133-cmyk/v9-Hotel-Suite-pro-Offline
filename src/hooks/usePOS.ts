@@ -31,6 +31,51 @@ interface UsePOSProps {
   toast: ReturnType<typeof useToast>['toast'];
 }
 
+type PosStockMovement = {
+  collectionName: string;
+  itemId: string;
+  quantityDelta: number;
+  reservedDelta: number;
+  requested: number;
+  held: number;
+};
+
+/** Build one stock movement per product for both LAN Master and Firestore sale commits. */
+function buildPosStockMovements(
+  items: UnifiedItem[],
+  heldSaleId: string | null,
+  heldSale: HeldSale | null,
+  stockCollection: string
+): PosStockMovement[] {
+  const requestedById = new Map<string, number>();
+  items.filter(item => !item.isService).forEach(item => {
+    requestedById.set(item.id, (requestedById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+  });
+
+  const isHeldTable = !!heldSaleId && !!heldSale && !heldSale.linkedBillId;
+  const heldById = new Map<string, number>();
+  if (isHeldTable) {
+    (heldSale?.cart || []).filter(item => !item.isService).forEach(item => {
+      heldById.set(item.id, (heldById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+    });
+  }
+
+  const itemIds = new Set([...requestedById.keys(), ...heldById.keys()]);
+  return [...itemIds].map(itemId => {
+    const requested = requestedById.get(itemId) || 0;
+    const held = heldById.get(itemId) || 0;
+    const isReservedHold = isHeldTable && heldSale?.stockReservationMode === 'reserved';
+    return {
+      collectionName: stockCollection,
+      itemId,
+      quantityDelta: isReservedHold ? -requested : (isHeldTable ? held - requested : -requested),
+      reservedDelta: isReservedHold ? -held : 0,
+      requested,
+      held,
+    };
+  });
+}
+
 export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const [cart, setCart] = React.useState<UnifiedItem[]>([]);
   const [activeRunningItems, setActiveRunningItems] = React.useState<UnifiedItem[]>([]);
@@ -1018,26 +1063,15 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     data: undefined as any,
                   });
                 }
-                const physicalItems = allItems.filter(item => !item.isService);
-                const saleStockMap = new Map<string, { collectionName: string; itemId: string; quantityDelta: number; reservedDelta: number }>();
-                const heldQtyById = new Map<string, number>();
-                if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
-                  restoredSaleData.cart.filter(item => !item.isService).forEach(item => heldQtyById.set(item.id, (heldQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
-                }
-                const totalQtyById = new Map<string, number>();
-                physicalItems.forEach(item => totalQtyById.set(item.id, (totalQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
-                const saleItemIds = new Set([...totalQtyById.keys(), ...heldQtyById.keys()]);
-                saleItemIds.forEach(itemId => {
-                  const totalQty = totalQtyById.get(itemId) || 0;
-                  const heldQty = heldQtyById.get(itemId) || 0;
-                  const isHeldTable = !!restoredSaleId && !!restoredSaleData && !restoredSaleData.linkedBillId;
-                  const isReservedHold = isHeldTable && restoredSaleData?.stockReservationMode === 'reserved';
-                  const quantityDelta = isReservedHold ? -totalQty
-                    : (isHeldTable ? heldQty - totalQty : -totalQty);
-                  const reservedDelta = isReservedHold ? -heldQty : 0;
-                  saleStockMap.set(itemId, { collectionName: getCollectionPath('stock'), itemId, quantityDelta, reservedDelta });
-                });
-                const stockAdjustments = [...saleStockMap.values()].filter(item => item.quantityDelta !== 0 || item.reservedDelta !== 0);
+                const stockAdjustments = buildPosStockMovements(
+                  allItems,
+                  restoredSaleId,
+                  restoredSaleData,
+                  getCollectionPath('stock')
+                ).filter(item => item.quantityDelta !== 0 || item.reservedDelta !== 0)
+                  .map(({ collectionName, itemId, quantityDelta, reservedDelta }) => ({
+                    collectionName, itemId, quantityDelta, reservedDelta,
+                  }));
                 const transactionKey = `pos-sale-${newSaleRef.id}`;
                 const localResponse = await fetch('/api/lan-sync', {
                   method: 'POST',
@@ -1067,37 +1101,17 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           if (!savedOnLocalMaster) {
             // Cloud-only mode writes the sale ledger and stock movement in one
             // Firestore batch, matching the Local Master transaction.
-            const saleStockMap = new Map<string, { quantityDelta: number; reservedDelta: number; requested: number; held: number }>();
-            const heldQtyById = new Map<string, number>();
-            if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
-              restoredSaleData.cart.filter(item => !item.isService).forEach(item => heldQtyById.set(item.id, (heldQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
-            }
-            allItems.filter(item => !item.isService).forEach(item => {
-              const current = saleStockMap.get(item.id) || { quantityDelta: 0, reservedDelta: 0, requested: 0, held: 0 };
-              current.requested += Number(item.sellQuantity || 0);
-              saleStockMap.set(item.id, current);
-            });
-            const saleItemIds = new Set([...saleStockMap.keys(), ...heldQtyById.keys()]);
-            saleItemIds.forEach(itemId => {
-              const delta = saleStockMap.get(itemId) || { quantityDelta: 0, reservedDelta: 0, requested: 0, held: 0 };
-              delta.held = heldQtyById.get(itemId) || 0;
-              if (restoredSaleData?.stockReservationMode === 'reserved') {
-                delta.quantityDelta = -delta.requested;
-                delta.reservedDelta = -delta.held;
-              } else if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
-                delta.quantityDelta = delta.held - delta.requested;
-              } else {
-                delta.quantityDelta = -delta.requested;
-              }
-              saleStockMap.set(itemId, delta);
-            });
+            const saleStockMap = new Map(
+              buildPosStockMovements(allItems, restoredSaleId, restoredSaleData, getCollectionPath('stock'))
+                .map(movement => [movement.itemId, movement] as const)
+            );
             await runTransaction(firestore, async (transaction) => {
               const stockSnapshots = new Map<string, { ref: any; data: any }>();
               for (const itemId of saleStockMap.keys()) {
                 const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
                 const stockSnapshot = await transaction.get(stockRef);
                 if (!stockSnapshot.exists()) {
-                  const item = physicalItems.find(entry => entry.id === itemId);
+                  const item = allItems.find(entry => entry.id === itemId);
                   throw new Error(`Stock item "${item?.name || itemId}" no longer exists.`);
                 }
                 stockSnapshots.set(itemId, { ref: stockRef, data: stockSnapshot.data() });
