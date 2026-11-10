@@ -847,18 +847,35 @@ function RunningTablesPage() {
           return item;
         }).filter(Boolean) as typeof saleData.cart;
 
-        // Return items to stock (only for non-service items)
+        // Read the linked bill and stock documents before performing transaction writes.
+        let linkedBillDoc = null;
+        if (saleData.linkedBillId && saleData.customer?.id) {
+          const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
+          linkedBillDoc = await transaction.get(billRef);
+        }
         const stockItems = itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
           return originalItem && !originalItem.isService && !saleData.linkedBillId;
         });
-
-        for (const returnItem of stockItems) {
-          const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
+        const returnQuantities = new Map<string, number>();
+        stockItems.forEach(item => returnQuantities.set(item.itemId, (returnQuantities.get(item.itemId) || 0) + Number(item.quantity || 0)));
+        const stockDocs = new Map<string, { ref: any; data: any }>();
+        for (const [itemId, quantity] of returnQuantities) {
+          const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
+          const stockDoc = await transaction.get(stockRef);
+          if (!stockDoc.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
+          const stockData = stockDoc.data();
+          if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < quantity) {
+            throw new Error(`The reserved stock for "${itemId}" is inconsistent. Refresh inventory before processing this return.`);
+          }
+          stockDocs.set(itemId, { ref: stockRef, data: stockData });
+        }
+        for (const [itemId, quantity] of returnQuantities) {
+          const stock = stockDocs.get(itemId)!;
           if (saleData.stockReservationMode === 'reserved') {
-            transaction.update(stockRef, { reservedQuantity: increment(-Number(returnItem.quantity || 0)) });
+            transaction.update(stock.ref, { reservedQuantity: increment(-quantity) });
           } else {
-            transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+            transaction.update(stock.ref, { quantity: increment(quantity) });
           }
         }
 
@@ -897,12 +914,8 @@ function RunningTablesPage() {
         // If cart is now empty, delete the running table and record history
         if (updatedCart.length === 0) {
           // If billed to room, delete the associated bill
-          if (saleData.linkedBillId && saleData.customer?.id) {
-            const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
-            const billDoc = await transaction.get(billRef);
-            if (billDoc.exists()) {
-              transaction.delete(billRef);
-            }
+          if (linkedBillDoc?.exists()) {
+            transaction.delete(linkedBillDoc.ref);
           }
           // Record history for completed table
           const docketHistoryRef = doc(collection(firestore, getCollectionPath('docketHistory')));
