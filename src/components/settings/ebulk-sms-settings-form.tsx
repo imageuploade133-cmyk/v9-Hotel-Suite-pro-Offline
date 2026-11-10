@@ -238,9 +238,8 @@ export function EbulkSmsSettingsForm() {
             </p>
             <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 ml-4 list-disc">
               <li>Ensure your eBulkSMS account has sufficient credits</li>
-              <li>Verify your WhatsApp Business number is connected to eBulkSMS (scan QR code in their dashboard)</li>
+              <li>Make sure your eBulkSMS WhatsApp sender is connected and active in the provider dashboard</li>
               <li>Phone numbers must include country code (e.g., 2348012345678 for Nigeria)</li>
-              <li>Check Google Apps Script is deployed and URL is saved in Firestore</li>
             </ul>
           </div>
           <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
