@@ -219,19 +219,18 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
     }
 
-    // Current stock is unreserved availability. Add back this table's own running
-    // quantity when calculating its limit, without exposing another table's reservations.
-    const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === itemId)?.sellQuantity || 0;
-    const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
+    // The current cart contains only additional units. The fetched currentStock
+    // is already the quantity available beyond all running-table reservations.
+    const maxCartQuantity = hasFiniteStock ? currentStock : Infinity;
 
-    if (hasFiniteStock && quantity > maxAllowed) {
+    if (hasFiniteStock && quantity > maxCartQuantity) {
         toast({
             variant: 'warning',
             title: 'Stock Limit Reached',
-            description: `Only ${maxAllowed} units of "${itemInCart.name}" are available.`,
+            description: `Only ${maxCartQuantity} additional units of "${itemInCart.name}" are available beyond running-table reservations.`,
         });
         setCart((prevCart) =>
-            prevCart.map((i) => (i.id === itemId ? { ...i, sellQuantity: maxAllowed } : i))
+            prevCart.map((i) => (i.id === itemId ? { ...i, sellQuantity: maxCartQuantity } : i))
         );
         return;
     }
