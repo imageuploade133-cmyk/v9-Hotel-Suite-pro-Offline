@@ -15,6 +15,7 @@ export interface WhatsAppMessageParams {
   recipients: string | string[];
   subject: string;
   message: string;
+  channel?: 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'bulkMessages' | 'guestNotifications' | 'otherNotifications';
 }
 
 export interface WhatsAppSendResult {
@@ -50,13 +51,13 @@ type ActiveWhatsAppProvider =
   | { kind: 'gateway'; baseUrl: string; apiKey: string; instanceId: string; senderName?: string }
   | { kind: 'ebulksms'; username: string; apiKey: string };
 
-async function getActiveWhatsAppProvider(): Promise<ActiveWhatsAppProvider> {
+async function getActiveWhatsAppProvider(channelId: NonNullable<WhatsAppMessageParams['channel']> = 'bulkMessages'): Promise<ActiveWhatsAppProvider> {
   const [globalSnapshot, ebulkSnapshot] = await Promise.all([
     getDoc(doc(db, 'settings', 'global')),
     getDoc(doc(db, 'settings', 'ebulkSms')),
   ]);
   const channel = globalSnapshot.exists() ? globalSnapshot.data()?.whatsappChannel : null;
-  if (channel?.enabled === true && channel?.channels?.bulkMessages === true && channel.baseUrl && channel.apiKey && channel.instanceId) {
+  if (channel?.enabled === true && channel?.channels?.[channelId] === true && channel.baseUrl && channel.apiKey && channel.instanceId) {
     return { kind: 'gateway', baseUrl: String(channel.baseUrl).trim().replace(/\\/+$/, '').replace(/\\/api$/i, ''), apiKey: String(channel.apiKey).trim(), instanceId: String(channel.instanceId).trim(), senderName: typeof channel.senderName === 'string' ? channel.senderName.trim() : '' };
   }
   const ebulk = ebulkSnapshot.exists() ? ebulkSnapshot.data() : null;
@@ -151,7 +152,7 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
   try {
     const formattedRecipients = validateRecipients(Array.isArray(recipients) ? recipients : [recipients]);
     validateMessage(subject, message);
-    const provider = await getActiveWhatsAppProvider();
+    const provider = await getActiveWhatsAppProvider(params.channel || 'bulkMessages');
     if (provider.kind === 'gateway') {
       const brandedMessage = [provider.senderName ? '*' + provider.senderName + '*' : '', subject.trim(), message.trim()].filter(Boolean).join('\\n\\n');
       const results: any[] = [];
@@ -280,11 +281,7 @@ For any inquiries, please contact us.
 
 Thank you for choosing our hotel! 🏨`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
