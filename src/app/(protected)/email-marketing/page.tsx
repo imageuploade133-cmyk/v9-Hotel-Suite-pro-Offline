@@ -48,7 +48,7 @@ function parseContactFile(text: string): Array<{ email: string; name: string }> 
     // Accept plain-text email lists and CSV columns in either email,name or name,email order.
     const cells = line.match(/("(?:[^"]|"")*"|[^,;\t]+)/g)?.map(cell => cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"')) || [line.trim()];
     const emails = Array.from(
-      line.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi),
+      line.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi),
       match => normalizeEmail(match[0])
     ).filter(email => EMAIL_RE.test(email));
     if (!emails.length) continue;
