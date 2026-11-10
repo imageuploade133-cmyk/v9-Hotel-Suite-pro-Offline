@@ -50,6 +50,29 @@ const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
   { id: 'otherNotifications', title: 'Other Notifications', description: 'Allow other supported email notification events.' },
 ];
 
+function extractDirectImgBbUrl(data: any): string {
+  if (!data || typeof data !== 'object') return '';
+  const candidates = [
+    data.image?.url,
+    data.url,
+    data.display_url,
+    data.medium?.url,
+    data.thumb?.url,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === 'https:' && parsed.hostname.toLowerCase() === 'i.ibb.co') {
+        return parsed.toString();
+      }
+    } catch {
+      // Ignore malformed ImgBB candidates and continue to the next direct URL.
+    }
+  }
+  return '';
+}
+
 function normalizeConfig(value: unknown): EmailConfig {
   if (!value || typeof value !== 'object') return { ...DEFAULT_CONFIG, channels: { ...DEFAULT_CHANNELS } };
   const saved = value as Partial<EmailConfig>;
@@ -197,9 +220,9 @@ export function EmailChannelSettingsForm() {
       let logoMarkup = '';
       // Email HTML uses the public ImgBB URL. Base64 data URLs are intentionally
       // excluded because the email gateway contract does not define inline data images.
-      const logoUrl = /^https:\/\//i.test(config.logoDataUrl) ? config.logoDataUrl : '';
+      const logoUrl = extractDirectImgBbUrl({ url: config.logoDataUrl });
       if (logoUrl) {
-        logoMarkup = '<img src="' + escapeHtml(logoUrl) + '" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
+        logoMarkup = '<img src="' + escapeHtml(logoUrl) + '" alt="' + escapeHtml(senderName) + '" width="180" height="84" style="display:block;width:180px;max-width:100%;height:auto;max-height:84px;object-fit:contain;margin:0 auto 18px;border:0;outline:none;text-decoration:none" />';
       }
       const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-collapse:collapse"><tr><td style="background:' + safeBannerColor + ';padding:13px 20px;text-align:center;color:#ffffff;font-size:13px;font-weight:bold;letter-spacing:1px">' + escapeHtml(config.topBannerText.trim() || senderName) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(senderName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(templateText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;white-space:pre-wrap">' + escapeHtml(config.footerText) + '</td></tr></table></body></html>';
 
@@ -207,17 +230,32 @@ export function EmailChannelSettingsForm() {
       // messages; multipart/form-data with repeated "attachments" fields for
       // browser-selected files. Let fetch set the multipart boundary itself.
       let requestBody: BodyInit;
-      const headers: Record<string, string> = { 'X-API-Key': config.apiKey.trim() };
+      const apiKey = config.apiKey.trim();
+      const headers: Record<string, string> = {
+        'X-API-Key': apiKey,
+        'x-api-key': apiKey,
+        apikey: apiKey,
+        Authorization: 'Bearer ' + apiKey,
+      };
       if (testFiles.length > 0) {
         const formData = new FormData();
         formData.append('to', recipient);
         formData.append('subject', renderedSubject);
         formData.append('html', html);
+        formData.append('text', templateText);
+        formData.append('fromName', senderName);
         testFiles.forEach(file => formData.append('attachments', file, file.name));
         requestBody = formData;
       } else {
         headers['Content-Type'] = 'application/json';
-        requestBody = JSON.stringify({ to: recipient, subject: renderedSubject, html });
+        requestBody = JSON.stringify({
+          to: recipient,
+          subject: renderedSubject,
+          html,
+          text: templateText,
+          fromName: senderName,
+          attachments: [],
+        });
       }
       const response = await fetch(baseUrl + '/api/email/send', {
         method: 'POST',
@@ -239,7 +277,12 @@ export function EmailChannelSettingsForm() {
         try {
           const statusResponse = await fetch(baseUrl + '/api/email/status/' + encodeURIComponent(payload.messageId), {
             method: 'GET',
-            headers: { 'X-API-Key': config.apiKey.trim() },
+            headers: {
+              'X-API-Key': config.apiKey.trim(),
+              'x-api-key': config.apiKey.trim(),
+              apikey: config.apiKey.trim(),
+              Authorization: 'Bearer ' + config.apiKey.trim(),
+            },
           });
           if (statusResponse.status === 401 || statusResponse.status === 403 || statusResponse.status === 404) break;
           if (!statusResponse.ok) continue;
@@ -291,7 +334,7 @@ export function EmailChannelSettingsForm() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="email-sender-name">Sender / business name</Label><Input id="email-sender-name" maxLength={120} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">Shown as the branded sender name in supported email gateway messages.</p></div>
-            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={isUploadingLogo} onChange={async event => { const input = event.currentTarget; const file = input.files?.[0]; input.value = ''; if (!file) return; if (!file.type.startsWith('image/')) { toast({ variant: 'destructive', title: 'Invalid logo file', description: 'Choose a PNG, JPG, WEBP or GIF image.' }); return; } const maxSizeMb = Number((settings as any)?.maxFileSizeMb) || 5; if (file.size > maxSizeMb * 1024 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose an image smaller than ' + maxSizeMb + ' MB.' }); return; } const imgbbApiKey = String((settings as any)?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4').trim(); if (!imgbbApiKey) { toast({ variant: 'destructive', title: 'ImgBB API key missing', description: 'Configure your ImgBB API key in Settings > Image Uploads first.' }); return; } setIsUploadingLogo(true); try { const reader = new FileReader(); const base64 = await new Promise<string>((resolve, reject) => { reader.onload = () => { const value = String(reader.result || ''); const comma = value.indexOf(','); if (comma < 0) return reject(new Error('Could not read the selected logo.')); resolve(value.slice(comma + 1)); }; reader.onerror = () => reject(new Error('Could not read the selected logo.')); reader.readAsDataURL(file); }); const formData = new FormData(); formData.append('image', base64); formData.append('name', 'hotel-email-logo-' + Date.now()); const response = await fetch('https://api.imgbb.com/1/upload?key=' + encodeURIComponent(imgbbApiKey), { method: 'POST', body: formData }); const result = await response.json(); const uploadedUrl = result?.data?.url; if (!response.ok || result?.success !== true || typeof uploadedUrl !== 'string' || !/^https:\/\//i.test(uploadedUrl)) throw new Error(result?.error?.message || 'ImgBB did not return a valid public logo URL.'); updateConfig({ logoDataUrl: uploadedUrl }); toast({ title: 'Business logo uploaded', description: 'The logo is now hosted on ImgBB and ready for branded emails.' }); } catch (error: any) { console.error('ImgBB email logo upload failed:', error); toast({ variant: 'destructive', title: 'Logo upload failed', description: error?.message || 'Could not upload the logo to ImgBB. Check the Image Upload settings and try again.' }); } finally { setIsUploadingLogo(false); } }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" disabled={isUploadingLogo} onClick={() => logoInputRef.current?.click()}>{isUploadingLogo ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading to ImgBB...</> : 'Upload logo to ImgBB'}</Button>{config.logoDataUrl && /^https:\/\//i.test(config.logoDataUrl) && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. The image is uploaded to your existing ImgBB account. Only its public URL is saved in Email settings and inserted into the email HTML; no Base64 image or extra email attachment is sent.</p></div>
+            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={isUploadingLogo} onChange={async event => { const input = event.currentTarget; const file = input.files?.[0]; input.value = ''; if (!file) return; if (!file.type.startsWith('image/')) { toast({ variant: 'destructive', title: 'Invalid logo file', description: 'Choose a PNG, JPG, WEBP or GIF image.' }); return; } const maxSizeMb = Number((settings as any)?.maxFileSizeMb) || 5; if (file.size > maxSizeMb * 1024 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose an image smaller than ' + maxSizeMb + ' MB.' }); return; } const imgbbApiKey = String((settings as any)?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4').trim(); if (!imgbbApiKey) { toast({ variant: 'destructive', title: 'ImgBB API key missing', description: 'Configure your ImgBB API key in Settings > Image Uploads first.' }); return; } setIsUploadingLogo(true); try { const reader = new FileReader(); const base64 = await new Promise<string>((resolve, reject) => { reader.onload = () => { const value = String(reader.result || ''); const comma = value.indexOf(','); if (comma < 0) return reject(new Error('Could not read the selected logo.')); resolve(value.slice(comma + 1)); }; reader.onerror = () => reject(new Error('Could not read the selected logo.')); reader.readAsDataURL(file); }); const formData = new FormData(); formData.append('image', base64); formData.append('name', 'hotel-email-logo-' + Date.now()); const response = await fetch('https://api.imgbb.com/1/upload?key=' + encodeURIComponent(imgbbApiKey), { method: 'POST', body: formData }); const result = await response.json(); const uploadedUrl = extractDirectImgBbUrl(result?.data); if (!response.ok || result?.success !== true || !uploadedUrl) throw new Error(result?.error?.message || 'ImgBB did not return a verified direct image URL (i.ibb.co). Please try uploading the logo again.'); updateConfig({ logoDataUrl: uploadedUrl }); toast({ title: 'Business logo uploaded', description: 'The logo is now hosted on ImgBB and ready for branded emails.' }); } catch (error: any) { console.error('ImgBB email logo upload failed:', error); toast({ variant: 'destructive', title: 'Logo upload failed', description: error?.message || 'Could not upload the logo to ImgBB. Check the Image Upload settings and try again.' }); } finally { setIsUploadingLogo(false); } }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" disabled={isUploadingLogo} onClick={() => logoInputRef.current?.click()}>{isUploadingLogo ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading and verifying logo...</> : 'Upload logo to ImgBB'}</Button>{config.logoDataUrl && /^https:\/\//i.test(config.logoDataUrl) && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. The image is uploaded to your existing ImgBB account. The verified direct image URL is saved in Email settings and embedded in the email HTML. The logo is not sent as a separate attachment.</p></div>
             <div className="md:col-span-2 space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div><p className="text-sm font-medium">Gateway account credentials</p><p className="text-xs text-muted-foreground">{config.username || config.password ? 'Credentials are saved and hidden from the settings inputs.' : 'No optional gateway account credentials have been saved.'}</p></div>
