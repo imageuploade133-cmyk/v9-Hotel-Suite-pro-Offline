@@ -372,6 +372,10 @@ export function AddEditStockItemDialog({
 
 
         if (isEditMode && item) {
+            const reservedQuantity = Number(item.reservedQuantity || 0);
+            if (Number(data.quantity || 0) < reservedQuantity) {
+              throw new Error(`You cannot reduce main stock below the ${reservedQuantity} units reserved on running tables. Complete, return, or cancel those tables first.`);
+            }
             // In global mode, items may belong to different branches. Use the item's actual branchId
             // to determine the correct collection path for updating.
             const actualCollectionPath = item.branchId
