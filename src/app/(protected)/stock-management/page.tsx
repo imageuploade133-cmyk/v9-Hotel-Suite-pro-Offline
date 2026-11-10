@@ -156,8 +156,14 @@ function StockManagementPage() {
     let expiredCount = 0;
     let upcomingExpiryCount = 0;
 
-    const lowStockItems = safeStockItems.filter(item => item.quantity > 0 && item.quantity <= (item.lowStockThreshold || 0));
-    const outOfStockItems = safeStockItems.filter(item => item.quantity <= 0);
+    // Stock alerts must reflect sellable stock, not units already reserved
+    // by active running tables.
+    const lowStockItems = safeStockItems
+      .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.held || 0)) }))
+      .filter(item => item.quantity > 0 && item.quantity <= (item.lowStockThreshold || 0));
+    const outOfStockItems = safeStockItems
+      .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.held || 0)) }))
+      .filter(item => item.quantity <= 0);
 
     safeStockItems.forEach(item => {
         const expiryDate = getSafeDate(item.expiryDate);
