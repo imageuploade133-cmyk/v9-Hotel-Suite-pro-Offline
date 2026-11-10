@@ -46,7 +46,6 @@ function WhatsAppPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { settings } = useSettings();
-  const [selectedGroups, setSelectedGroups] = React.useState<string[]>([]);
   const [manualRecipients, setManualRecipients] = React.useState<Recipient[]>([]);
   const [message, setMessage] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
@@ -111,7 +110,6 @@ function WhatsAppPage() {
 
   const handleGroupToggle = (groupName: string, checked: boolean) => {
     const groupIds = allRecipients.filter(item => item.group === groupName).map(item => item.id);
-    setSelectedGroups(prev => checked ? [...new Set([...prev, groupName])] : prev.filter(group => group !== groupName));
     setSelectedRecipientIds(prev => checked ? [...new Set([...prev, ...groupIds])] : prev.filter(id => !groupIds.includes(id)));
   };
   const handleRecipientToggle = (recipientId: string, checked: boolean) => {
@@ -207,7 +205,7 @@ function WhatsAppPage() {
                   const count = allRecipients.filter(item => item.group === group.name).length;
                   return (
                     <div key={group.name} className="flex items-center space-x-3">
-                      <Checkbox id={group.name} checked={selectedGroups.includes(group.name)} onCheckedChange={checked => handleGroupToggle(group.name, !!checked)} disabled={count === 0} />
+                      <Checkbox id={group.name} checked={count > 0 && allRecipients.filter(item => item.group === group.name).every(item => selectedRecipientIds.includes(item.id))} onCheckedChange={checked => handleGroupToggle(group.name, !!checked)} disabled={count === 0} />
                       <Label htmlFor={group.name} className="flex items-center gap-2 font-medium cursor-pointer">
                         <group.icon className="h-5 w-5 text-muted-foreground" />{group.name}<Badge variant="secondary">{count}</Badge>
                       </Label>
@@ -228,7 +226,7 @@ function WhatsAppPage() {
                 <Input value={recipientSearch} onChange={event => setRecipientSearch(event.target.value)} placeholder="Search by name, phone number or group..." aria-label="Search recipients" />
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => setSelectedRecipientIds(prev => [...new Set([...prev, ...visibleRecipients.map(item => item.id)])])} disabled={!visibleRecipients.length}>Select visible</Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => { setSelectedRecipientIds([]); setSelectedGroups([]); }} disabled={!recipients.length}>Clear selection</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedRecipientIds([])} disabled={!recipients.length}>Clear selection</Button>
                 </div>
                 <ScrollArea className="h-72 rounded-md border">
                   <div className="space-y-1 p-3">
