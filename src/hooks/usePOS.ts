@@ -630,19 +630,26 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
       const saleData = heldSaleDoc.data() as HeldSale;
       let billDoc = null;
-      let stockItemDocs = [];
+      let stockItemDocs: Array<{ ref: any; data: any; quantity: number }> = [];
 
       // If it was billed to a room, read the bill
       if (saleData.linkedBillId && saleData.customer?.id) {
           const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
           billDoc = await transaction.get(billRef);
       } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
-        // Only return stock to inventory for non-credit sales
-        // For credit sales, stock was already deducted when the sale was processed
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
-        if (itemsToReturnToStock.length > 0) {
-            const stockItemRefs = itemsToReturnToStock.map(item => doc(firestore, getCollectionPath('stock'), item.id));
-            stockItemDocs = await Promise.all(stockItemRefs.map(ref => transaction.get(ref)));
+        const quantities = new Map<string, number>();
+        saleData.cart.filter(item => !item.isService).forEach(item => {
+          quantities.set(item.id, (quantities.get(item.id) || 0) + Number(item.sellQuantity || 0));
+        });
+        for (const [itemId, quantity] of quantities) {
+          const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
+          const stockDoc = await transaction.get(stockRef);
+          if (!stockDoc.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
+          const stockData = stockDoc.data();
+          if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < quantity) {
+            throw new Error(`Reserved stock for "${itemId}" is inconsistent. Refresh inventory before deleting this table.`);
+          }
+          stockItemDocs.push({ ref: stockRef, data: stockData, quantity });
         }
       }
 
@@ -652,21 +659,12 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             transaction.delete(billDoc.ref);
           }
       } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
-        // Release reserved quantities, or restore physically deducted legacy stock
-        // For credit sales, stock was already deducted when the sale was processed
-        for (let i = 0; i < stockItemDocs.length; i++) {
-            const stockDoc = stockItemDocs[i];
-            const cartItem = saleData.cart.filter(item => !item.isService)[i];
-            if (stockDoc.exists()) {
-                if (saleData.stockReservationMode === 'reserved') {
-                  if (Number(stockDoc.data().reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
-                    throw new Error(`Reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
-                  }
-                  transaction.update(stockDoc.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
-                } else {
-                  transaction.update(stockDoc.ref, { quantity: increment(cartItem.sellQuantity) });
-                }
-            }
+        for (const stockItem of stockItemDocs) {
+          if (saleData.stockReservationMode === 'reserved') {
+            transaction.update(stockItem.ref, { reservedQuantity: increment(-stockItem.quantity) });
+          } else {
+            transaction.update(stockItem.ref, { quantity: increment(stockItem.quantity) });
+          }
         }
       }
       transaction.delete(heldSaleRef);
