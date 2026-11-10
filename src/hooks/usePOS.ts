@@ -586,6 +586,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const cartItem = saleData.cart.filter(item => !item.isService)[i];
             if (stockDoc.exists()) {
                 if (saleData.stockReservationMode === 'reserved') {
+                  if (Number(stockDoc.data().reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
+                    throw new Error(`Reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
+                  }
                   transaction.update(stockDoc.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
                 } else {
                   transaction.update(stockDoc.ref, { quantity: increment(cartItem.sellQuantity) });
