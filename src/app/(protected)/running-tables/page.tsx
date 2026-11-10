@@ -829,7 +829,11 @@ function RunningTablesPage() {
 
         for (const returnItem of stockItems) {
           const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
-          transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          if (saleData.stockReservationMode === 'reserved') {
+            transaction.update(stockRef, { reservedQuantity: increment(-Number(returnItem.quantity || 0)) });
+          } else {
+            transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          }
         }
 
         // Create a stock return record for audit trail
