@@ -9,7 +9,6 @@ import {
   serverTimestamp,
   addDoc,
   deleteDoc,
-  writeBatch,
   increment,
   getDoc,
   setDoc,
@@ -818,7 +817,55 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           };
 
           const saleData = getNewDocumentData(baseSaleData, branchContext);
-          const ledgerBatch = writeBatch(firestore);
+          const ledgerOperations: Array<{ action: 'set' | 'update' | 'delete'; ref: any; data?: any }> = [];
+          const ledgerBatch = {
+            set: (ref: any, data: any) => ledgerOperations.push({ action: 'set', ref, data }),
+            update: (ref: any, data: any) => ledgerOperations.push({ action: 'update', ref, data }),
+            delete: (ref: any) => ledgerOperations.push({ action: 'delete', ref }),
+            commit: async () => runTransaction(firestore, async transaction => {
+              const legacyHeldSale = !!restoredSaleId && restoredSaleData?.stockReserved !== true;
+              const itemsToDeduct = legacyHeldSale ? cart : allItems;
+              const requiredById = new Map<string, number>();
+              const releaseById = new Map<string, number>();
+              itemsToDeduct.filter(item => !item.isService).forEach(item => {
+                requiredById.set(item.id, (requiredById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+              });
+              if (restoredSaleData?.stockReserved === true) {
+                activeRunningItems.filter(item => !item.isService).forEach(item => {
+                  releaseById.set(item.id, (releaseById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+                });
+              }
+              const stockIds = new Set([...requiredById.keys(), ...releaseById.keys()]);
+              const stockSnapshots = new Map<string, { ref: any; data: any }>();
+              for (const itemId of stockIds) {
+                const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
+                const snapshot = await transaction.get(stockRef);
+                if (!snapshot.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
+                stockSnapshots.set(itemId, { ref: stockRef, data: snapshot.data() });
+              }
+              for (const itemId of stockIds) {
+                const stock = stockSnapshots.get(itemId)!;
+                const onHand = Number(stock.data.quantity ?? stock.data.stockCount ?? 0);
+                const held = Number(stock.data.held || 0);
+                const required = requiredById.get(itemId) || 0;
+                const release = releaseById.get(itemId) || 0;
+                const availableToThisSale = onHand - held + release;
+                if (availableToThisSale < required || held < release) {
+                  const itemName = allItems.find(item => item.id === itemId)?.name || itemId;
+                  throw new Error(`Insufficient available stock for "${itemName}". Available: ${Math.max(0, availableToThisSale)}, requested: ${required}. Please refresh the POS and try again.`);
+                }
+                const nextOnHand = onHand - required;
+                const nextHeld = held - release;
+                if (nextOnHand < nextHeld) throw new Error(`This sale would consume stock reserved by another running table for "${itemId}".`);
+                transaction.update(stock.ref, { quantity: nextOnHand, held: nextHeld });
+              }
+              for (const operation of ledgerOperations) {
+                if (operation.action === 'set') transaction.set(operation.ref, operation.data);
+                else if (operation.action === 'update') transaction.update(operation.ref, operation.data);
+                else transaction.delete(operation.ref);
+              }
+            }),
+          };
           const ledgerMutations: { collectionName: string; docId: string; data: Record<string, any> }[] = [];
 
           // Commit the sale and every payment allocation together. A failed Firestore
@@ -959,12 +1006,22 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     data: undefined as any,
                   });
                 }
-                const physicalItems = allItems.filter(item => !item.isService);
-                const stockAdjustments = physicalItems.map(item => ({
-                  collectionName: getCollectionPath('stock'),
-                  itemId: item.id,
-                  quantityDelta: -Number(item.sellQuantity || 0),
-                })).filter(item => item.quantityDelta !== 0);
+                const legacyHeldSale = !!restoredSaleId && restoredSaleData?.stockReserved !== true;
+                const itemsToDeduct = legacyHeldSale ? cart : allItems;
+                const stockDeltaMap = new Map<string, { collectionName: string; itemId: string; quantityDelta: number; heldDelta: number }>();
+                itemsToDeduct.filter(item => !item.isService).forEach(item => {
+                  const entry = stockDeltaMap.get(item.id) || { collectionName: getCollectionPath('stock'), itemId: item.id, quantityDelta: 0, heldDelta: 0 };
+                  entry.quantityDelta -= Number(item.sellQuantity || 0);
+                  stockDeltaMap.set(item.id, entry);
+                });
+                if (restoredSaleData?.stockReserved === true) {
+                  activeRunningItems.filter(item => !item.isService).forEach(item => {
+                    const entry = stockDeltaMap.get(item.id) || { collectionName: getCollectionPath('stock'), itemId: item.id, quantityDelta: 0, heldDelta: 0 };
+                    entry.heldDelta -= Number(item.sellQuantity || 0);
+                    stockDeltaMap.set(item.id, entry);
+                  });
+                }
+                const stockAdjustments = [...stockDeltaMap.values()].filter(item => item.quantityDelta !== 0 || item.heldDelta !== 0);
                 const transactionKey = `pos-sale-${newSaleRef.id}`;
                 const localResponse = await fetch('/api/lan-sync', {
                   method: 'POST',
@@ -992,14 +1049,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           }
 
           if (!savedOnLocalMaster) {
-            // Cloud-only mode writes the sale ledger and stock movement in one
-            // Firestore batch, matching the Local Master transaction.
-            allItems.filter(item => !item.isService).forEach(item => {
-              ledgerBatch.update(
-                doc(firestore, getCollectionPath('stock'), item.id),
-                { quantity: increment(-Number(item.sellQuantity || 0)) }
-              );
-            });
+            // Cloud-only mode validates current stock and writes the sale, payments,
+            // reservation release and on-hand deduction in one Firestore transaction.
             if (restoredSaleId) {
               ledgerBatch.delete(doc(firestore, getCollectionPath('heldSales'), restoredSaleId));
             }
