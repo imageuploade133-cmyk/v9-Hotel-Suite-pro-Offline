@@ -54,6 +54,7 @@ import {
   Landmark,
   FileText,
   MessageSquareText,
+  Mail,
   Banknote,
   Clock,
   Printer,
@@ -630,6 +631,7 @@ export default function ProtectedLayout({
           items: [
               { href: '/tutorial', icon: BookOpenCheck, label: 'Tutorial', permission: PagePermission.VIEW_TUTORIAL_PAGE },
               { href: '/whatsapp', icon: MessageSquareText, label: 'WhatsApp Messaging', permission: PagePermission.MANAGE_WHATSAPP_MESSAGING },
+              { href: '/email-marketing', icon: Mail, label: 'Email Marketing', permission: PagePermission.MANAGE_EMAIL_MARKETING },
               { href: '/settings/website-studio', icon: Globe, label: 'Website Studio', permission: PagePermission.MANAGE_GENERAL_SETTINGS },
               { href: '/settings/website-studio2', icon: AppWindow, label: 'Website Studio 2', permission: PagePermission.MANAGE_GENERAL_SETTINGS },
               { href: '/settings', icon: Settings, label: 'App Settings', permission: PagePermission.VIEW_SETTINGS_PAGE },

@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { MessageSquareText, Users, Hotel, ShoppingCart, Dumbbell, Send, Bot, Loader2, User, Phone, Mail, TrendingUp, TrendingDown, CheckCircle, XCircle } from 'lucide-react';
+import { MessageSquareText, Users, Hotel, ShoppingCart, Dumbbell, Send, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -31,7 +31,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { StatCard } from '@/components/ui/stat-card';
-import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendWhatsAppMessage, formatPhoneNumber } from '@/lib/whatsapp';
+import { Input } from '@/components/ui/input';
 import { ManualRecipientInput } from '@/components/messaging/manual-recipient-input';
 
 interface Recipient {
@@ -45,11 +46,13 @@ function WhatsAppPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const { settings } = useSettings();
-  const [selectedGroups, setSelectedGroups] = React.useState<string[]>([]);
   const [manualRecipients, setManualRecipients] = React.useState<Recipient[]>([]);
   const [message, setMessage] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
   const [showConfirmation, setShowConfirmation] = React.useState(false);
+  const [selectedRecipientIds, setSelectedRecipientIds] = React.useState<string[]>([]);
+  const [recipientSearch, setRecipientSearch] = React.useState('');
+  const [sendProgress, setSendProgress] = React.useState({ completed: 0, total: 0 });
 
   const { data: hotelCustomers, isLoading: hotelLoading } = useCollection<Customer>(React.useMemo(() => firestore ? query(collection(firestore, 'customers')) : null, [firestore]));
   const { data: posCustomers, isLoading: posLoading } = useCollection<Customer>(React.useMemo(() => firestore ? query(collection(firestore, 'posCustomers')) : null, [firestore]));
@@ -83,87 +86,77 @@ function WhatsAppPage() {
   }, [whatsAppLogs]);
 
 
-  const recipients: Recipient[] = React.useMemo(() => {
-    const allRecipients: Recipient[] = [];
-    const addedPhoneNumbers = new Set<string>();
-
-    const addRecipient = (recipient: Recipient) => {
-      if (recipient.phoneNumber && !addedPhoneNumbers.has(recipient.phoneNumber)) {
-        allRecipients.push(recipient);
-        addedPhoneNumbers.add(recipient.phoneNumber);
+  const allRecipients: Recipient[] = React.useMemo(() => {
+    const unique = new Map<string, Recipient>();
+    const add = (item: any, group: Recipient['group'], idPrefix: string) => {
+      const rawPhone = String(item?.phoneNumber || '').trim();
+      if (!rawPhone) return;
+      let phoneNumber: string;
+      try { phoneNumber = formatPhoneNumber(rawPhone); } catch { return; }
+      if (!unique.has(phoneNumber)) {
+        unique.set(phoneNumber, { id: `${idPrefix}-${String(item?.id || phoneNumber)}`, name: String(item?.name || item?.fullName || 'Contact').trim() || 'Contact', phoneNumber, group });
       }
     };
+    recipientGroups.forEach(group => (group.data || []).forEach((item: any) => add(item, group.name as Recipient['group'], group.name)));
+    manualRecipients.forEach(item => add(item, 'Manual', 'manual'));
+    return Array.from(unique.values());
+  }, [recipientGroups, manualRecipients]);
 
-    selectedGroups.forEach(groupName => {
-      const group = recipientGroups.find(g => g.name === groupName);
-      if (group?.data) {
-        group.data.forEach((item: any) => {
-          addRecipient({
-            id: item.id,
-            name: item.name,
-            phoneNumber: item.phoneNumber,
-            group: group.name as Recipient['group'],
-          });
-        });
-      }
-    });
-
-    manualRecipients.forEach(addRecipient);
-
-    return allRecipients;
-  }, [selectedGroups, manualRecipients, recipientGroups]);
+  const recipients = React.useMemo(() => allRecipients.filter(item => selectedRecipientIds.includes(item.id)), [allRecipients, selectedRecipientIds]);
+  const visibleRecipients = React.useMemo(() => {
+    const term = recipientSearch.trim().toLowerCase();
+    return term ? allRecipients.filter(item => item.name.toLowerCase().includes(term) || (item.phoneNumber || '').includes(term) || item.group.toLowerCase().includes(term)) : allRecipients;
+  }, [allRecipients, recipientSearch]);
 
   const handleGroupToggle = (groupName: string, checked: boolean) => {
-    setSelectedGroups(prev =>
-      checked ? [...prev, groupName] : prev.filter(g => g !== groupName)
-    );
+    const groupIds = allRecipients.filter(item => item.group === groupName).map(item => item.id);
+    setSelectedRecipientIds(prev => checked ? [...new Set([...prev, ...groupIds])] : prev.filter(id => !groupIds.includes(id)));
+  };
+  const handleRecipientToggle = (recipientId: string, checked: boolean) => {
+    setSelectedRecipientIds(prev => checked ? [...new Set([...prev, recipientId])] : prev.filter(id => id !== recipientId));
   };
 
   const handleAddManualRecipients = (numbers: string[]) => {
-    const newRecipients: Recipient[] = numbers.map((num, i) => ({
-      id: `manual-${Date.now()}-${i}`,
-      name: `Manual Entry`,
-      phoneNumber: num,
-      group: 'Manual',
-    }));
-    setManualRecipients(prev => [...prev, ...newRecipients]);
-    toast({
-      title: 'Recipients Added',
-      description: `${newRecipients.length} manual numbers have been added to the recipient list.`
-    })
+    const existing = new Set(allRecipients.map(item => item.phoneNumber));
+    const additions: Recipient[] = [];
+    let invalid = 0; let duplicate = 0;
+    numbers.forEach(raw => {
+      try {
+        const phoneNumber = formatPhoneNumber(raw);
+        if (existing.has(phoneNumber)) { duplicate += 1; return; }
+        existing.add(phoneNumber);
+        additions.push({ id: `manual-${phoneNumber}`, name: 'Manual recipient', phoneNumber, group: 'Manual' });
+      } catch { invalid += 1; }
+    });
+    if (!additions.length) {
+      toast({ variant: 'destructive', title: 'No new valid numbers', description: invalid ? 'Check the numbers and include a country code, for example +2348012345678.' : 'All entered numbers are already in the recipient list.' });
+      return;
+    }
+    setManualRecipients(prev => [...prev, ...additions]);
+    setSelectedRecipientIds(prev => [...new Set([...prev, ...additions.map(item => item.id)])]);
+    toast({ title: 'Manual recipients added', description: `${additions.length} valid number(s) added and selected.${duplicate ? ` ${duplicate} duplicate(s) skipped.` : ''}${invalid ? ` ${invalid} invalid number(s) skipped.` : ''}` });
   };
 
   const handleSend = async () => {
     setShowConfirmation(false);
-    if (!message || recipients.length === 0) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please select recipients and write a message.' });
-      return;
-    }
-    setIsSending(true);
-
+    const messageText = message.trim();
+    if (!messageText || recipients.length === 0) { toast({ variant: 'destructive', title: 'Cannot send message', description: 'Select at least one valid recipient and enter a message.' }); return; }
+    if (messageText.length > 1000) { toast({ variant: 'destructive', title: 'Message is too long', description: 'The WhatsApp provider accepts up to 1,000 characters per message.' }); return; }
+    setIsSending(true); setSendProgress({ completed: 0, total: recipients.length });
+    let successCount = 0; let failedCount = 0;
+    const numbers = recipients.map(item => item.phoneNumber!).filter(Boolean);
     try {
-      const phoneNumbers = recipients.map(r => r.phoneNumber!).filter(Boolean);
-
-      const result = await sendWhatsAppMessage({
-        phone: phoneNumbers,
-        message: message,
-        senderName: settings?.businessName || 'Your Business',
-        greeting: 'Bulk Message'
-      });
-
-      if (result.status === 'success') {
-          toast({ variant: 'success', title: 'Messages Sent', description: `Your message is being sent to ${recipients.length} recipient(s).` });
-          setMessage('');
-      } else {
-          throw new Error(result.message || 'Failed to send messages.');
+      for (let index = 0; index < numbers.length; index += 100) {
+        const chunk = numbers.slice(index, index + 100);
+        const result = await sendWhatsAppMessage({ recipients: chunk, subject: `Bulk Message from ${settings?.businessName || 'Hotel Suite Pro'}`.slice(0, 100), message: messageText });
+        if (result.success) successCount += chunk.length; else failedCount += chunk.length;
+        setSendProgress({ completed: Math.min(index + chunk.length, numbers.length), total: numbers.length });
       }
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Failed to Send', description: error.message });
-    } finally {
-        setIsSending(false);
-    }
+      if (failedCount === 0) { toast({ title: 'Messages submitted', description: `The existing WhatsApp provider accepted the message for all ${successCount} recipient(s).` }); setMessage(''); }
+      else toast({ variant: 'destructive', title: 'Bulk send completed with failures', description: `${successCount} accepted; ${failedCount} failed. Check the provider response and retry failed recipients.` });
+    } catch (error: any) { toast({ variant: 'destructive', title: 'Bulk send failed', description: error?.message || 'The WhatsApp provider could not process this campaign.' }); }
+    finally { setIsSending(false); }
   };
-
   if (isLoading) {
     return <WhatsAppLoading />;
   }
@@ -175,7 +168,7 @@ function WhatsAppPage() {
           <MessageSquareText className="h-10 w-10 text-primary" />
           <div>
             <h1 className="text-4xl font-bold tracking-tight">Bulk WhatsApp Messaging</h1>
-            <p className="text-muted-foreground">Send messages to selected groups of users.</p>
+            <p className="text-muted-foreground">Choose saved contacts individually or by group, add manual phone numbers, and send through your existing WhatsApp provider.</p>
           </div>
         </div>
 
@@ -209,19 +202,12 @@ function WhatsAppPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {recipientGroups.map(group => {
-                  const count = group.data?.filter(item => !!item.phoneNumber).length || 0;
+                  const count = allRecipients.filter(item => item.group === group.name).length;
                   return (
                     <div key={group.name} className="flex items-center space-x-3">
-                      <Checkbox
-                        id={group.name}
-                        checked={selectedGroups.includes(group.name)}
-                        onCheckedChange={(checked) => handleGroupToggle(group.name, !!checked)}
-                        disabled={count === 0}
-                      />
+                      <Checkbox id={group.name} checked={count > 0 && allRecipients.filter(item => item.group === group.name).every(item => selectedRecipientIds.includes(item.id))} onCheckedChange={checked => handleGroupToggle(group.name, !!checked)} disabled={count === 0} />
                       <Label htmlFor={group.name} className="flex items-center gap-2 font-medium cursor-pointer">
-                        <group.icon className="h-5 w-5 text-muted-foreground" />
-                        {group.name}
-                        <Badge variant="secondary">{count}</Badge>
+                        <group.icon className="h-5 w-5 text-muted-foreground" />{group.name}<Badge variant="secondary">{count}</Badge>
                       </Label>
                     </div>
                   )
@@ -233,18 +219,24 @@ function WhatsAppPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Recipients</CardTitle>
-                <CardDescription>{recipients.length} unique recipient(s) selected.</CardDescription>
+                <CardTitle>Select Individual Recipients</CardTitle>
+                <CardDescription>{recipients.length} of {allRecipients.length} valid contact(s) selected.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-48 rounded-md border">
-                  <div className="p-4 space-y-2">
-                    {recipients.length > 0 ? recipients.map(r => (
-                      <div key={r.id} className="flex justify-between items-center text-sm">
-                        <span className="font-medium">{r.name}</span>
-                        <Badge variant="outline">{r.group}</Badge>
-                      </div>
-                    )) : <p className="text-center text-muted-foreground pt-10">Select a group or add numbers manually.</p>}
+              <CardContent className="space-y-3">
+                <Input value={recipientSearch} onChange={event => setRecipientSearch(event.target.value)} placeholder="Search by name, phone number or group..." aria-label="Search recipients" />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedRecipientIds(prev => [...new Set([...prev, ...visibleRecipients.map(item => item.id)])])} disabled={!visibleRecipients.length}>Select visible</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedRecipientIds([])} disabled={!recipients.length}>Clear selection</Button>
+                </div>
+                <ScrollArea className="h-72 rounded-md border">
+                  <div className="space-y-1 p-3">
+                    {visibleRecipients.length ? visibleRecipients.map(recipient => (
+                      <label key={recipient.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60">
+                        <Checkbox checked={selectedRecipientIds.includes(recipient.id)} onCheckedChange={checked => handleRecipientToggle(recipient.id, !!checked)} />
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{recipient.name}</span><span className="block text-xs text-muted-foreground">{recipient.phoneNumber}</span></span>
+                        <Badge variant="outline">{recipient.group}</Badge>
+                      </label>
+                    )) : <p className="p-6 text-center text-sm text-muted-foreground">No matching phone numbers found.</p>}
                   </div>
                 </ScrollArea>
               </CardContent>
@@ -282,13 +274,13 @@ function WhatsAppPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Bulk Message</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to send a WhatsApp message to <span className="font-bold">{recipients.length}</span> recipient(s). Are you sure?
+              You are about to send a WhatsApp message to <span className="font-bold">{recipients.length}</span> unique recipient(s). Are you sure?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSending}>Cancel</AlertDialogCancel>
             <Button onClick={handleSend} loading={isSending}>
-                {isSending ? 'Sending...' : 'Yes, Send Message'}
+                {isSending ? `Sending ${sendProgress.completed}/${sendProgress.total}...` : 'Yes, Send Message'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

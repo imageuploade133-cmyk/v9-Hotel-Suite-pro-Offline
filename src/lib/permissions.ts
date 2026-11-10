@@ -90,6 +90,7 @@ export enum PagePermission {
   MANAGE_GUEST_ENGAGEMENT = 'manage:guest_engagement',
   VIEW_TUTORIAL_PAGE = 'view:tutorial',
   MANAGE_WHATSAPP_MESSAGING = 'manage:whatsapp_messaging',
+  MANAGE_EMAIL_MARKETING = 'manage:email_marketing',
   VIEW_GLOBAL_AUDIT = 'view:global_audit',
   VIEW_SETTINGS_PAGE_2 = 'view:settings_page_2',
 
@@ -260,6 +261,7 @@ export const PERMISSION_GROUPS = [
     permissions: [
       { id: PagePermission.VIEW_TUTORIAL_PAGE, description: 'Access the application tutorial' },
       { id: PagePermission.MANAGE_WHATSAPP_MESSAGING, description: 'Send bulk WhatsApp messages to customer groups' },
+      { id: PagePermission.MANAGE_EMAIL_MARKETING, description: 'Manage email marketing contacts and send email campaigns' },
       { id: PagePermission.VIEW_SETTINGS_PAGE, description: 'View application settings' },
       { id: PagePermission.VIEW_SETTINGS_PAGE_2, description: 'View the second settings page' },
       { id: PagePermission.MANAGE_GENERAL_SETTINGS, description: 'Manage general business and system settings' },
@@ -459,6 +461,7 @@ export function getLandingPage(permissions: string[]): string {
       [PagePermission.VIEW_STAFF_ANALYTICS]: '/staff-analytics',
       [PagePermission.VIEW_TUTORIAL_PAGE]: '/tutorial',
       [PagePermission.MANAGE_WHATSAPP_MESSAGING]: '/whatsapp',
+      [PagePermission.MANAGE_EMAIL_MARKETING]: '/email-marketing',
       [PagePermission.VIEW_SETTINGS_PAGE]: '/settings',
       [PagePermission.MANAGE_OWN_PROFILE]: '/profile',
     };

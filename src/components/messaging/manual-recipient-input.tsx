@@ -18,7 +18,7 @@ export function ManualRecipientInput({ onAdd }: ManualRecipientInputProps) {
 
   const handleAddNumbers = () => {
     const numbers = numbersText
-      .split(/[\n,;\s]+/) // Split by newlines, commas, semicolons, or spaces
+      .split(/[\n,;\t]+/) // Split by newlines, commas, semicolons, or tabs
       .map(num => num.trim())
       .filter(Boolean); // Remove any empty strings
 
@@ -40,14 +40,14 @@ export function ManualRecipientInput({ onAdd }: ManualRecipientInputProps) {
       <CardHeader>
         <CardTitle>Manual Entry</CardTitle>
         <CardDescription>
-          Paste or type phone numbers below, separated by commas, spaces, or new lines.
+          Paste or type phone numbers below, one per line or separated by commas or semicolons. Spaces inside a formatted phone number are allowed.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Textarea
           value={numbersText}
           onChange={(e) => setNumbersText(e.target.value)}
-          placeholder="e.g., +1234567890, +44987654321..."
+          placeholder="e.g. +234 801 234 5678, +44 9876 54321"
           rows={4}
         />
       </CardContent>
