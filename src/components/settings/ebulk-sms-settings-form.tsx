@@ -100,44 +100,18 @@ export function EbulkSmsSettingsForm() {
   async function testConnection() {
     setTestStatus('testing');
     try {
-      const scriptDoc = await getDoc(doc(db, 'settings', 'googleAppsScript'));
-      const scriptUrl = scriptDoc.data()?.scriptUrl;
-
-      if (!scriptUrl) {
-        toast({
-          variant: 'destructive',
-          title: 'Configuration Error',
-          description: 'Google Apps Script URL is not configured. Please set it up first.',
-        });
-        setTestStatus('error');
-        return;
-      }
-
       const values = form.getValues();
-      if (!values.username || !values.apiKey) {
-        toast({
-          variant: 'destructive',
-          title: 'Missing Credentials',
-          description: 'Please fill in both username and API key before testing.',
-        });
+      if (!values.username.trim() || !values.apiKey.trim()) {
+        toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Enter both the EbulkSMS username and API key before saving.' });
         setTestStatus('error');
         return;
       }
-
       await setDoc(doc(db, 'settings', 'ebulkSms'), { ...values, enabled }, { merge: true });
-
-      toast({
-        title: 'Test Initiated',
-        description: 'Credentials saved. Check the WhatsApp logs to verify the connection works when you send a message.',
-      });
+      toast({ title: 'Configuration saved', description: 'Credentials and provider status were saved. This does not verify message delivery; send a real test message from Bulk WhatsApp Messaging.' });
       setTestStatus('success');
     } catch (error: any) {
-      console.error('Error testing connection:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Test Failed',
-        description: error.message || 'Failed to test connection.',
-      });
+      console.error('Error saving EbulkSMS configuration:', error);
+      toast({ variant: 'destructive', title: 'Save Failed', description: error?.message || 'Could not save EbulkSMS configuration.' });
       setTestStatus('error');
     }
   }
@@ -246,7 +220,7 @@ export function EbulkSmsSettingsForm() {
                 {testStatus === 'success' && <CheckCircle className="mr-2 h-4 w-4 text-green-600" />}
                 {testStatus === 'error' && <AlertCircle className="mr-2 h-4 w-4 text-red-600" />}
                 {testStatus === 'idle' && <Send className="mr-2 h-4 w-4" />}
-                {testStatus === 'testing' ? 'Testing...' : 'Save & Verify'}
+                {testStatus === 'testing' ? 'Saving...' : 'Save Configuration'}
               </Button>
             </div>
           </form>
