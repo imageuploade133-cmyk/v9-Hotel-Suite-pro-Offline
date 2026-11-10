@@ -231,12 +231,12 @@ export function EmailChannelSettingsForm() {
       // browser-selected files. Let fetch set the multipart boundary itself.
       let requestBody: BodyInit;
       const apiKey = config.apiKey.trim();
-      const headers: Record<string, string> = {
-        'X-API-Key': apiKey,
-        'x-api-key': apiKey,
-        apikey: apiKey,
-        Authorization: 'Bearer ' + apiKey,
-      };
+      // The gateway contract requires exactly one x-api-key header.
+      // Do not send duplicate case-variant headers or unrelated Bearer/API-key
+      // schemes: HTTP header names are case-insensitive and duplicates can be
+      // merged by fetch into a value the gateway cannot validate.
+      const headers = new Headers();
+      headers.set('x-api-key', apiKey);
       if (testFiles.length > 0) {
         const formData = new FormData();
         formData.append('to', recipient);
@@ -247,7 +247,7 @@ export function EmailChannelSettingsForm() {
         testFiles.forEach(file => formData.append('attachments', file, file.name));
         requestBody = formData;
       } else {
-        headers['Content-Type'] = 'application/json';
+        headers.set('Content-Type', 'application/json');
         requestBody = JSON.stringify({
           to: recipient,
           subject: renderedSubject,
@@ -278,10 +278,7 @@ export function EmailChannelSettingsForm() {
           const statusResponse = await fetch(baseUrl + '/api/email/status/' + encodeURIComponent(payload.messageId), {
             method: 'GET',
             headers: {
-              'X-API-Key': config.apiKey.trim(),
               'x-api-key': config.apiKey.trim(),
-              apikey: config.apiKey.trim(),
-              Authorization: 'Bearer ' + config.apiKey.trim(),
             },
           });
           if (statusResponse.status === 401 || statusResponse.status === 403 || statusResponse.status === 404) break;
