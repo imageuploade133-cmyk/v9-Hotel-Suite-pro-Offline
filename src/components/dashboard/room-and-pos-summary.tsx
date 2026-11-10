@@ -7,6 +7,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { BedDouble, CalendarCheck, DollarSign, ShoppingCart, ChevronDown, FileWarning } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { AutoFitText } from '@/components/ui/auto-fit-text';
 
 export function RoomAndPosSummary({ data, posIncomeFilter, setPosIncomeFilter }: any) {
   const { totalRoomIncome, totalRoomOutstanding, totalReservations, activeReservations, todaysHotelPosIncome, todaysMainPosIncome, posIncomeLabel, userCurrency, isLoading, totalOutstandingBill } = data;
@@ -73,7 +74,7 @@ export function RoomAndPosSummary({ data, posIncomeFilter, setPosIncomeFilter }:
               <ShoppingCart className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">{formatCurrency(todaysHotelPosIncome + todaysMainPosIncome)}</div>
+              <AutoFitText className="text-2xl font-bold text-green-700">{formatCurrency(todaysHotelPosIncome + todaysMainPosIncome)}</AutoFitText>
               <p className="text-xs text-green-600">Hotel POS: {formatCurrency(todaysHotelPosIncome)} | Main POS: {formatCurrency(todaysMainPosIncome)}</p>
             </CardContent>
         </Card>
