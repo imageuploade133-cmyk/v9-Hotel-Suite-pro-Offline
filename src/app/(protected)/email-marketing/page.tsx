@@ -83,6 +83,7 @@ function EmailMarketingPage() {
   const [messageTemplate, setMessageTemplate] = React.useState('Hello {{name}},\n\n{{message}}\n\nThank you,\n{{businessName}}');
   const [campaignMessage, setCampaignMessage] = React.useState('We have an update to share with you.');
   const [isSending, setIsSending] = React.useState(false);
+  const [confirmMarketingConsent, setConfirmMarketingConsent] = React.useState(false);
   const [isImporting, setIsImporting] = React.useState(false);
   const [isAdding, setIsAdding] = React.useState(false);
   const [progress, setProgress] = React.useState({ done: 0, total: 0, sent: 0, failed: 0 });
@@ -204,6 +205,10 @@ function EmailMarketingPage() {
   const handleSendCampaign = async () => {
     if (!emailEnabled || !baseUrl || !apiKey) {
       toast({ variant: 'destructive', title: 'Email integration is not ready', description: 'Enable Email Integration and save its API Base URL and API Key in Settings first.' });
+      return;
+    }
+    if (!confirmMarketingConsent) {
+      toast({ variant: 'destructive', title: 'Confirm recipient permission', description: 'Confirm that the selected contacts have agreed to receive these marketing emails.' });
       return;
     }
     if (!selectedContacts.length) {
@@ -346,7 +351,8 @@ function EmailMarketingPage() {
               <div className="space-y-2"><Label htmlFor="marketing-template">Customized email body template</Label><Textarea id="marketing-template" rows={8} value={messageTemplate} onChange={event => setMessageTemplate(event.target.value)} /></div>
               <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">Available placeholders: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{businessName}}'}</code>, <code>{'{{message}}'}</code>, <code>{'{{date}}'}</code>. Your saved Email Settings logo, banner colour, sender name and footer are used automatically.</div>
               <div className="flex items-center justify-between gap-2 text-sm"><span className="text-muted-foreground">Recipients selected</span><strong>{selectedContacts.length}</strong></div>
-              <Button type="button" className="w-full" onClick={handleSendCampaign} disabled={isSending || !selectedContacts.length || !campaignMessage.trim()}>
+              <label className="flex items-start gap-2 rounded-md border p-3 text-xs"><Checkbox checked={confirmMarketingConsent} onCheckedChange={checked => setConfirmMarketingConsent(!!checked)} /><span>I confirm that the selected recipients have permission to receive this marketing email and that opt-out requests will be honoured.</span></label>
+              <Button type="button" className="w-full" onClick={handleSendCampaign} disabled={isSending || !selectedContacts.length || !campaignMessage.trim() || !confirmMarketingConsent}>
                 {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 {isSending ? `Sending ${progress.done}/${progress.total}` : `Send campaign to ${selectedContacts.length} recipient(s)`}
               </Button>
