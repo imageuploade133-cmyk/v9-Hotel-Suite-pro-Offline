@@ -414,6 +414,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 if (restoredSaleData.linkedBillId && restoredSaleData.customer?.id) {
                     const billRef = doc(firestore, `bookings/${restoredSaleData.customer.id}/bills`, restoredSaleData.linkedBillId);
                     billDoc = await transaction.get(billRef);
+                    if (!billDoc.exists()) throw new Error('The room bill linked to this running table no longer exists. No inventory changes were made.');
                 }
             } else {
                 const stockItemsInCart = combinedItems.filter(item => !item.isService);
