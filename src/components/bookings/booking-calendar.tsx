@@ -336,8 +336,15 @@ export function BookingCalendar({ bookings, onDateClick, onRangeSelect }: { book
   const [viewMode, setViewMode] = React.useState<'timeline' | 'calendar'>('timeline');
   const firestore = useFirestore();
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null);
+  const { settings, isLoading: isSettingsLoading } = useSettings();
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
-  const { settings } = useSettings();
+  const hasAppliedInitialExpandPreference = React.useRef(false);
+
+  React.useEffect(() => {
+    if (isSettingsLoading || hasAppliedInitialExpandPreference.current) return;
+    setIsCalendarOpen(settings?.expandBookingAvailabilityCalendarOnOpen === true);
+    hasAppliedInitialExpandPreference.current = true;
+  }, [isSettingsLoading, settings?.expandBookingAvailabilityCalendarOnOpen]);
 
   const roomsQuery = React.useMemo(() => {
     if (!firestore) return null;
