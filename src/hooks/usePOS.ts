@@ -430,16 +430,16 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 }
             }
             if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
-                const oldItems = restoredSaleData.cart.filter(item => !item.isService);
+                const itemsToVerify = [...restoredSaleData.cart, ...combinedItems].filter(item => !item.isService);
                 const stockById = new Map(stockDocs.map(item => [item.ref.id, item]));
-                for (const oldItem of oldItems) {
-                    if (stockById.has(oldItem.id)) continue;
-                    const stockRef = doc(firestore, getCollectionPath('stock'), oldItem.id);
+                for (const stockItem of itemsToVerify) {
+                    if (stockById.has(stockItem.id)) continue;
+                    const stockRef = doc(firestore, getCollectionPath('stock'), stockItem.id);
                     const stockDoc = await transaction.get(stockRef);
-                    if (!stockDoc.exists()) throw new Error(`Stock item "${oldItem.name}" no longer exists.`);
+                    if (!stockDoc.exists()) throw new Error(`Stock item "${stockItem.name}" no longer exists.`);
                     const entry = { ref: stockRef, data: stockDoc.data() };
                     stockDocs.push(entry);
-                    stockById.set(oldItem.id, entry);
+                    stockById.set(stockItem.id, entry);
                 }
             }
 
