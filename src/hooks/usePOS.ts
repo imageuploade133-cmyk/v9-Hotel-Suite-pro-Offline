@@ -107,9 +107,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     const totalInCart = cart.find((cartItem) => cartItem.id === item.id)?.sellQuantity || 0;
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === item.id)?.sellQuantity || 0;
 
-    // Calculate how many more can be added:
-    // - Items in activeRunningItems have already been deducted from stock
-    // - So we can add up to (currentStock + totalInRunning) total
+    // Calculate the total limit for this table:
+    // Current stock is unreserved availability; add this table's own running quantity
+    // back so it can continue adding items without competing against its own reservation.
     const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
     const totalExisting = totalInCart + totalInRunning;
 
@@ -219,9 +219,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
     }
 
-    // Calculate how many can be in the cart:
-    // - Items in activeRunningItems have already been deducted from stock
-    // - So cart can have up to (currentStock + totalInRunning) total
+    // Current stock is unreserved availability. Add back this table's own running
+    // quantity when calculating its limit, without exposing another table's reservations.
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === itemId)?.sellQuantity || 0;
     const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
 
