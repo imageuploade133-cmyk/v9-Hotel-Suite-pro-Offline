@@ -35,6 +35,7 @@ import { LaundrySettings } from '@/components/settings/laundry-settings';
 import { NotificationSettingsForm } from '@/components/settings/notification-settings-form';
 import { SignatureRoomManagement } from '@/components/settings/signature-room-management';
 import { InventoryPolicyForm } from '@/components/settings/inventory-policy-form';
+import { RoomStatusDisplaySettings } from '@/components/settings/room-status-display-settings';
 import { POSCustomerAccessSettings } from '@/components/settings/pos-customer-access-settings';
 import { Accordion } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ const settingsSections = [
             { id: 'inventory-policy', title: 'Inventory Policy', icon: Package, component: <InventoryPolicyForm />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
             { id: 'cancellation-policy', title: 'Invoice Text', icon: FileX, component: <CancellationPolicyForm />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
             { id: 'calendar-colors', title: 'Calendar Colors', icon: Palette, component: <CalendarColorForm />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
+            { id: 'room-status-display', title: 'Room Status & Bookings Display', icon: Bed, component: <RoomStatusDisplaySettings />, permission: PagePermission.MANAGE_GENERAL_SETTINGS },
             { id: 'booking-form-fields', title: 'Custom Booking Fields', icon: Book, component: (
                 <Card>
                     <CardHeader>
