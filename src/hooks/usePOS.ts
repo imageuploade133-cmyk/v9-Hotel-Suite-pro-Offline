@@ -583,7 +583,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const stockDoc = stockItemDocs[i];
             const cartItem = saleData.cart.filter(item => !item.isService)[i];
             if (stockDoc.exists()) {
-                transaction.update(stockDoc.ref, { quantity: increment(cartItem.sellQuantity) });
+                if (saleData.stockReservationMode === 'reserved') {
+                  transaction.update(stockDoc.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
+                } else {
+                  transaction.update(stockDoc.ref, { quantity: increment(cartItem.sellQuantity) });
+                }
             }
         }
       }
