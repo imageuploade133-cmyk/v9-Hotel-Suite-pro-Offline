@@ -535,7 +535,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       const heldResponse = await fetch(`/api/lan-sync?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
       if (!heldResponse.ok) throw new Error('Unable to verify the running table on the Local Master PC.');
       const heldPayload = await heldResponse.json();
-      const saleData = (heldPayload?.data?.[saleToDelete.id] || saleToDelete) as HeldSale;
+      const currentHeldSale = heldPayload?.data?.[saleToDelete.id];
+      if (!currentHeldSale) throw new Error('Running table not found on the Local Master PC.');
+      const saleData = currentHeldSale as HeldSale;
       const stockAdjustments = !saleData.isCreditSale
         ? saleData.cart.filter(item => !item.isService).map(item => ({
             collectionName: getCollectionPath('stock'),
