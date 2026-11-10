@@ -395,6 +395,7 @@ export function AddEditStockItemDialog({
             const baseItemData = {
               ...itemData,
               held: 0,
+              reservedQuantity: 0,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             };
