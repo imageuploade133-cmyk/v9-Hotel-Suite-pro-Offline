@@ -995,11 +995,14 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 }
                 const totalQtyById = new Map<string, number>();
                 physicalItems.forEach(item => totalQtyById.set(item.id, (totalQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
-                totalQtyById.forEach((totalQty, itemId) => {
-                  const heldQty = Math.min(totalQty, heldQtyById.get(itemId) || 0);
-                  const isReservedHold = restoredSaleData?.stockReservationMode === 'reserved';
+                const saleItemIds = new Set([...totalQtyById.keys(), ...heldQtyById.keys()]);
+                saleItemIds.forEach(itemId => {
+                  const totalQty = totalQtyById.get(itemId) || 0;
+                  const heldQty = heldQtyById.get(itemId) || 0;
+                  const isHeldTable = !!restoredSaleId && !!restoredSaleData && !restoredSaleData.linkedBillId;
+                  const isReservedHold = isHeldTable && restoredSaleData?.stockReservationMode === 'reserved';
                   const quantityDelta = isReservedHold ? -totalQty
-                    : (restoredSaleId && !restoredSaleData?.linkedBillId ? -(totalQty - heldQty) : -totalQty);
+                    : (isHeldTable ? heldQty - totalQty : -totalQty);
                   const reservedDelta = isReservedHold ? -heldQty : 0;
                   saleStockMap.set(itemId, { collectionName: getCollectionPath('stock'), itemId, quantityDelta, reservedDelta });
                 });
@@ -1043,16 +1046,19 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
               current.requested += Number(item.sellQuantity || 0);
               saleStockMap.set(item.id, current);
             });
-            saleStockMap.forEach((delta, itemId) => {
-              delta.held = Math.min(delta.requested, heldQtyById.get(itemId) || 0);
+            const saleItemIds = new Set([...saleStockMap.keys(), ...heldQtyById.keys()]);
+            saleItemIds.forEach(itemId => {
+              const delta = saleStockMap.get(itemId) || { quantityDelta: 0, reservedDelta: 0, requested: 0, held: 0 };
+              delta.held = heldQtyById.get(itemId) || 0;
               if (restoredSaleData?.stockReservationMode === 'reserved') {
                 delta.quantityDelta = -delta.requested;
                 delta.reservedDelta = -delta.held;
-              } else if (restoredSaleId && !restoredSaleData?.linkedBillId) {
-                delta.quantityDelta = -(delta.requested - delta.held);
+              } else if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
+                delta.quantityDelta = delta.held - delta.requested;
               } else {
                 delta.quantityDelta = -delta.requested;
               }
+              saleStockMap.set(itemId, delta);
             });
             await runTransaction(firestore, async (transaction) => {
               const stockSnapshots = new Map<string, { ref: any; data: any }>();
@@ -1070,7 +1076,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 const onHand = Number(stock.data.quantity || 0) + delta.quantityDelta;
                 const reserved = Number(stock.data.reservedQuantity || 0) + delta.reservedDelta;
                 const availableBefore = Number(stock.data.quantity || 0) - Number(stock.data.reservedQuantity || 0);
-                const unreservedRequested = delta.requested - delta.held;
+                const unreservedRequested = Math.max(0, delta.requested - delta.held);
                 const availableForThisSale = availableBefore + (restoredSaleData?.stockReservationMode === 'reserved' ? delta.held : 0);
                 if (onHand < 0 || reserved < 0 || reserved > onHand || unreservedRequested > availableForThisSale) {
                   const item = physicalItems.find(entry => entry.id === itemId);
