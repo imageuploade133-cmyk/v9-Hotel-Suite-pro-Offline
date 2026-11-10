@@ -702,6 +702,7 @@ export default function ProtectedLayout({
                 const itemHref = (item as any).href;
                 const hasPerm = itemHref === '/profile'
                   || finalPermissions.includes(permissionId)
+                  || (itemHref === '/email-marketing' && isAdminIdentity)
                   || (itemHref === '/running-tables' && (isPosAssignedStaff || isAdminIdentity));
 
                 // If no permission is defined, allow access
