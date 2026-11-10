@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { Mail, Users, UserRound, Upload, Plus, Search, Send, Loader2, CheckCircle2, AlertCircle, FileUp } from 'lucide-react';
+import { Mail, Users, UserRound, Plus, Search, Send, Loader2, CheckCircle2, AlertCircle, FileUp } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
