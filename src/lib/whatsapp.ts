@@ -159,7 +159,7 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
     validateMessage(subject, message);
     const provider = await getActiveWhatsAppProvider(params.channel || 'bulkMessages');
     if (provider.kind === 'gateway') {
-      const brandedMessage = [provider.senderName ? '*' + provider.senderName + '*' : '', subject.trim(), message.trim()].filter(Boolean).join('\\n\\n');
+      const brandedMessage = [provider.senderName ? '*' + provider.senderName + '*' : '', subject.trim(), message.trim()].filter(Boolean).join('\n\n');
       const results: any[] = [];
       for (const number of formattedRecipients) {
         const response = await fetch(`${provider.baseUrl}/api/send/text`, {
