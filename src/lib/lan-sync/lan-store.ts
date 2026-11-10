@@ -263,7 +263,7 @@ export class LanStore {
       data?: Record<string, unknown>;
     }>,
     transactionKey?: string,
-    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number; initialData?: Record<string, unknown> }> = []
+    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number; heldDelta?: number; initialData?: Record<string, unknown> }> = []
   ): { mutations: SyncMutation[]; duplicate: boolean } {
     if ((!Array.isArray(inputs) || inputs.length === 0) && stockAdjustments.length === 0) {
       throw new Error('A non-empty mutation batch or stock adjustment is required.');
@@ -277,7 +277,10 @@ export class LanStore {
     // Validate every stock movement before changing any document.
     const stockUpdates = new Map<string, { collectionName: string; itemId: string; data: Record<string, unknown> }>();
     for (const adjustment of stockAdjustments) {
-      if (!adjustment.collectionName || !adjustment.itemId || !Number.isFinite(adjustment.quantityDelta) || adjustment.quantityDelta === 0) {
+      const heldDelta = Number(adjustment.heldDelta || 0);
+      if (!adjustment.collectionName || !adjustment.itemId
+        || !Number.isFinite(adjustment.quantityDelta) || !Number.isFinite(heldDelta)
+        || (adjustment.quantityDelta === 0 && heldDelta === 0)) {
         throw new Error('Invalid stock adjustment.');
       }
       const key = adjustment.collectionName + '/' + adjustment.itemId;
@@ -285,14 +288,16 @@ export class LanStore {
       const current = prior?.data || this.getDoc(adjustment.collectionName, adjustment.itemId) || adjustment.initialData || null;
       if (!current) throw new Error(`Stock item "${adjustment.itemId}" is missing from the Master PC database.`);
       const currentQty = Number(current.quantity ?? current.stockCount ?? 0);
+      const currentHeld = Number(current.held || 0);
       const nextQty = currentQty + adjustment.quantityDelta;
-      if (!Number.isFinite(nextQty) || nextQty < 0) {
-        throw new Error(`Insufficient stock for "${String(current.name || adjustment.itemId)}". Available: ${currentQty}.`);
+      const nextHeld = currentHeld + Number(adjustment.heldDelta || 0);
+      if (!Number.isFinite(nextQty) || nextQty < 0 || !Number.isFinite(nextHeld) || nextHeld < 0 || nextHeld > nextQty) {
+        throw new Error(`Insufficient available stock for "${String(current.name || adjustment.itemId)}". On-hand: ${currentQty}, reserved: ${currentHeld}.`);
       }
       stockUpdates.set(key, {
         collectionName: adjustment.collectionName,
         itemId: adjustment.itemId,
-        data: { ...current, quantity: nextQty, stockCount: nextQty, updatedAt: Date.now() },
+        data: { ...current, quantity: nextQty, stockCount: nextQty, held: nextHeld, updatedAt: Date.now() },
       });
     }
     const expandedInputs = [

@@ -50,8 +50,11 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
       return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
     };
 
-    const hasFiniteStock = item.quantity !== Infinity;
-    const isOutOfStock = hasFiniteStock && item.quantity <= 0;
+    const hasFiniteStock = !item.isService && item.quantity !== Infinity;
+    const availableQuantity = hasFiniteStock
+      ? Math.max(0, Number(item.quantity || 0) - Number((item as any).held || 0))
+      : Infinity;
+    const isOutOfStock = hasFiniteStock && availableQuantity <= 0;
 
     const handleAddToCart = () => {
         setIsAdding(true);
@@ -97,7 +100,7 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
                 ) : (
                     <div className="flex items-center justify-center h-full w-full"><ConciergeBell className="h-10 w-10 text-muted-foreground/50"/></div>
                 )}
-                 {hasFiniteStock && <Badge className="absolute top-2 right-2">{item.quantity} in stock</Badge>}
+                 {hasFiniteStock && <Badge className="absolute top-2 right-2">{availableQuantity} available</Badge>}
             </div>
             <div className="p-3 flex-1 flex flex-col">
                 <CardTitle className="text-sm font-semibold flex-1">{item.name}</CardTitle>

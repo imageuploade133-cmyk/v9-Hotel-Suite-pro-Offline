@@ -481,11 +481,13 @@ function RunningTablesPage() {
         }
 
         // Always return items to stock (except services), regardless of whether it was billed to room
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
+        const itemsToReturnToStock = saleData.linkedBillId ? [] : saleData.cart.filter(item => !item.isService);
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            transaction.update(stockRef, saleData.stockReserved === true
+              ? { held: increment(-Number(cartItem.sellQuantity || 0)) }
+              : { quantity: increment(Number(cartItem.sellQuantity || 0)) });
           }
         }
 
@@ -569,7 +571,9 @@ function RunningTablesPage() {
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            transaction.update(stockRef, saleData.stockReserved === true
+              ? { held: increment(-Number(cartItem.sellQuantity || 0)) }
+              : { quantity: increment(Number(cartItem.sellQuantity || 0)) });
           }
         }
 
@@ -822,14 +826,16 @@ function RunningTablesPage() {
         }).filter(Boolean) as typeof saleData.cart;
 
         // Return items to stock (only for non-service items)
-        const stockItems = itemsToReturn.filter(rItem => {
+        const stockItems = saleData.linkedBillId ? [] : itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
           return originalItem && !originalItem.isService;
         });
 
         for (const returnItem of stockItems) {
           const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
-          transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          transaction.update(stockRef, saleData.stockReserved === true
+            ? { held: increment(-Number(returnItem.quantity || 0)) }
+            : { quantity: increment(Number(returnItem.quantity || 0)) });
         }
 
         // Create a stock return record for audit trail

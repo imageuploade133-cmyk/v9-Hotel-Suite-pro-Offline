@@ -332,14 +332,16 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
         }).filter(Boolean) as typeof saleData.cart;
 
         // Return items to stock (only for non-service items)
-        const stockItems = itemsToReturn.filter(rItem => {
+        const stockItems = saleData.linkedBillId ? [] : itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
           return originalItem && !originalItem.isService;
         });
 
         for (const returnItem of stockItems) {
           const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
-          transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          transaction.update(stockRef, saleData.stockReserved === true
+            ? { held: increment(-Number(returnItem.quantity || 0)) }
+            : { quantity: increment(Number(returnItem.quantity || 0)) });
         }
 
         // Create a stock return record for audit trail

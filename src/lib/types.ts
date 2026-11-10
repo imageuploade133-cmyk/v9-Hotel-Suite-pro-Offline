@@ -651,6 +651,8 @@ export interface HeldSale {
   printedByName?: string;
   branchId?: string;
   isCreditSale?: boolean;
+  /** True when this running table reserves stock without reducing on-hand quantity. */
+  stockReserved?: boolean;
   linkedStockSaleId?: string;
   linkedStockSaleNumber?: string;
 }
