@@ -195,7 +195,7 @@ export function EmailChannelSettingsForm() {
       const safeBannerColor = /^#[0-9a-fA-F]{6}$/.test(config.topBannerColor) ? config.topBannerColor : '#0f766e';
       let logoMarkup = '';
       if (config.logoDataUrl) {
-        const match = config.logoDataUrl.match(/^data:(image\\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
+        const match = config.logoDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
         if (match) {
           // Keep branding inside the HTML. Do not invent an undocumented CID
           // attachment object: the documented API does not define that shape.
