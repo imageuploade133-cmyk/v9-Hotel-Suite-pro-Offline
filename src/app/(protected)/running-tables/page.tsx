@@ -848,7 +848,7 @@ function RunningTablesPage() {
         }).filter(Boolean) as typeof saleData.cart;
 
         // Read the linked bill and stock documents before performing transaction writes.
-        let linkedBillDoc = null;
+        let linkedBillDoc: any = null;
         if (saleData.linkedBillId && saleData.customer?.id) {
           const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
           linkedBillDoc = await transaction.get(billRef);
