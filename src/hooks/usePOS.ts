@@ -1071,7 +1071,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 const reserved = Number(stock.data.reservedQuantity || 0) + delta.reservedDelta;
                 const availableBefore = Number(stock.data.quantity || 0) - Number(stock.data.reservedQuantity || 0);
                 const unreservedRequested = delta.requested - delta.held;
-                if (onHand < 0 || reserved < 0 || reserved > onHand || (restoredSaleData?.stockReservationMode !== 'reserved' && unreservedRequested > availableBefore)) {
+                const availableForThisSale = availableBefore + (restoredSaleData?.stockReservationMode === 'reserved' ? delta.held : 0);
+                if (onHand < 0 || reserved < 0 || reserved > onHand || unreservedRequested > availableForThisSale) {
                   const item = physicalItems.find(entry => entry.id === itemId);
                   throw new Error(`Insufficient available stock for ${item?.name || itemId}. On hand: ${Number(stock.data.quantity || 0)}, reserved: ${Number(stock.data.reservedQuantity || 0)}, available: ${availableBefore}, requested: ${unreservedRequested}.`);
                 }
