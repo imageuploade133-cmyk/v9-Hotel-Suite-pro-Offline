@@ -485,7 +485,9 @@ function RunningTablesPage() {
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            transaction.update(stockRef, saleData.stockReserved === true
+              ? { held: increment(-Number(cartItem.sellQuantity || 0)) }
+              : { quantity: increment(Number(cartItem.sellQuantity || 0)) });
           }
         }
 
@@ -569,7 +571,9 @@ function RunningTablesPage() {
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            transaction.update(stockRef, saleData.stockReserved === true
+              ? { held: increment(-Number(cartItem.sellQuantity || 0)) }
+              : { quantity: increment(Number(cartItem.sellQuantity || 0)) });
           }
         }
 
@@ -829,7 +833,9 @@ function RunningTablesPage() {
 
         for (const returnItem of stockItems) {
           const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
-          transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          transaction.update(stockRef, saleData.stockReserved === true
+            ? { held: increment(-Number(returnItem.quantity || 0)) }
+            : { quantity: increment(Number(returnItem.quantity || 0)) });
         }
 
         // Create a stock return record for audit trail
