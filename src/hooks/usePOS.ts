@@ -528,6 +528,26 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             }
         }
 
+        // Keep the in-memory table snapshot in sync after Update Only.
+        // This prevents a second save from migrating the same legacy stock twice.
+        setRestoredSaleId(saleId);
+        setRestoredSaleData({
+          ...(restoredSaleData || {}),
+          id: saleId,
+          name,
+          cart: combinedItems.map(item => ({ ...item })),
+          customer: customer?.id
+            ? { id: customer.id, name: customer.name || 'Walk-in Customer' }
+            : { name: name || 'Walk-in Customer' },
+          heldByUid: currentUid,
+          heldByName: userProfile.name,
+          heldAt: new Date() as any,
+          printStatus: 'pending',
+          ...(restoredSaleData?.linkedBillId ? { linkedBillId: restoredSaleData.linkedBillId } : {}),
+          ...(!restoredSaleData?.linkedBillId ? { stockReservationMode: 'reserved' as const } : {}),
+        } as HeldSale);
+        setHoldName(name);
+
         toast({ variant: 'success', title: 'Table Added', description: `The table "${name}" has been ${restoredSaleId ? 'updated' : 'added to running tables.'}.` });
 
         if (clearCartOnSuccess) {
