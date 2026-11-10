@@ -138,6 +138,34 @@
         }
     }
 
+    /* Yellow blinking counts for room-status tabs other than the four protected tabs. */
+    .bookings-status-yellow-notification {
+        background-color: #facc15 !important;
+        color: #713f12 !important;
+        border-color: #eab308 !important;
+        font-weight: 700;
+        animation: bookings-status-yellow-blink 1.2s ease-in-out infinite;
+        will-change: opacity, box-shadow;
+    }
+
+    @keyframes bookings-status-yellow-blink {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgb(234 179 8 / 0.42);
+        }
+        50% {
+            opacity: 0.68;
+            box-shadow: 0 0 0 3px rgb(234 179 8 / 0.18);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bookings-status-yellow-notification {
+            animation: none;
+            will-change: auto;
+        }
+    }
+
     .blinking-red-badge {
         animation: blink 1.5s infinite;
     }
