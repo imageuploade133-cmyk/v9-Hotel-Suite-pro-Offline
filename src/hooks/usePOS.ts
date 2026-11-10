@@ -1120,7 +1120,12 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         return createdSale;
 
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Sale Failed', description: e.message });
+        const stockFailure = /stock|available quantity|reserved/i.test(String(e?.message || ''));
+        toast({
+          variant: 'destructive',
+          title: stockFailure ? 'Insufficient Stock' : 'Sale Failed',
+          description: e.message || 'The sale could not be completed.',
+        });
         throw e;
     }
   }
