@@ -19,9 +19,10 @@ type GetStockColumnsProps = {
   onEdit: (item: StockItem) => void;
   onDelete: (item: StockItem) => void;
   settings: Settings | null;
+  runningTableQuantities?: Record<string, number>;
 };
 
-export const getStockColumns = ({ onEdit, onDelete, settings }: GetStockColumnsProps): ColumnDef<StockItem>[] => {
+export const getStockColumns = ({ onEdit, onDelete, settings, runningTableQuantities = {} }: GetStockColumnsProps): ColumnDef<StockItem>[] => {
   const currency = settings?.currency || 'USD';
   const globalStockImageUrl = settings?.globalStockImageUrl;
   const useGlobalStockImage = settings?.useGlobalStockImage;
@@ -89,9 +90,9 @@ export const getStockColumns = ({ onEdit, onDelete, settings }: GetStockColumnsP
     },
     {
       id: 'runningTableStock',
-      accessorFn: (row) => Number(row.reservedQuantity || 0),
+      accessorFn: (row) => Number(runningTableQuantities[row.id] || 0),
       header: () => <div className="text-center">Running Tables</div>,
-      cell: ({ row }) => <div className="text-center font-semibold text-amber-600">{Number(row.original.reservedQuantity || 0)}</div>,
+      cell: ({ row }) => <div className="text-center font-semibold text-amber-600">{Number(runningTableQuantities[row.original.id] || 0)}</div>,
     },
     {
       id: 'availableStock',
