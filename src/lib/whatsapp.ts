@@ -423,15 +423,7 @@ export function checkWhatsAppServiceConfig(): {
 } {
   const issues: string[] = [];
 
-  if (!EWHATSAPP_CONFIG.USERNAME) {
-    issues.push('WhatsApp username is not configured');
-  }
-
-  if (!EWHATSAPP_CONFIG.API_KEY) {
-    issues.push('WhatsApp API key is not configured');
-  }
-
-  if (!EWHATSAPP_CONFIG.API_URL) {
+    if (!EWHATSAPP_CONFIG.API_URL) {
     issues.push('WhatsApp API URL is not configured');
   }
 
