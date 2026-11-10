@@ -18,7 +18,8 @@ import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; channels: ChannelMap };
+type EmailAttachment = { filename: string; contentType: string; content: string; encoding: string; cid?: string };
+type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; topBannerText: string; topBannerColor: string; templateBody: string; footerText: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -35,6 +36,10 @@ const DEFAULT_CONFIG: EmailConfig = {
   password: '',
   senderName: '',
   logoDataUrl: '',
+  topBannerText: 'OFFICIAL HOTEL NOTIFICATION',
+  topBannerColor: '#0f766e',
+  templateBody: '{{message}}',
+  footerText: 'Thank you for choosing us. We appreciate your business.',
   channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
@@ -56,6 +61,10 @@ function normalizeConfig(value: unknown): EmailConfig {
     password: typeof saved.password === 'string' ? saved.password : '',
     senderName: typeof saved.senderName === 'string' ? saved.senderName : '',
     logoDataUrl: typeof saved.logoDataUrl === 'string' ? saved.logoDataUrl : '',
+    topBannerText: typeof saved.topBannerText === 'string' ? saved.topBannerText : DEFAULT_CONFIG.topBannerText,
+    topBannerColor: typeof saved.topBannerColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.topBannerColor) ? saved.topBannerColor : DEFAULT_CONFIG.topBannerColor,
+    templateBody: typeof saved.templateBody === 'string' ? saved.templateBody : DEFAULT_CONFIG.templateBody,
+    footerText: typeof saved.footerText === 'string' ? saved.footerText : DEFAULT_CONFIG.footerText,
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -149,14 +158,43 @@ export function EmailChannelSettingsForm() {
     if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
     setIsSendingTest(true);
     try {
-      const attachments = await Promise.all(testFiles.map(file => new Promise((resolve, reject) => {
+      const readFileAsAttachment = (file: File) => new Promise<EmailAttachment>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => { const result = String(reader.result || ''); const comma = result.indexOf(','); if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name)); resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1) }); };
+        reader.onload = () => {
+          const result = String(reader.result || '');
+          const comma = result.indexOf(',');
+          if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name));
+          resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1), encoding: 'base64' });
+        };
         reader.onerror = () => reject(new Error('Could not read attachment: ' + file.name));
         reader.readAsDataURL(file);
-      })));
-      const escapedMessage = testMessage.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char] || char));
-      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName: config.senderName.trim() || undefined, fromName: config.senderName.trim() || undefined, html: '<div style="font-family:Arial,sans-serif;line-height:1.6">' + (config.logoDataUrl ? '<img src="' + config.logoDataUrl + '" alt="' + (config.senderName || 'Business') + '" style="max-width:180px;max-height:80px;object-fit:contain;margin-bottom:16px" />' : '') + (config.senderName.trim() ? '<h2 style="margin:0 0 12px">' + config.senderName.replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char] || char)) + '</h2>' : '') + '<div style="white-space:pre-wrap">' + escapedMessage + '</div></div>', ...(attachments.length ? { attachments } : {}) }) });
+      });
+      const attachments = await Promise.all(testFiles.map(readFileAsAttachment));
+      const escapeHtml = (value: string) => value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char] || char));
+      const senderName = config.senderName.trim() || 'Hotel';
+      const templateText = config.templateBody
+        .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
+        .replace(/\{\{\s*businessName\s*\}\}/gi, () => senderName)
+        .replace(/\{\{\s*recipient\s*\}\}/gi, () => recipient)
+        .replace(/\{\{\s*date\s*\}\}/gi, () => new Date().toLocaleString());
+      const safeBannerColor = /^#[0-9a-fA-F]{6}$/.test(config.topBannerColor) ? config.topBannerColor : '#0f766e';
+      let logoMarkup = '';
+      if (config.logoDataUrl) {
+        const match = config.logoDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
+        if (!match) throw new Error('The saved logo image is invalid. Please upload the logo again using PNG, JPG, or WEBP.');
+        const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+        const extension = mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1];
+        attachments.unshift({
+          filename: 'hotel-business-logo.' + extension,
+          contentType: mimeType,
+          content: match[2],
+          encoding: 'base64',
+          cid: 'hotel-business-logo'
+        });
+        logoMarkup = '<img src="cid:hotel-business-logo" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
+      }
+      const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-collapse:collapse"><tr><td style="background:' + safeBannerColor + ';padding:13px 20px;text-align:center;color:#ffffff;font-size:13px;font-weight:bold;letter-spacing:1px">' + escapeHtml(config.topBannerText.trim() || senderName) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(senderName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(templateText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;white-space:pre-wrap">' + escapeHtml(config.footerText) + '</td></tr></table></body></html>';
+      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName, fromName: senderName, html, ...(attachments.length ? { attachments } : {}) }) });
       const raw = await response.text(); let payload: any = {};
       try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
       if (!response.ok || payload.success !== true || payload.error || !payload.messageId) {
@@ -228,7 +266,7 @@ export function EmailChannelSettingsForm() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="email-sender-name">Sender / business name</Label><Input id="email-sender-name" maxLength={120} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">Shown as the branded sender name in supported email gateway messages.</p></div>
-            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 1024 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose an image smaller than 1 MB.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 1 MB. The logo is embedded in branded test email content.</p></div>
+            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 256 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose a compressed logo smaller than 256 KB. This keeps the saved settings within Firestore document limits.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 256 KB. The logo is sent as a CID inline image attachment, not a Base64 data URL in the email HTML.</p></div>
             <div className="md:col-span-2 space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div><p className="text-sm font-medium">Gateway account credentials</p><p className="text-xs text-muted-foreground">{config.username || config.password ? 'Credentials are saved and hidden from the settings inputs.' : 'No optional gateway account credentials have been saved.'}</p></div>
@@ -255,6 +293,47 @@ export function EmailChannelSettingsForm() {
               </div>
             </div>
           </div>
+          </fieldset>
+        </section>
+
+        <section className="space-y-4 rounded-lg border p-4" aria-disabled={!config.enabled}>
+          <fieldset disabled={!config.enabled} className="space-y-4 disabled:pointer-events-none">
+            <div>
+              <h3 className="font-medium">Email Template & Branding</h3>
+              <p className="text-sm text-muted-foreground">Customize the layout used by the Email test message. Use the placeholders shown below to insert dynamic details.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-top-banner-text">Top banner text</Label>
+                <Input id="email-top-banner-text" maxLength={120} value={config.topBannerText} onChange={event => updateConfig({ topBannerText: event.target.value })} placeholder="OFFICIAL HOTEL NOTIFICATION" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-top-banner-color">Top banner colour</Label>
+                <div className="flex items-center gap-3">
+                  <Input id="email-top-banner-color" type="color" className="h-10 w-16 p-1" value={config.topBannerColor} onChange={event => updateConfig({ topBannerColor: event.target.value })} />
+                  <span className="text-sm text-muted-foreground">{config.topBannerColor}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-footer-text">Email footer</Label>
+                <Textarea id="email-footer-text" rows={3} maxLength={1000} value={config.footerText} onChange={event => updateConfig({ footerText: event.target.value })} placeholder="Thank you for choosing us." />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-template-body">Email message template</Label>
+                <Textarea id="email-template-body" rows={7} maxLength={6000} value={config.templateBody} onChange={event => updateConfig({ templateBody: event.target.value })} placeholder="Hello,\n\n{{message}}\n\nRegards,\n{{businessName}}" />
+                <p className="text-xs text-muted-foreground">Available placeholders: <code>{'{{message}}'}</code>, <code>{'{{businessName}}'}</code>, <code>{'{{recipient}}'}</code>, <code>{'{{date}}'}</code>. Keep {'{{message}}'} in the template to include the test message.</p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border bg-background">
+              <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Branding preview</div>
+              <div className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-white" style={{ backgroundColor: config.topBannerColor }}>{config.topBannerText || config.senderName || 'HOTEL NOTIFICATION'}</div>
+              <div className="space-y-3 p-4 text-center">
+                {config.logoDataUrl && <img src={config.logoDataUrl} alt="Email logo preview" className="mx-auto max-h-16 max-w-40 object-contain" />}
+                <p className="font-semibold">{config.senderName || 'Your Hotel Name'}</p>
+                <p className="whitespace-pre-wrap text-left text-sm text-muted-foreground">{config.templateBody.replace(/\{\{\s*message\s*\}\}/gi, testMessage).replace(/\{\{\s*businessName\s*\}\}/gi, config.senderName || 'Your Hotel Name').replace(/\{\{\s*recipient\s*\}\}/gi, testTo || 'recipient@example.com').replace(/\{\{\s*date\s*\}\}/gi, new Date().toLocaleString())}</p>
+              </div>
+              <div className="border-t bg-muted/40 px-4 py-3 text-center text-xs text-muted-foreground">{config.footerText}</div>
+            </div>
           </fieldset>
         </section>
 
