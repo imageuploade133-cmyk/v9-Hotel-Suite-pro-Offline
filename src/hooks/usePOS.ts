@@ -982,11 +982,27 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                   });
                 }
                 const physicalItems = allItems.filter(item => !item.isService);
-                const stockAdjustments = physicalItems.map(item => ({
-                  collectionName: getCollectionPath('stock'),
-                  itemId: item.id,
-                  quantityDelta: -Number(item.sellQuantity || 0),
-                })).filter(item => item.quantityDelta !== 0);
+                const saleStockMap = new Map<string, { collectionName: string; itemId: string; quantityDelta: number; reservedDelta: number }>();
+                const addSaleStockDelta = (itemId: string, quantityDelta: number, reservedDelta: number) => {
+                  const entry = saleStockMap.get(itemId) || { collectionName: getCollectionPath('stock'), itemId, quantityDelta: 0, reservedDelta: 0 };
+                  entry.quantityDelta += quantityDelta; entry.reservedDelta += reservedDelta; saleStockMap.set(itemId, entry);
+                };
+                const previouslyHeld = restoredSaleData && !restoredSaleData.linkedBillId ? restoredSaleData.cart.filter(item => !item.isService) : [];
+                const heldQtyById = new Map<string, number>();
+                previouslyHeld.forEach(item => heldQtyById.set(item.id, (heldQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
+                physicalItems.forEach(item => {
+                  const heldQty = Math.min(Number(item.sellQuantity || 0), heldQtyById.get(item.id) || 0);
+                  const newQty = Number(item.sellQuantity || 0) - heldQty;
+                  if (restoredSaleData?.stockReservationMode === 'reserved') {
+                    addSaleStockDelta(item.id, -Number(item.sellQuantity || 0), -heldQty);
+                  } else if (restoredSaleId && !restoredSaleData?.linkedBillId) {
+                    // Legacy held quantities were already deducted when the table was first saved.
+                    addSaleStockDelta(item.id, -newQty, 0);
+                  } else {
+                    addSaleStockDelta(item.id, -Number(item.sellQuantity || 0), 0);
+                  }
+                });
+                const stockAdjustments = [...saleStockMap.values()].filter(item => item.quantityDelta !== 0 || item.reservedDelta !== 0);
                 const transactionKey = `pos-sale-${newSaleRef.id}`;
                 const localResponse = await fetch('/api/lan-sync', {
                   method: 'POST',
@@ -1016,11 +1032,30 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           if (!savedOnLocalMaster) {
             // Cloud-only mode writes the sale ledger and stock movement in one
             // Firestore batch, matching the Local Master transaction.
+            const saleStockMap = new Map<string, { quantityDelta: number; reservedDelta: number }>();
+            const heldQtyById = new Map<string, number>();
+            if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
+              restoredSaleData.cart.filter(item => !item.isService).forEach(item => heldQtyById.set(item.id, (heldQtyById.get(item.id) || 0) + Number(item.sellQuantity || 0)));
+            }
             allItems.filter(item => !item.isService).forEach(item => {
-              ledgerBatch.update(
-                doc(firestore, getCollectionPath('stock'), item.id),
-                { quantity: increment(-Number(item.sellQuantity || 0)) }
-              );
+              const heldQty = Math.min(Number(item.sellQuantity || 0), heldQtyById.get(item.id) || 0);
+              const newQty = Number(item.sellQuantity || 0) - heldQty;
+              const current = saleStockMap.get(item.id) || { quantityDelta: 0, reservedDelta: 0 };
+              if (restoredSaleData?.stockReservationMode === 'reserved') {
+                current.quantityDelta -= Number(item.sellQuantity || 0);
+                current.reservedDelta -= heldQty;
+              } else if (restoredSaleId && !restoredSaleData?.linkedBillId) {
+                current.quantityDelta -= newQty;
+              } else {
+                current.quantityDelta -= Number(item.sellQuantity || 0);
+              }
+              saleStockMap.set(item.id, current);
+            });
+            saleStockMap.forEach((delta, itemId) => {
+              ledgerBatch.update(doc(firestore, getCollectionPath('stock'), itemId), {
+                quantity: increment(delta.quantityDelta),
+                ...(delta.reservedDelta ? { reservedQuantity: increment(delta.reservedDelta) } : {}),
+              });
             });
             if (restoredSaleId) {
               ledgerBatch.delete(doc(firestore, getCollectionPath('heldSales'), restoredSaleId));
