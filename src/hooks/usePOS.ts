@@ -415,15 +415,29 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     billDoc = await transaction.get(billRef);
                 }
             } else {
-                // New running table - read all stock docs
                 const stockItemsInCart = combinedItems.filter(item => !item.isService);
                 for (const cartItem of stockItemsInCart) {
                     const stockDocRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
                     const stockDoc = await transaction.get(stockDocRef);
-                    if (!stockDoc.exists() || stockDoc.data().quantity < cartItem.sellQuantity) {
-                        throw new Error(`Not enough stock for ${cartItem.name}. Available: ${stockDoc.data()?.quantity || 0}, In Cart: ${cartItem.sellQuantity}`);
+                    const stockData = stockDoc.exists() ? stockDoc.data() : null;
+                    const available = stockData ? Number(stockData.quantity || 0) - Number(stockData.reservedQuantity || 0) : 0;
+                    if (!stockData || available < cartItem.sellQuantity) {
+                        throw new Error(`Insufficient available stock for ${cartItem.name}. On hand: ${Number(stockData?.quantity || 0)}, reserved: ${Number(stockData?.reservedQuantity || 0)}, available: ${available}, requested: ${cartItem.sellQuantity}.`);
                     }
-                    stockDocs.push({ ref: stockDocRef, data: stockDoc.data() });
+                    stockDocs.push({ ref: stockDocRef, data: stockData });
+                }
+            }
+            if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
+                const oldItems = restoredSaleData.cart.filter(item => !item.isService);
+                const stockById = new Map(stockDocs.map(item => [item.ref.id, item]));
+                for (const oldItem of oldItems) {
+                    if (stockById.has(oldItem.id)) continue;
+                    const stockRef = doc(firestore, getCollectionPath('stock'), oldItem.id);
+                    const stockDoc = await transaction.get(stockRef);
+                    if (!stockDoc.exists()) throw new Error(`Stock item "${oldItem.name}" no longer exists.`);
+                    const entry = { ref: stockRef, data: stockDoc.data() };
+                    stockDocs.push(entry);
+                    stockById.set(oldItem.id, entry);
                 }
             }
 
@@ -451,21 +465,37 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     const newTotal = newBillItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                     transaction.update(billDoc.ref, { items: newBillItems, total: newTotal });
                 } else if (originalHeldSaleDoc) {
-                    // It's a regular running table, so adjust stock
                     const originalCart = originalHeldSaleDoc.data().cart as CartItem[];
-                    // Return old items to stock
-                    for (const oldItem of originalCart.filter(i => !i.isService)) {
-                        transaction.update(doc(firestore, getCollectionPath('stock'), oldItem.id), { quantity: increment(oldItem.sellQuantity) });
-                    }
-                    // Remove new items from stock
-                    for (const newItem of combinedItems.filter(i => !i.isService)) {
-                        transaction.update(doc(firestore, getCollectionPath('stock'), newItem.id), { quantity: increment(-newItem.sellQuantity) });
+                    const oldWasReserved = restoredSaleData?.stockReservationMode === 'reserved';
+                    const deltas = new Map<string, { physical: number; reserved: number }>();
+                    const addDelta = (id: string, physical: number, reserved: number) => {
+                      const current = deltas.get(id) || { physical: 0, reserved: 0 };
+                      current.physical += physical; current.reserved += reserved; deltas.set(id, current);
+                    };
+                    if (oldWasReserved) originalCart.filter(i => !i.isService).forEach(i => addDelta(i.id, 0, -Number(i.sellQuantity || 0)));
+                    else originalCart.filter(i => !i.isService).forEach(i => addDelta(i.id, Number(i.sellQuantity || 0), 0));
+                    combinedItems.filter(i => !i.isService).forEach(i => addDelta(i.id, 0, Number(i.sellQuantity || 0)));
+                    for (const [itemId, delta] of deltas) {
+                      const stock = stockDocs.find(entry => entry.ref.id === itemId);
+                      if (!stock) throw new Error(`Stock item "${itemId}" could not be verified.`);
+                      const onHand = Number(stock.data.quantity || 0) + delta.physical;
+                      const reserved = Number(stock.data.reservedQuantity || 0) + delta.reserved;
+                      if (onHand < 0 || reserved < 0 || reserved > onHand) {
+                        const name = combinedItems.find(i => i.id === itemId)?.name || originalCart.find(i => i.id === itemId)?.name || itemId;
+                        throw new Error(`Insufficient available stock for ${name}. On hand: ${onHand}, reserved: ${reserved}, available: ${onHand - reserved}.`);
+                      }
+                      transaction.update(stock.ref, { quantity: onHand, reservedQuantity: reserved, stockCount: onHand });
                     }
                 }
             } else {
-                // New running table - update stock
                 for (const stockItem of stockDocs) {
-                    transaction.update(stockItem.ref, { quantity: increment(-combinedItems.find(i => i.id === stockItem.ref.id)?.sellQuantity || 0) });
+                    const requested = Number(combinedItems.find(i => i.id === stockItem.ref.id)?.sellQuantity || 0);
+                    const reserved = Number(stockItem.data.reservedQuantity || 0) + requested;
+                    if (reserved > Number(stockItem.data.quantity || 0)) {
+                      const item = combinedItems.find(i => i.id === stockItem.ref.id);
+                      throw new Error(`Insufficient available stock for ${item?.name || stockItem.ref.id}. Available: ${Number(stockItem.data.quantity || 0) - Number(stockItem.data.reservedQuantity || 0)}, requested: ${requested}.`);
+                    }
+                    transaction.update(stockItem.ref, { reservedQuantity: reserved });
                 }
             }
 
@@ -478,6 +508,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 heldByName: userProfile.name,
                 heldAt: serverTimestamp() as any,
                 printStatus: 'pending',
+                ...(!restoredSaleData?.linkedBillId ? { stockReservationMode: 'reserved' as const } : {}),
             };
 
             if (restoredSaleData?.linkedBillId) {
