@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, Plus, MoreHorizontal, Edit, Trash2, UserPlus, Users, PowerOff, Power, RefreshCw, Copy } from 'lucide-react';
 import type { Role, UserProfile } from '@/lib/types';
 import withAuth from '@/components/auth/withAuth';
-import { PagePermission, DEFAULT_SYSTEM_ROLES } from '@/lib/permissions';
+import { PagePermission, DEFAULT_SYSTEM_ROLES, normalizeRolePermissions } from '@/lib/permissions';
 import {
   Card,
   CardHeader,
@@ -337,7 +337,7 @@ function RolesPage() {
         const batch = writeBatch(firestore);
         assignedUsers.forEach(user => {
             const userRef = doc(firestore, 'users', user.uid);
-            batch.update(userRef, { permissions: role.permissions || [] });
+            batch.update(userRef, { permissions: normalizeRolePermissions(role.permissions || []) });
         });
         await batch.commit();
 
