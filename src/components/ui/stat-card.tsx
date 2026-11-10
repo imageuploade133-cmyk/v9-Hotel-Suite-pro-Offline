@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from './car
 import { Skeleton } from './skeleton';
 import { cn } from '@/lib/utils';
 import { DynamicIcon } from './dynamic-icon';
+import { AutoFitText } from './auto-fit-text';
 import type { LucideProps } from 'lucide-react';
 
 interface StatCardProps {
@@ -54,7 +55,7 @@ export function StatCard({
         {IconComponent}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <AutoFitText className="text-2xl font-bold">{value}</AutoFitText>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
