@@ -95,6 +95,16 @@ function StockManagementPage() {
   const areSalesLoading = isGlobalMode ? globalSalesResult.isLoading : branchSalesResult.isLoading;
   const areHeldSalesLoading = isGlobalMode ? globalHeldSalesResult.isLoading : branchHeldSalesResult.isLoading;
 
+  const runningTableQuantities = React.useMemo(() => {
+    const quantities: Record<string, number> = {};
+    (heldSales || []).forEach(sale => {
+      (sale.cart || []).filter(item => !item.isService).forEach(item => {
+        quantities[item.id] = (quantities[item.id] || 0) + Number(item.sellQuantity || 0);
+      });
+    });
+    return quantities;
+  }, [heldSales]);
+
   const currency = settings?.currency || 'USD';
   const expiryAlertDays = settings?.expiryAlertDays ?? 30;
 
@@ -345,6 +355,7 @@ function StockManagementPage() {
             stockCollection={getCollectionPath('stock')}
             globalData={isGlobalMode ? (stockItems ?? undefined) : undefined}
             globalLoading={isGlobalMode ? areStockItemsLoading : undefined}
+            runningTableQuantities={runningTableQuantities}
         />
       </div>
       <AddEditStockItemDialog
