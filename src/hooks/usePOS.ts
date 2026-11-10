@@ -67,6 +67,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
     // Fetch current stock from Firestore/LAN to ensure accurate validation
     let currentStock = item.quantity;
+    let heldQty = Number((item as any).held || 0);
     if (hasFiniteStock) {
       if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
         try {
@@ -75,6 +76,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
           if (stockDoc && stockDoc.exists()) {
             currentStock = stockDoc.data().quantity;
+            heldQty = Number(stockDoc.data().held || 0);
           }
         } catch (e) {
           console.warn('Error fetching current stock from firestore:', e);
@@ -87,13 +89,13 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const json = await lanRes.json();
             if (json.data && json.data[item.id]) {
               currentStock = json.data[item.id].quantity ?? json.data[item.id].stockCount ?? currentStock;
+              heldQty = Number(json.data[item.id].held || 0);
             }
           }
         } catch {}
       }
     }
 
-    const heldQty = Number((item as any).held || 0);
     const ownRunningQty = activeRunningItems.find(runningItem => runningItem.id === item.id)?.sellQuantity || 0;
     const availableQty = Math.max(0, Number(currentStock || 0) - heldQty + ownRunningQty);
 
@@ -191,6 +193,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
     // Fetch current stock from Firestore/LAN to ensure accurate validation
     let currentStock = itemInCart.quantity;
+    let heldQty = Number((itemInCart as any).held || 0);
     const hasFiniteStock = itemInCart.quantity !== Infinity;
 
     if (hasFiniteStock) {
@@ -201,6 +204,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
           if (stockDoc && stockDoc.exists()) {
             currentStock = stockDoc.data().quantity;
+            heldQty = Number(stockDoc.data().held || 0);
           }
         } catch (e) {
           console.warn('Error fetching current stock from firestore:', e);
@@ -213,6 +217,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             const json = await lanRes.json();
             if (json.data && json.data[itemId]) {
               currentStock = json.data[itemId].quantity ?? json.data[itemId].stockCount ?? currentStock;
+              heldQty = Number(json.data[itemId].held || 0);
             }
           }
         } catch {}
@@ -220,9 +225,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     }
 
     // Allow this table to use its own reservation, not another table's stock.
-    const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === itemId)?.sellQuantity || 0;
-    const heldQty = Number((itemInCart as any).held || 0);
-    const maxAllowed = hasFiniteStock ? Math.max(0, Number(currentStock || 0) - heldQty + totalInRunning) : Infinity;
+    const maxAllowed = hasFiniteStock ? Math.max(0, Number(currentStock || 0) - heldQty) : Infinity;
 
     if (hasFiniteStock && quantity > maxAllowed) {
         toast({
