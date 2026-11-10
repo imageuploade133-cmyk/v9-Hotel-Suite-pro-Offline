@@ -122,6 +122,7 @@ export default function CreateRolePage() {
         try {
             const dataToSave = {
                 ...values,
+                permissions: normalizeRolePermissions(values.permissions || []),
                 isGlobalRole: values.isGlobalRole || false,
                 applicableBranches: values.isGlobalRole ? [] : (values.applicableBranches || []),
                 createdAt: serverTimestamp(),
