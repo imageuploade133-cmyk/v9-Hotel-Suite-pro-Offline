@@ -332,7 +332,7 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
         }).filter(Boolean) as typeof saleData.cart;
 
         // Return items to stock (only for non-service items)
-        const stockItems = itemsToReturn.filter(rItem => {
+        const stockItems = saleData.linkedBillId ? [] : itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
           return originalItem && !originalItem.isService;
         });
