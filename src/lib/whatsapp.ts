@@ -58,7 +58,7 @@ async function getActiveWhatsAppProvider(channelId: NonNullable<WhatsAppMessageP
   ]);
   const channel = globalSnapshot.exists() ? globalSnapshot.data()?.whatsappChannel : null;
   if (channel?.enabled === true && channel?.channels?.[channelId] === true && channel.baseUrl && channel.apiKey && channel.instanceId) {
-    return { kind: 'gateway', baseUrl: String(channel.baseUrl).trim().replace(/\\/+$/, '').replace(/\\/api$/i, ''), apiKey: String(channel.apiKey).trim(), instanceId: String(channel.instanceId).trim(), senderName: typeof channel.senderName === 'string' ? channel.senderName.trim() : '' };
+    return { kind: 'gateway', baseUrl: String(channel.baseUrl).trim().replace(/\/+$/, '').replace(/\/api$/i, ''), apiKey: String(channel.apiKey).trim(), instanceId: String(channel.instanceId).trim(), senderName: typeof channel.senderName === 'string' ? channel.senderName.trim() : '' };
   }
   const ebulk = ebulkSnapshot.exists() ? ebulkSnapshot.data() : null;
   if (ebulk?.enabled === true && ebulk?.username && ebulk?.apiKey) return { kind: 'ebulksms', username: String(ebulk.username).trim(), apiKey: String(ebulk.apiKey).trim() };
