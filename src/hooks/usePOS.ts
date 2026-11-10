@@ -314,29 +314,31 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             heldByName: userProfile.name,
             heldAt: new Date() as any,
             printStatus: 'pending',
+            ...(!restoredSaleData?.linkedBillId ? { stockReservationMode: 'reserved' as const } : {}),
         };
         if (restoredSaleData?.linkedBillId) baseHeldSaleData.linkedBillId = restoredSaleData.linkedBillId;
         const heldSaleData = getNewDocumentData(baseHeldSaleData, branchContext);
 
-        const stockAdjustments: { collectionName: string; itemId: string; quantityDelta: number }[] = [];
+        const stockAdjustmentMap = new Map<string, { collectionName: string; itemId: string; quantityDelta: number; reservedDelta: number }>();
+        const addStockAdjustment = (item: CartItem | UnifiedItem, quantityDelta: number, reservedDelta: number) => {
+          const key = item.id;
+          const prior = stockAdjustmentMap.get(key) || { collectionName: getCollectionPath('stock'), itemId: item.id, quantityDelta: 0, reservedDelta: 0 };
+          prior.quantityDelta += quantityDelta;
+          prior.reservedDelta += reservedDelta;
+          stockAdjustmentMap.set(key, prior);
+        };
         if (!restoredSaleData?.linkedBillId) {
-          if (restoredSaleId && restoredSaleData) {
-            restoredSaleData.cart.filter(item => !item.isService).forEach(item => {
-              stockAdjustments.push({
-                collectionName: getCollectionPath('stock'),
-                itemId: item.id,
-                quantityDelta: Number(item.sellQuantity || 0),
-              });
-            });
+          const oldItems = restoredSaleId && restoredSaleData ? restoredSaleData.cart.filter(item => !item.isService) : [];
+          const newItems = combinedItems.filter(item => !item.isService);
+          if (restoredSaleData?.stockReservationMode === 'reserved') {
+            oldItems.forEach(item => addStockAdjustment(item, 0, -Number(item.sellQuantity || 0)));
+          } else {
+            // Legacy running tables already deducted physical stock; restore it while migrating to reservations.
+            oldItems.forEach(item => addStockAdjustment(item, Number(item.sellQuantity || 0), 0));
           }
-          combinedItems.filter(item => !item.isService).forEach(item => {
-            stockAdjustments.push({
-              collectionName: getCollectionPath('stock'),
-              itemId: item.id,
-              quantityDelta: -Number(item.sellQuantity || 0),
-            });
-          });
+          newItems.forEach(item => addStockAdjustment(item, 0, Number(item.sellQuantity || 0)));
         }
+        const stockAdjustments = [...stockAdjustmentMap.values()].filter(item => item.quantityDelta !== 0 || item.reservedDelta !== 0);
 
         const mutationBody = JSON.stringify({
           transactionKey: holdTransactionKey,
