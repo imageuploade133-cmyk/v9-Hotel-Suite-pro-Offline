@@ -453,6 +453,7 @@ function RunningTablesPage() {
   };
 
   const releaseRunningTableStock = async (transaction: any, saleData: HeldSale) => {
+    if (!firestore) throw new Error('Firestore is not initialized.');
     const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
     const stockDocs = new Map<string, { ref: any; data: any }>();
 
