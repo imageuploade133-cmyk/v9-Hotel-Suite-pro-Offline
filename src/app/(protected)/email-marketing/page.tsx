@@ -47,11 +47,19 @@ function parseContactFile(text: string): Array<{ email: string; name: string }> 
   for (const line of lines) {
     // Accept plain-text email lists and CSV columns in either email,name or name,email order.
     const cells = line.match(/("(?:[^"]|"")*"|[^,;\t]+)/g)?.map(cell => cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"')) || [line.trim()];
-    const emailCell = cells.find(cell => EMAIL_RE.test(normalizeEmail(cell)));
-    if (!emailCell) continue;
-    const email = normalizeEmail(emailCell);
-    const name = (cells.find(cell => cell !== emailCell && !EMAIL_RE.test(normalizeEmail(cell))) || '').trim();
-    if (!found.has(email)) found.set(email, { email, name });
+    const emails = Array.from(
+      line.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi),
+      match => normalizeEmail(match[0])
+    ).filter(email => EMAIL_RE.test(email));
+    if (!emails.length) continue;
+    const name = (cells.find(cell =>
+      cell.trim() &&
+      !EMAIL_RE.test(normalizeEmail(cell)) &&
+      !/^(email|e-mail|name|full name)$/i.test(cell.trim())
+    ) || '').trim();
+    emails.forEach(email => {
+      if (!found.has(email)) found.set(email, { email, name });
+    });
   }
   return Array.from(found.values());
 }
