@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Send } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ export function EbulkSmsSettingsForm() {
   const [isSaving, setIsSaving] = React.useState(false);
   const [showApiKey, setShowApiKey] = React.useState(false);
   const [testStatus, setTestStatus] = React.useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [enabled, setEnabled] = React.useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,6 +63,7 @@ export function EbulkSmsSettingsForm() {
             username: data.username || '',
             apiKey: data.apiKey || '',
           });
+          setEnabled(data.enabled === true);
         }
       } catch (error) {
         console.error('Error loading EbulkSMS settings:', error);
@@ -75,7 +79,7 @@ export function EbulkSmsSettingsForm() {
     setIsSaving(true);
     try {
       const docRef = doc(db, 'settings', 'ebulkSms');
-      await setDoc(docRef, values, { merge: true });
+      await setDoc(docRef, { ...values, enabled }, { merge: true });
       toast({
         title: 'Settings saved',
         description: 'EbulkSMS credentials have been updated successfully.',
@@ -96,44 +100,18 @@ export function EbulkSmsSettingsForm() {
   async function testConnection() {
     setTestStatus('testing');
     try {
-      const scriptDoc = await getDoc(doc(db, 'settings', 'googleAppsScript'));
-      const scriptUrl = scriptDoc.data()?.scriptUrl;
-
-      if (!scriptUrl) {
-        toast({
-          variant: 'destructive',
-          title: 'Configuration Error',
-          description: 'Google Apps Script URL is not configured. Please set it up first.',
-        });
-        setTestStatus('error');
-        return;
-      }
-
       const values = form.getValues();
-      if (!values.username || !values.apiKey) {
-        toast({
-          variant: 'destructive',
-          title: 'Missing Credentials',
-          description: 'Please fill in both username and API key before testing.',
-        });
+      if (!values.username.trim() || !values.apiKey.trim()) {
+        toast({ variant: 'destructive', title: 'Missing Credentials', description: 'Enter both the EbulkSMS username and API key before saving.' });
         setTestStatus('error');
         return;
       }
-
-      await setDoc(doc(db, 'settings', 'ebulkSms'), values, { merge: true });
-
-      toast({
-        title: 'Test Initiated',
-        description: 'Credentials saved. Check the WhatsApp logs to verify the connection works when you send a message.',
-      });
+      await setDoc(doc(db, 'settings', 'ebulkSms'), { ...values, enabled }, { merge: true });
+      toast({ title: 'Configuration saved', description: 'Credentials and provider status were saved. This does not verify message delivery; send a real test message from Bulk WhatsApp Messaging.' });
       setTestStatus('success');
     } catch (error: any) {
-      console.error('Error testing connection:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Test Failed',
-        description: error.message || 'Failed to test connection.',
-      });
+      console.error('Error saving EbulkSMS configuration:', error);
+      toast({ variant: 'destructive', title: 'Save Failed', description: error?.message || 'Could not save EbulkSMS configuration.' });
       setTestStatus('error');
     }
   }
@@ -167,14 +145,15 @@ export function EbulkSmsSettingsForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>EbulkSMS Settings</CardTitle>
-        <CardDescription>
-          Configure your EbulkSMS API credentials.
-        </CardDescription>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><CardTitle>EbulkSMS Settings</CardTitle><CardDescription>Configure your EbulkSMS credentials and choose whether this provider can send WhatsApp campaigns.</CardDescription></div>
+          <div className="flex items-center gap-2"><Label htmlFor="ebulksms-enabled">{enabled ? 'EbulkSMS Enabled' : 'EbulkSMS Disabled'}</Label><Switch id="ebulksms-enabled" checked={enabled} onCheckedChange={setEnabled} /></div>
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <p className="text-xs text-muted-foreground">The Enable switch is saved together with your credentials when you click Save Changes. When disabled, bulk WhatsApp sending will not use this provider.</p>
             <FormField
               control={form.control}
               name="username"
@@ -241,7 +220,7 @@ export function EbulkSmsSettingsForm() {
                 {testStatus === 'success' && <CheckCircle className="mr-2 h-4 w-4 text-green-600" />}
                 {testStatus === 'error' && <AlertCircle className="mr-2 h-4 w-4 text-red-600" />}
                 {testStatus === 'idle' && <Send className="mr-2 h-4 w-4" />}
-                {testStatus === 'testing' ? 'Testing...' : 'Save & Verify'}
+                {testStatus === 'testing' ? 'Saving...' : 'Save Configuration'}
               </Button>
             </div>
           </form>
@@ -259,9 +238,8 @@ export function EbulkSmsSettingsForm() {
             </p>
             <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 ml-4 list-disc">
               <li>Ensure your eBulkSMS account has sufficient credits</li>
-              <li>Verify your WhatsApp Business number is connected to eBulkSMS (scan QR code in their dashboard)</li>
+              <li>Make sure your eBulkSMS WhatsApp sender is connected and active in the provider dashboard</li>
               <li>Phone numbers must include country code (e.g., 2348012345678 for Nigeria)</li>
-              <li>Check Google Apps Script is deployed and URL is saved in Firestore</li>
             </ul>
           </div>
           <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">

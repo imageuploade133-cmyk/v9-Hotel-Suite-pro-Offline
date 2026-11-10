@@ -149,8 +149,9 @@ function WhatsAppPage() {
       for (let index = 0; index < numbers.length; index += 100) {
         const chunk = numbers.slice(index, index + 100);
         const result = await sendWhatsAppMessage({ recipients: chunk, subject: `Bulk Message from ${settings?.businessName || 'Hotel Suite Pro'}`.slice(0, 100), message: messageText });
-        if (result.success) successCount += chunk.length; else failedCount += chunk.length;
-        setSendProgress({ completed: Math.min(index + chunk.length, numbers.length), total: numbers.length });
+        successCount += result.acceptedRecipients ?? (result.success ? chunk.length : 0);
+        failedCount += result.failedRecipients ?? (result.success ? 0 : chunk.length);
+        setSendProgress({ completed: Math.min(successCount + failedCount, numbers.length), total: numbers.length });
       }
       if (failedCount === 0) { toast({ title: 'Messages submitted', description: `The existing WhatsApp provider accepted the message for all ${successCount} recipient(s).` }); setMessage(''); }
       else toast({ variant: 'destructive', title: 'Bulk send completed with failures', description: `${successCount} accepted; ${failedCount} failed. Check the provider response and retry failed recipients.` });

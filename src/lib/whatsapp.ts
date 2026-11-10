@@ -15,6 +15,7 @@ export interface WhatsAppMessageParams {
   recipients: string | string[];
   subject: string;
   message: string;
+  channel?: 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'bulkMessages' | 'guestNotifications' | 'otherNotifications';
 }
 
 export interface WhatsAppSendResult {
@@ -24,6 +25,8 @@ export interface WhatsAppSendResult {
   status?: string;
   cost?: number;
   rawResponse?: any;
+  acceptedRecipients?: number;
+  failedRecipients?: number;
 }
 
 export interface WhatsAppError {
@@ -36,14 +39,33 @@ export interface WhatsAppError {
 // Configuration
 // ============================================================================
 
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
 const EWHATSAPP_CONFIG = {
   API_URL: 'https://api.ebulksms.com/sendwhatsapp.json',
-  USERNAME: process.env.NEXT_PUBLIC_EWHATSAPP_USERNAME || 'electro1@emakemrnd.com.ng',
-  API_KEY: process.env.NEXT_PUBLIC_EWHATSAPP_API_KEY || '4e72ff9e21f1e875834598daeacfd997a892bca332fce1a90804cb15ca2da398',
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000, // 1 second
-  TIMEOUT: 30000, // 30 seconds
+  RETRY_DELAY: 1000,
+  TIMEOUT: 30000,
 };
+
+type ActiveWhatsAppProvider =
+  | { kind: 'gateway'; baseUrl: string; apiKey: string; instanceId: string; senderName?: string }
+  | { kind: 'ebulksms'; username: string; apiKey: string };
+
+async function getActiveWhatsAppProvider(channelId: NonNullable<WhatsAppMessageParams['channel']> = 'bulkMessages'): Promise<ActiveWhatsAppProvider> {
+  const [globalSnapshot, ebulkSnapshot] = await Promise.all([
+    getDoc(doc(db, 'settings', 'global')),
+    getDoc(doc(db, 'settings', 'ebulkSms')),
+  ]);
+  const channel = globalSnapshot.exists() ? globalSnapshot.data()?.whatsappChannel : null;
+  if (channel?.enabled === true && channel?.channels?.[channelId] === true && channel.baseUrl && channel.apiKey && channel.instanceId) {
+    return { kind: 'gateway', baseUrl: String(channel.baseUrl).trim().replace(/\/+$/, '').replace(/\/api$/i, ''), apiKey: String(channel.apiKey).trim(), instanceId: String(channel.instanceId).trim(), senderName: typeof channel.senderName === 'string' ? channel.senderName.trim() : '' };
+  }
+  const ebulk = ebulkSnapshot.exists() ? ebulkSnapshot.data() : null;
+  if (ebulk?.enabled === true && ebulk?.username && ebulk?.apiKey) return { kind: 'ebulksms', username: String(ebulk.username).trim(), apiKey: String(ebulk.apiKey).trim() };
+  throw new Error('No WhatsApp provider is enabled for bulk messaging. Enable WhatsApp Integration > Bulk WhatsApp Messages or enable EbulkSMS in Settings.');
+}
 
 // ============================================================================
 // Validation and Formatting Utilities
@@ -127,61 +149,40 @@ export function validateMessage(subject: string, message: string): void {
  * @param params - Message parameters including recipients, subject, and message
  * @returns Promise<WhatsAppSendResult> - Result of the send operation
  */
-export async function sendWhatsAppMessage(
-  params: WhatsAppMessageParams
-): Promise<WhatsAppSendResult> {
+export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promise<WhatsAppSendResult> {
   const { recipients, subject, message } = params;
-
+  let recipientCount = 0;
+  let acceptedCount = 0;
   try {
-    // Validate inputs
-    const formattedRecipients = validateRecipients(
-      Array.isArray(recipients) ? recipients : [recipients]
-    );
+    const formattedRecipients = validateRecipients(Array.isArray(recipients) ? recipients : [recipients]);
+    recipientCount = formattedRecipients.length;
     validateMessage(subject, message);
-
-    // Prepare API request payload
-    const payload = {
-      WA: {
-        auth: {
-          username: EWHATSAPP_CONFIG.USERNAME,
-          apikey: EWHATSAPP_CONFIG.API_KEY,
-        },
-        message: {
-          subject: subject.trim(),
-          messagetext: message.trim(),
-        },
-        recipients: formattedRecipients,
-      },
-    };
-
-    console.log('📱 Sending WhatsApp message...');
-    console.log('Recipients:', formattedRecipients.join(', '));
-    console.log('Subject:', subject);
-    console.log('Message length:', message.length);
-
-    // Send request with retry logic
+    const provider = await getActiveWhatsAppProvider(params.channel || 'bulkMessages');
+    if (provider.kind === 'gateway') {
+      const brandedMessage = [provider.senderName ? '*' + provider.senderName + '*' : '', subject.trim(), message.trim()].filter(Boolean).join('\n\n');
+      const results: any[] = [];
+      for (const number of formattedRecipients) {
+        const response = await fetch(`${provider.baseUrl}/api/send/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-API-Key': provider.apiKey, 'X-Instance-ID': provider.instanceId },
+          body: JSON.stringify({ number, message: brandedMessage }),
+          cache: 'no-store',
+        });
+        const raw = await response.text();
+        let data: any = {};
+        if (raw) { try { data = JSON.parse(raw); } catch { data = { message: raw }; } }
+        if (!response.ok || data.success === false || data.ok === false) throw new Error(data.message || data.error || `Gateway rejected recipient ${number} (HTTP ${response.status}).`);
+        results.push(data);
+        acceptedCount += 1;
+      }
+      return { success: true, message: 'Message accepted by the configured WhatsApp gateway.', acceptedRecipients: acceptedCount, failedRecipients: 0, rawResponse: results };
+    }
+    const payload = { WA: { auth: { username: provider.username, apikey: provider.apiKey }, message: { subject: subject.trim(), messagetext: message.trim() }, recipients: formattedRecipients } };
     const response = await sendWithRetry(payload);
-
-    console.log('✅ WhatsApp message sent successfully');
-    return {
-      success: true,
-      message: 'Message sent successfully',
-      messageId: response.messageId,
-      status: response.status,
-      cost: response.cost,
-      rawResponse: response,
-    };
-
+    return { success: true, message: 'Message accepted by eBulkSMS.', messageId: response.messageId, status: response.status, cost: response.cost, acceptedRecipients: recipientCount, failedRecipients: 0, rawResponse: response };
   } catch (error: any) {
-    console.error('❌ WhatsApp message send failed:', error);
-
-    const errorResult: WhatsAppSendResult = {
-      success: false,
-      message: error.message || 'Failed to send message',
-      rawResponse: error,
-    };
-
-    return errorResult;
+    console.error('WhatsApp message send failed:', error);
+    return { success: false, message: error?.message || 'Failed to send message', acceptedRecipients: acceptedCount, failedRecipients: Math.max(0, recipientCount - acceptedCount), rawResponse: error };
   }
 }
 
@@ -286,11 +287,7 @@ For any inquiries, please contact us.
 
 Thank you for choosing our hotel! 🏨`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -313,11 +310,7 @@ We hope you enjoy your stay!
 
 Need assistance? Just message us anytime. 🛎️`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -340,11 +333,7 @@ Please ensure you:
 
 Thank you for staying with us! We hope to see you again soon. 👋`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -367,11 +356,7 @@ Method: ${paymentMethod}
 Your payment has been processed and your booking is confirmed.
 Thank you for your payment! ✅`;
 
-  return sendWhatsAppMessage({
-    recipients: phoneNumber,
-    subject,
-    message,
-  });
+  return sendWhatsAppMessage({ recipients: phoneNumber, subject, message, channel: 'guestNotifications' });
 }
 
 /**
@@ -432,20 +417,12 @@ export function checkWhatsAppServiceConfig(): {
 } {
   const issues: string[] = [];
 
-  if (!EWHATSAPP_CONFIG.USERNAME) {
-    issues.push('WhatsApp username is not configured');
-  }
-
-  if (!EWHATSAPP_CONFIG.API_KEY) {
-    issues.push('WhatsApp API key is not configured');
-  }
-
-  if (!EWHATSAPP_CONFIG.API_URL) {
+    if (!EWHATSAPP_CONFIG.API_URL) {
     issues.push('WhatsApp API URL is not configured');
   }
 
   return {
-    configured: issues.length === 0,
+    configured: true,
     issues,
   };
 }
