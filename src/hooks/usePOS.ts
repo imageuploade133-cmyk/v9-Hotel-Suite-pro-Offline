@@ -633,9 +633,11 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       let stockItemDocs: Array<{ ref: any; data: any; quantity: number }> = [];
 
       // If it was billed to a room, read the bill
-      if (saleData.linkedBillId && saleData.customer?.id) {
+      if (saleData.linkedBillId) {
+        if (saleData.customer?.id) {
           const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
           billDoc = await transaction.get(billRef);
+        }
       } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
         const quantities = new Map<string, number>();
         saleData.cart.filter(item => !item.isService).forEach(item => {
@@ -654,7 +656,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
 
       // ===== PHASE 2: Perform ALL writes =====
-      if (saleData.linkedBillId && saleData.customer?.id) {
+      if (saleData.linkedBillId) {
           if (billDoc && billDoc.exists()) {
             transaction.delete(billDoc.ref);
           }
