@@ -19,7 +19,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import type { CartItem, Customer, StockItem, StockSale, HeldSale, UserProfile, Payment, UnifiedItem, Bill } from '@/lib/types';
+import type { Customer, StockItem, StockSale, HeldSale, UserProfile, Payment, UnifiedItem, Bill } from '@/lib/types';
 import { useToast } from './use-toast';
 import { useBranch } from '@/contexts/branch-context';
 import { getNewDocumentData } from '@/lib/branch-helpers';
