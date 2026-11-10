@@ -339,7 +339,9 @@ export function HeldSalesSection({ onRestore, onDelete }: HeldSalesSectionProps)
 
         for (const returnItem of stockItems) {
           const stockRef = doc(firestore, getCollectionPath('stock'), returnItem.itemId);
-          transaction.update(stockRef, { quantity: increment(returnItem.quantity) });
+          transaction.update(stockRef, saleData.stockReserved === true
+            ? { held: increment(-Number(returnItem.quantity || 0)) }
+            : { quantity: increment(Number(returnItem.quantity || 0)) });
         }
 
         // Create a stock return record for audit trail
