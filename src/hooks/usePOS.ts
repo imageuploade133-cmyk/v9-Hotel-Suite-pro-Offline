@@ -74,7 +74,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
           const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
           if (stockDoc && stockDoc.exists()) {
-            currentStock = stockDoc.data().quantity;
+            currentStock = Math.max(0, Number(stockDoc.data().quantity || 0) - Number(stockDoc.data().reservedQuantity || 0));
           }
         } catch (e) {
           console.warn('Error fetching current stock from firestore:', e);
@@ -86,7 +86,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           if (lanRes.ok) {
             const json = await lanRes.json();
             if (json.data && json.data[item.id]) {
-              currentStock = json.data[item.id].quantity ?? json.data[item.id].stockCount ?? currentStock;
+              const stockData = json.data[item.id];
+              currentStock = Math.max(0, Number(stockData.quantity ?? stockData.stockCount ?? currentStock) - Number(stockData.reservedQuantity || 0));
             }
           }
         } catch {}
@@ -198,7 +199,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
           const stockDoc = await Promise.race([fetchPromise, timeoutPromise]);
           if (stockDoc && stockDoc.exists()) {
-            currentStock = stockDoc.data().quantity;
+            currentStock = Math.max(0, Number(stockDoc.data().quantity || 0) - Number(stockDoc.data().reservedQuantity || 0));
           }
         } catch (e) {
           console.warn('Error fetching current stock from firestore:', e);
@@ -210,7 +211,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           if (lanRes.ok) {
             const json = await lanRes.json();
             if (json.data && json.data[itemId]) {
-              currentStock = json.data[itemId].quantity ?? json.data[itemId].stockCount ?? currentStock;
+              const stockData = json.data[itemId];
+              currentStock = Math.max(0, Number(stockData.quantity ?? stockData.stockCount ?? currentStock) - Number(stockData.reservedQuantity || 0));
             }
           }
         } catch {}
