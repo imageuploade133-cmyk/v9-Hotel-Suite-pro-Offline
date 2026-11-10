@@ -485,7 +485,11 @@ function RunningTablesPage() {
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            if (saleData.stockReservationMode === 'reserved') {
+              transaction.update(stockRef, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
+            } else if (!saleData.linkedBillId) {
+              transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            }
           }
         }
 
@@ -569,7 +573,11 @@ function RunningTablesPage() {
         if (itemsToReturnToStock.length > 0) {
           for (const cartItem of itemsToReturnToStock) {
             const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
-            transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            if (saleData.stockReservationMode === 'reserved') {
+              transaction.update(stockRef, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
+            } else if (!saleData.linkedBillId) {
+              transaction.update(stockRef, { quantity: increment(cartItem.sellQuantity) });
+            }
           }
         }
 
