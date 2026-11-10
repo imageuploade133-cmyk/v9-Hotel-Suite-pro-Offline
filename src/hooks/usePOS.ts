@@ -537,7 +537,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
         return saleId;
     } catch(e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Add Table', description: e.message });
+        const isStockError = /insufficient available stock|not enough stock|out of stock/i.test(String(e?.message || ''));
+        toast({ variant: 'destructive', title: isStockError ? 'Out of Stock' : 'Failed to Add Table', description: e.message });
         throw e;
     }
   };
@@ -563,7 +564,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       if (saleData.linkedBillId && saleData.customer?.id) {
           const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
           billDoc = await transaction.get(billRef);
-      } else if (!saleData.isCreditSale) {
+      } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
         // Only return stock to inventory for non-credit sales
         // For credit sales, stock was already deducted when the sale was processed
         const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
@@ -578,8 +579,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
           if (billDoc && billDoc.exists()) {
             transaction.delete(billDoc.ref);
           }
-      } else if (!saleData.isCreditSale) {
-        // Only return items to stock for non-credit sales
+      } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
+        // Release reserved quantities, or restore physically deducted legacy stock
         // For credit sales, stock was already deducted when the sale was processed
         for (let i = 0; i < stockItemDocs.length; i++) {
             const stockDoc = stockItemDocs[i];
@@ -1109,7 +1110,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         return createdSale;
 
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Sale Failed', description: e.message });
+        const isStockError = /insufficient available stock|not enough stock|out of stock/i.test(String(e?.message || ''));
+        toast({ variant: 'destructive', title: isStockError ? 'Out of Stock' : 'Sale Failed', description: e.message });
         throw e;
     }
   }
