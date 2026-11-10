@@ -25,7 +25,7 @@ import type { HeldSale, UserProfile, StockReturn, DocketHistory } from '@/lib/ty
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import {
@@ -105,6 +105,7 @@ function RunningTablesPage() {
     }
   }, [hasPermission, isPosStaff, router]);
   const currency = settings?.currency || 'USD';
+  const canExpandRunningTables = isAdminIdentity || hasPermission(PagePermission.MANAGE_RUNNING_TABLES);
 
 
   const [reloadCounter, setReloadCounter] = React.useState(0);
@@ -998,13 +999,27 @@ function RunningTablesPage() {
         accessorKey: 'name',
         cell: ({ row }) => {
           const sale = row.original;
-          const hasUnprintedItems = sale.cart.some(item => (item.printedQuantity || 0) < item.sellQuantity);
+          const cartItems = sale.cart || [];
+          const hasUnprintedItems = cartItems.some(item => Number(item.printedQuantity || 0) < Number(item.sellQuantity || 0));
           return (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{sale.name}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              {canExpandRunningTables && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  aria-label={row.getIsExpanded() ? `Collapse ${sale.name}` : `Expand ${sale.name} items`}
+                  aria-expanded={row.getIsExpanded()}
+                  onClick={() => row.toggleExpanded()}
+                >
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && "rotate-180")} />
+                </Button>
+              )}
+              <span className="min-w-0 font-medium">{sale.name}</span>
               {hasUnprintedItems && (
-                <Badge variant="destructive" className="text-xs">
-                  <Bell className="h-3 w-3 mr-1" />
+                <Badge variant="destructive" className="shrink-0 text-xs">
+                  <Bell className="mr-1 h-3 w-3" />
                   Unprinted
                 </Badge>
               )}
@@ -1089,8 +1104,101 @@ function RunningTablesPage() {
         },
       },
     ],
-    [currency]
+    [currency, canExpandRunningTables]
   );
+
+  const renderRunningTableDetails = ({ row }: { row: any }) => {
+    const sale = row.original as HeldSale;
+    const cartItems = sale.cart || [];
+    const totalQuantity = cartItems.reduce((sum, item) => sum + Math.max(0, Number(item.sellQuantity || 0)), 0);
+    const pendingQuantity = cartItems.reduce(
+      (sum, item) => sum + Math.max(0, Number(item.sellQuantity || 0) - Number(item.printedQuantity || 0)),
+      0
+    );
+    const printedQuantity = cartItems.reduce(
+      (sum, item) => sum + Math.min(Math.max(0, Number(item.sellQuantity || 0)), Math.max(0, Number(item.printedQuantity || 0))),
+      0
+    );
+
+    return (
+      <div className="w-full min-w-0 space-y-4 overflow-hidden rounded-xl border bg-muted/20 p-3 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold sm:text-base">{sale.name} — Table Items</h3>
+              <Badge variant="outline">{cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Review item quantities and docket print status for this running table
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+            <div className="rounded-lg border bg-background px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total qty</p>
+              <p className="text-sm font-semibold tabular-nums">{totalQuantity}</p>
+            </div>
+            <div className="rounded-lg border bg-background px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Printed</p>
+              <p className="text-sm font-semibold tabular-nums">{printedQuantity}</p>
+            </div>
+            <div className={cn("rounded-lg border px-3 py-2", pendingQuantity > 0 ? "border-amber-300 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30" : "bg-background")}>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pending</p>
+              <p className={cn("text-sm font-semibold tabular-nums", pendingQuantity > 0 && "text-amber-700 dark:text-amber-300")}>{pendingQuantity}</p>
+            </div>
+          </div>
+        </div>
+
+        {cartItems.length > 0 ? (
+          <div className="space-y-2">
+            {cartItems.map((item, index) => {
+              const quantity = Math.max(0, Number(item.sellQuantity || 0));
+              const printed = Math.min(quantity, Math.max(0, Number(item.printedQuantity || 0)));
+              const pending = Math.max(0, quantity - printed);
+              const unitPrice = Number(item.price || item.sellingPrice || 0);
+              return (
+                <div key={`${item.id || item.itemId || item.name}-${index}`} className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold">{item.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(unitPrice)} per item</p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 sm:min-w-[10rem] sm:flex-col sm:items-end">
+                    <p className="text-xs text-muted-foreground">Qty: <span className="font-semibold text-foreground tabular-nums">{quantity}</span></p>
+                    <p className="text-sm font-semibold tabular-nums">{formatCurrency(unitPrice * quantity)}</p>
+                    <Badge variant={pending > 0 ? "destructive" : "secondary"} className="whitespace-nowrap">
+                      {pending > 0 ? `${pending} pending` : 'Printed'}
+                    </Badge>
+                    <p className="text-[10px] text-muted-foreground">{printed} / {quantity} printed</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed bg-background px-4 py-8 text-center text-sm text-muted-foreground">
+            No items are currently recorded in this running table
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            {pendingQuantity > 0
+              ? `${pendingQuantity} item quantity still needs to be printed`
+              : 'All current item quantities have been printed'}
+          </p>
+          {pendingQuantity > 0 && (
+            <Button
+              type="button"
+              onClick={() => setUnprintedSale(sale)}
+              className="h-10 w-full gap-2 sm:w-auto"
+            >
+              <Printer className="h-4 w-4" />
+              Print Unprinted Docket
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const hasPrintedItems = (selectedSale?.cart || []).some(item => (item.printedQuantity || 0) > 0);
   const hasUnprintedItems = (selectedSale?.cart || []).some(item => (item.printedQuantity || 0) < item.sellQuantity);
@@ -1267,6 +1375,7 @@ function RunningTablesPage() {
                   columnVisibility={columnVisibility}
                   onColumnVisibilityChange={setColumnVisibility}
                   columnLabels={RUNNING_TABLES_COLUMN_LABELS}
+                  renderSubComponent={canExpandRunningTables ? renderRunningTableDetails : undefined}
                 />
               )}
             </CardContent>
