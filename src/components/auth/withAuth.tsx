@@ -59,11 +59,11 @@ export default function withAuth<P extends object>(
 
     const canManageRoomStatus = finalPermissions.includes(PagePermission.MANAGE_ROOM_STATUS);
 
-    // Every authenticated account may view its own profile, regardless of
-    // whether it has a staff role or the optional MANAGE_OWN_PROFILE permission.
+    // Profile access is permission-controlled for staff; Admin identities always retain access.
     const isOwnProfileRoute = pathname === '/profile';
+    const canViewOwnProfile = isAdminIdentity || finalPermissions.includes(PagePermission.MANAGE_OWN_PROFILE);
     const isEmailMarketingAdminAccess = requiredPermission === PagePermission.MANAGE_EMAIL_MARKETING && isAdminIdentity;
-    let hasRequiredPermission = isOwnProfileRoute || isEmailMarketingAdminAccess ||
+    let hasRequiredPermission = (isOwnProfileRoute && canViewOwnProfile) || isEmailMarketingAdminAccess ||
       (requiredPermission ? finalPermissions.includes(requiredPermission) : true);
 
     // POS-assigned staff may open Running Tables; the page itself scopes them
