@@ -26,7 +26,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import type { Role } from '@/lib/types';
-import { PagePermission, STANDALONE_PERMISSIONS, PERMISSION_GROUPS, POS_PERMISSION_GUIDANCE } from '@/lib/permissions';
+import { PagePermission, STANDALONE_PERMISSIONS, PERMISSION_GROUPS, POS_PERMISSION_GUIDANCE, normalizeRolePermissions } from '@/lib/permissions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -142,7 +142,7 @@ export default function CreateRolePage() {
         if (template && dynamicPermissionGroups) {
             form.setValue('name', template.name, { shouldDirty: true });
             form.setValue('description', template.description, { shouldDirty: true });
-            form.setValue('permissions', template.permissions, { shouldDirty: true });
+            form.setValue('permissions', normalizeRolePermissions(template.permissions), { shouldDirty: true });
 
             const templatePerms = new Set(template.permissions);
             let groupsToOpen = dynamicPermissionGroups
@@ -362,9 +362,11 @@ export default function CreateRolePage() {
                                                                             <Checkbox
                                                                                 checked={field.value?.includes(item.id)}
                                                                                 onCheckedChange={(checked) => {
-                                                                                    return checked
-                                                                                    ? field.onChange([...(field.value || []), item.id])
-                                                                                    : field.onChange(field.value?.filter((value) => value !== item.id))
+                                                                                    const current = field.value || [];
+                                                                                    const next = checked
+                                                                                        ? [...current, item.id]
+                                                                                        : current.filter((value) => value !== item.id);
+                                                                                    field.onChange(normalizeRolePermissions(next));
                                                                                 }}
                                                                             />
                                                                         </FormControl>
