@@ -122,6 +122,18 @@ export const POS_PERMISSION_GUIDANCE = [
   },
 ] as const;
 
+/**
+ * POS users must always be able to access their own Profile.
+ * Keep this normalization shared by role creation, editing, templates, and saves.
+ */
+export function normalizeRolePermissions(permissions: string[] = []): string[] {
+  const normalized = Array.from(new Set(permissions));
+  if (normalized.includes(PagePermission.VIEW_POS) && !normalized.includes(PagePermission.MANAGE_OWN_PROFILE)) {
+    normalized.push(PagePermission.MANAGE_OWN_PROFILE);
+  }
+  return normalized;
+}
+
 export const STANDALONE_PERMISSIONS = new Set([
   // These permissions can be assigned individually and are not part of a larger group on the UI
   PagePermission.MANAGE_OWN_PROFILE,
@@ -130,6 +142,13 @@ export const STANDALONE_PERMISSIONS = new Set([
 ]);
 
 export const PERMISSION_GROUPS = [
+  {
+    id: 'profile',
+    name: 'Profile',
+    permissions: [
+      { id: PagePermission.MANAGE_OWN_PROFILE, description: 'View and manage your own staff profile' },
+    ],
+  },
   {
     id: 'dashboard',
     name: 'Dashboard',
