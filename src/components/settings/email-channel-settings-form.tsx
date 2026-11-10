@@ -18,7 +18,6 @@ import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type EmailAttachment = { filename: string; contentType: string; content: string; encoding: string; cid?: string };
 type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; topBannerText: string; topBannerColor: string; templateSubject: string; templateBody: string; footerText: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
@@ -183,50 +182,49 @@ export function EmailChannelSettingsForm() {
     if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
     setIsSendingTest(true);
     try {
-      const readFileAsAttachment = (file: File) => new Promise<EmailAttachment>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result || '');
-          const comma = result.indexOf(',');
-          if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name));
-          resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1), encoding: 'base64' });
-        };
-        reader.onerror = () => reject(new Error('Could not read attachment: ' + file.name));
-        reader.readAsDataURL(file);
-      });
-      const attachments = await Promise.all(testFiles.map(readFileAsAttachment));
       const escapeHtml = (value: string) => value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char] || char));
       const senderName = config.senderName.trim() || 'Hotel';
       const renderTemplateValue = (template: string) => template
-        .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
-        .replace(/\{\{\s*subject\s*\}\}/gi, () => testSubject.trim())
-        .replace(/\{\{\s*businessName\s*\}\}/gi, () => senderName)
-        .replace(/\{\{\s*recipient\s*\}\}/gi, () => recipient)
-        .replace(/\{\{\s*date\s*\}\}/gi, () => new Date().toLocaleString());
+        .replace(/\\{\\{\\s*message\\s*\\}\\}/gi, () => testMessage)
+        .replace(/\\{\\{\\s*subject\\s*\\}\\}/gi, () => testSubject.trim())
+        .replace(/\\{\\{\\s*businessName\\s*\\}\\}/gi, () => senderName)
+        .replace(/\\{\\{\\s*recipient\\s*\\}\\}/gi, () => recipient)
+        .replace(/\\{\\{\\s*date\\s*\\}\\}/gi, () => new Date().toLocaleString());
       const renderedSubject = renderTemplateValue(config.templateSubject || '{{subject}}').trim() || testSubject.trim();
-      const templateText = config.templateBody
-        .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
-        .replace(/\{\{\s*businessName\s*\}\}/gi, () => senderName)
-        .replace(/\{\{\s*recipient\s*\}\}/gi, () => recipient)
-        .replace(/\{\{\s*date\s*\}\}/gi, () => new Date().toLocaleString());
+      const templateText = renderTemplateValue(config.templateBody || '{{message}}');
       const safeBannerColor = /^#[0-9a-fA-F]{6}$/.test(config.topBannerColor) ? config.topBannerColor : '#0f766e';
       let logoMarkup = '';
       if (config.logoDataUrl) {
         const match = config.logoDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
-        if (!match) throw new Error('The saved logo image is invalid. Please upload the logo again using PNG, JPG, or WEBP.');
-        const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
-        const extension = mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1];
-        attachments.unshift({
-          filename: 'hotel-business-logo.' + extension,
-          contentType: mimeType,
-          content: match[2],
-          encoding: 'base64',
-          cid: 'hotel-business-logo'
-        });
-        logoMarkup = '<img src="cid:hotel-business-logo" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
+        if (match) {
+          // Keep branding inside the HTML. Do not invent an undocumented CID
+          // attachment object: the documented API does not define that shape.
+          logoMarkup = '<img src="' + config.logoDataUrl + '" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
+        }
       }
       const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-collapse:collapse"><tr><td style="background:' + safeBannerColor + ';padding:13px 20px;text-align:center;color:#ffffff;font-size:13px;font-weight:bold;letter-spacing:1px">' + escapeHtml(config.topBannerText.trim() || senderName) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(senderName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(templateText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;white-space:pre-wrap">' + escapeHtml(config.footerText) + '</td></tr></table></body></html>';
-      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: renderedSubject, senderName, fromName: senderName, html, ...(attachments.length ? { attachments } : {}) }) });
+
+      // Follow the published gateway contract exactly: JSON for ordinary
+      // messages; multipart/form-data with repeated "attachments" fields for
+      // browser-selected files. Let fetch set the multipart boundary itself.
+      let requestBody: BodyInit;
+      const headers: Record<string, string> = { 'X-API-Key': config.apiKey.trim() };
+      if (testFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('to', recipient);
+        formData.append('subject', renderedSubject);
+        formData.append('html', html);
+        testFiles.forEach(file => formData.append('attachments', file, file.name));
+        requestBody = formData;
+      } else {
+        headers['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify({ to: recipient, subject: renderedSubject, html });
+      }
+      const response = await fetch(baseUrl + '/api/email/send', {
+        method: 'POST',
+        headers,
+        body: requestBody,
+      });
       const raw = await response.text(); let payload: any = {};
       try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
       if (!response.ok || payload.success !== true || payload.error || !payload.messageId) {
@@ -294,7 +292,7 @@ export function EmailChannelSettingsForm() {
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="email-sender-name">Sender / business name</Label><Input id="email-sender-name" maxLength={120} placeholder="Your hotel or business name" value={config.senderName} onChange={event => updateConfig({ senderName: event.target.value })} /><p className="text-xs text-muted-foreground">Shown as the branded sender name in supported email gateway messages.</p></div>
-            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 256 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose a compressed logo smaller than 256 KB. This keeps the saved settings within Firestore document limits.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 256 KB. The logo is sent as a CID inline image attachment, not a Base64 data URL in the email HTML.</p></div>
+            <div className="space-y-2 md:col-span-2"><Label>Business logo</Label><input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 256 * 1024) { toast({ variant: 'destructive', title: 'Logo too large', description: 'Choose a compressed logo smaller than 256 KB. This keeps the saved settings within Firestore document limits.' }); event.target.value = ''; return; } const reader = new FileReader(); reader.onload = () => updateConfig({ logoDataUrl: String(reader.result || '') }); reader.readAsDataURL(file); }} /><div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>Upload logo</Button>{config.logoDataUrl && <><img src={config.logoDataUrl} alt="Business logo preview" className="h-12 w-12 rounded border object-contain" /><Button type="button" variant="ghost" onClick={() => updateConfig({ logoDataUrl: '' })}>Remove logo</Button></>}</div><p className="text-xs text-muted-foreground">PNG, JPG, WEBP or GIF. Maximum 256 KB. The logo is embedded in the branded HTML message; it is not sent using an undocumented CID attachment format.</p></div>
             <div className="md:col-span-2 space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div><p className="text-sm font-medium">Gateway account credentials</p><p className="text-xs text-muted-foreground">{config.username || config.password ? 'Credentials are saved and hidden from the settings inputs.' : 'No optional gateway account credentials have been saved.'}</p></div>
@@ -424,7 +422,7 @@ export function EmailChannelSettingsForm() {
                   </div>;
                 })}
               </div>}
-              <p className="text-xs text-muted-foreground">Files are attached to the outgoing email using the gateway’s Base64 attachment interface. The gateway/provider may enforce its own file-type and message-size limits.</p>
+              <p className="text-xs text-muted-foreground">Files are uploaded using the gateway’s documented multipart form-data interface. The gateway/provider may enforce its own file-type and message-size limits.</p>
             </div>
             <Button type="button" onClick={sendTestEmail} disabled={isSendingTest || !testTo.trim()}>{isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{isSendingTest ? "Sending email..." : "Send Email"}</Button>
           </fieldset>
