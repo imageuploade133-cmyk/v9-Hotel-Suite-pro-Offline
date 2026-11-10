@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { CollapsibleContent } from '@/components/ui/collapsible';
+import { AutoFitText } from '@/components/ui/auto-fit-text';
 
 export function DashboardMetrics({
   data,
@@ -90,7 +91,7 @@ export function DashboardMetrics({
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(filteredIncome)}</div>
+              <AutoFitText className="text-2xl font-bold">{formatCurrency(filteredIncome)}</AutoFitText>
               <p className="text-xs text-muted-foreground">
                 Total revenue from the selected period.
               </p>
@@ -120,7 +121,7 @@ export function DashboardMetrics({
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(filteredMonthlyIncome)}</div>
+            <AutoFitText className="text-2xl font-bold">{formatCurrency(filteredMonthlyIncome)}</AutoFitText>
             <p className="text-xs text-muted-foreground">
               Total revenue for the selected month.
             </p>
@@ -147,7 +148,7 @@ export function DashboardMetrics({
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(filteredYearlyIncome)}</div>
+            <AutoFitText className="text-2xl font-bold">{formatCurrency(filteredYearlyIncome)}</AutoFitText>
             <p className="text-xs text-muted-foreground">
             Total revenue for the selected year.
             </p>
