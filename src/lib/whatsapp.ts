@@ -25,6 +25,8 @@ export interface WhatsAppSendResult {
   status?: string;
   cost?: number;
   rawResponse?: any;
+  acceptedRecipients?: number;
+  failedRecipients?: number;
 }
 
 export interface WhatsAppError {
@@ -149,8 +151,11 @@ export function validateMessage(subject: string, message: string): void {
  */
 export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promise<WhatsAppSendResult> {
   const { recipients, subject, message } = params;
+  let recipientCount = 0;
+  let acceptedCount = 0;
   try {
     const formattedRecipients = validateRecipients(Array.isArray(recipients) ? recipients : [recipients]);
+    recipientCount = formattedRecipients.length;
     validateMessage(subject, message);
     const provider = await getActiveWhatsAppProvider(params.channel || 'bulkMessages');
     if (provider.kind === 'gateway') {
@@ -168,15 +173,16 @@ export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promis
         if (raw) { try { data = JSON.parse(raw); } catch { data = { message: raw }; } }
         if (!response.ok || data.success === false || data.ok === false) throw new Error(data.message || data.error || `Gateway rejected recipient ${number} (HTTP ${response.status}).`);
         results.push(data);
+        acceptedCount += 1;
       }
-      return { success: true, message: 'Message accepted by the configured WhatsApp gateway.', rawResponse: results };
+      return { success: true, message: 'Message accepted by the configured WhatsApp gateway.', acceptedRecipients: acceptedCount, failedRecipients: 0, rawResponse: results };
     }
     const payload = { WA: { auth: { username: provider.username, apikey: provider.apiKey }, message: { subject: subject.trim(), messagetext: message.trim() }, recipients: formattedRecipients } };
     const response = await sendWithRetry(payload);
-    return { success: true, message: 'Message accepted by eBulkSMS.', messageId: response.messageId, status: response.status, cost: response.cost, rawResponse: response };
+    return { success: true, message: 'Message accepted by eBulkSMS.', messageId: response.messageId, status: response.status, cost: response.cost, acceptedRecipients: recipientCount, failedRecipients: 0, rawResponse: response };
   } catch (error: any) {
     console.error('WhatsApp message send failed:', error);
-    return { success: false, message: error?.message || 'Failed to send message', rawResponse: error };
+    return { success: false, message: error?.message || 'Failed to send message', acceptedRecipients: acceptedCount, failedRecipients: Math.max(0, recipientCount - acceptedCount), rawResponse: error };
   }
 }
 
