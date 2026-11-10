@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
-type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; channels: ChannelMap };
+type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; topBannerText: string; topBannerColor: string; templateBody: string; footerText: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
   newReservation: true,
@@ -35,6 +35,10 @@ const DEFAULT_CONFIG: EmailConfig = {
   password: '',
   senderName: '',
   logoDataUrl: '',
+  topBannerText: 'OFFICIAL HOTEL NOTIFICATION',
+  topBannerColor: '#0f766e',
+  templateBody: '{{message}}',
+  footerText: 'Thank you for choosing us. We appreciate your business.',
   channels: { ...DEFAULT_CHANNELS },
 };
 const CHANNELS: Array<{ id: ChannelId; title: string; description: string }> = [
@@ -56,6 +60,10 @@ function normalizeConfig(value: unknown): EmailConfig {
     password: typeof saved.password === 'string' ? saved.password : '',
     senderName: typeof saved.senderName === 'string' ? saved.senderName : '',
     logoDataUrl: typeof saved.logoDataUrl === 'string' ? saved.logoDataUrl : '',
+    topBannerText: typeof saved.topBannerText === 'string' ? saved.topBannerText : DEFAULT_CONFIG.topBannerText,
+    topBannerColor: typeof saved.topBannerColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.topBannerColor) ? saved.topBannerColor : DEFAULT_CONFIG.topBannerColor,
+    templateBody: typeof saved.templateBody === 'string' ? saved.templateBody : DEFAULT_CONFIG.templateBody,
+    footerText: typeof saved.footerText === 'string' ? saved.footerText : DEFAULT_CONFIG.footerText,
     channels: { ...DEFAULT_CHANNELS, ...(saved.channels && typeof saved.channels === 'object' ? saved.channels : {}) },
   };
 }
@@ -149,14 +157,43 @@ export function EmailChannelSettingsForm() {
     if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
     setIsSendingTest(true);
     try {
-      const attachments = await Promise.all(testFiles.map(file => new Promise((resolve, reject) => {
+      const readFileAsAttachment = (file: File) => new Promise<{ filename: string; contentType: string; content: string; encoding: string }>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => { const result = String(reader.result || ''); const comma = result.indexOf(','); if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name)); resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1) }); };
+        reader.onload = () => {
+          const result = String(reader.result || '');
+          const comma = result.indexOf(',');
+          if (comma < 0) return reject(new Error('Could not read attachment: ' + file.name));
+          resolve({ filename: file.name, contentType: file.type || 'application/octet-stream', content: result.slice(comma + 1), encoding: 'base64' });
+        };
         reader.onerror = () => reject(new Error('Could not read attachment: ' + file.name));
         reader.readAsDataURL(file);
-      })));
-      const escapedMessage = testMessage.replace(/[&<>\"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char] || char));
-      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName: config.senderName.trim() || undefined, fromName: config.senderName.trim() || undefined, html: '<div style="font-family:Arial,sans-serif;line-height:1.6">' + (config.logoDataUrl ? '<img src="' + config.logoDataUrl + '" alt="' + (config.senderName || 'Business') + '" style="max-width:180px;max-height:80px;object-fit:contain;margin-bottom:16px" />' : '') + (config.senderName.trim() ? '<h2 style="margin:0 0 12px">' + config.senderName.replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char] || char)) + '</h2>' : '') + '<div style="white-space:pre-wrap">' + escapedMessage + '</div></div>', ...(attachments.length ? { attachments } : {}) }) });
+      });
+      const attachments = await Promise.all(testFiles.map(readFileAsAttachment));
+      const escapeHtml = (value: string) => value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char] || char));
+      const senderName = config.senderName.trim() || 'Hotel';
+      const templateText = config.templateBody
+        .replace(/\\?\{\{\s*message\s*\}\\?\}/gi, testMessage)
+        .replace(/\\?\{\{\s*businessName\s*\}\\?\}/gi, senderName)
+        .replace(/\\?\{\{\s*recipient\s*\}\\?\}/gi, recipient)
+        .replace(/\\?\{\{\s*date\s*\}\\?\}/gi, new Date().toLocaleString());
+      const safeBannerColor = /^#[0-9a-fA-F]{6}$/.test(config.topBannerColor) ? config.topBannerColor : '#0f766e';
+      let logoMarkup = '';
+      if (config.logoDataUrl) {
+        const match = config.logoDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
+        if (!match) throw new Error('The saved logo image is invalid. Please upload the logo again using PNG, JPG, or WEBP.');
+        const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+        const extension = mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1];
+        attachments.unshift({
+          filename: 'hotel-business-logo.' + extension,
+          contentType: mimeType,
+          content: match[2],
+          encoding: 'base64',
+          cid: 'hotel-business-logo'
+        } as any);
+        logoMarkup = '<img src="cid:hotel-business-logo" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
+      }
+      const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-collapse:collapse"><tr><td style="background:' + safeBannerColor + ';padding:13px 20px;text-align:center;color:#ffffff;font-size:13px;font-weight:bold;letter-spacing:1px">' + escapeHtml(config.topBannerText.trim() || senderName) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(senderName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(templateText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;white-space:pre-wrap">' + escapeHtml(config.footerText) + '</td></tr></table></body></html>';
+      const response = await fetch(baseUrl + '/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': config.apiKey.trim() }, body: JSON.stringify({ to: recipient, subject: testSubject.trim(), senderName, fromName: senderName, html, ...(attachments.length ? { attachments } : {}) }) });
       const raw = await response.text(); let payload: any = {};
       try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
       if (!response.ok || payload.success !== true || payload.error || !payload.messageId) {
