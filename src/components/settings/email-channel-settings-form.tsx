@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 type ChannelId = 'newReservation' | 'stockTransfer' | 'dailyIncome' | 'guestNotifications' | 'otherNotifications';
 type ChannelMap = Record<ChannelId, boolean>;
+type EmailAttachment = { filename: string; contentType: string; content: string; encoding: string; cid?: string };
 type EmailConfig = { enabled: boolean; baseUrl: string; apiKey: string; username: string; password: string; senderName: string; logoDataUrl: string; topBannerText: string; topBannerColor: string; templateBody: string; footerText: string; channels: ChannelMap };
 
 const DEFAULT_CHANNELS: ChannelMap = {
@@ -157,7 +158,7 @@ export function EmailChannelSettingsForm() {
     if (!testSubject.trim() || !testMessage.trim()) { toast({ variant: 'destructive', title: 'Complete the test email', description: 'A subject and message are required.' }); return; }
     setIsSendingTest(true);
     try {
-      const readFileAsAttachment = (file: File) => new Promise<{ filename: string; contentType: string; content: string; encoding: string }>((resolve, reject) => {
+      const readFileAsAttachment = (file: File) => new Promise<EmailAttachment>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
           const result = String(reader.result || '');
@@ -172,10 +173,10 @@ export function EmailChannelSettingsForm() {
       const escapeHtml = (value: string) => value.replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char] || char));
       const senderName = config.senderName.trim() || 'Hotel';
       const templateText = config.templateBody
-        .replace(/\\?\{\{\s*message\s*\}\\?\}/gi, testMessage)
-        .replace(/\\?\{\{\s*businessName\s*\}\\?\}/gi, senderName)
-        .replace(/\\?\{\{\s*recipient\s*\}\\?\}/gi, recipient)
-        .replace(/\\?\{\{\s*date\s*\}\\?\}/gi, new Date().toLocaleString());
+        .replace(/\{\{\s*message\s*\}\}/gi, () => testMessage)
+        .replace(/\{\{\s*businessName\s*\}\}/gi, () => senderName)
+        .replace(/\{\{\s*recipient\s*\}\}/gi, () => recipient)
+        .replace(/\{\{\s*date\s*\}\}/gi, () => new Date().toLocaleString());
       const safeBannerColor = /^#[0-9a-fA-F]{6}$/.test(config.topBannerColor) ? config.topBannerColor : '#0f766e';
       let logoMarkup = '';
       if (config.logoDataUrl) {
@@ -189,7 +190,7 @@ export function EmailChannelSettingsForm() {
           content: match[2],
           encoding: 'base64',
           cid: 'hotel-business-logo'
-        } as any);
+        });
         logoMarkup = '<img src="cid:hotel-business-logo" alt="' + escapeHtml(senderName) + '" width="180" style="display:block;width:180px;max-width:100%;max-height:84px;height:auto;object-fit:contain;margin:0 auto 18px" />';
       }
       const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-collapse:collapse"><tr><td style="background:' + safeBannerColor + ';padding:13px 20px;text-align:center;color:#ffffff;font-size:13px;font-weight:bold;letter-spacing:1px">' + escapeHtml(config.topBannerText.trim() || senderName) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(senderName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(templateText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;white-space:pre-wrap">' + escapeHtml(config.footerText) + '</td></tr></table></body></html>';
