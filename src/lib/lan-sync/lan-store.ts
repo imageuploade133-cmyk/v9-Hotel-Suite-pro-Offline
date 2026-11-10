@@ -277,7 +277,10 @@ export class LanStore {
     // Validate every stock movement before changing any document.
     const stockUpdates = new Map<string, { collectionName: string; itemId: string; data: Record<string, unknown> }>();
     for (const adjustment of stockAdjustments) {
-      if (!adjustment.collectionName || !adjustment.itemId || !Number.isFinite(adjustment.quantityDelta) || adjustment.quantityDelta === 0) {
+      const heldDelta = Number(adjustment.heldDelta || 0);
+      if (!adjustment.collectionName || !adjustment.itemId
+        || !Number.isFinite(adjustment.quantityDelta) || !Number.isFinite(heldDelta)
+        || (adjustment.quantityDelta === 0 && heldDelta === 0)) {
         throw new Error('Invalid stock adjustment.');
       }
       const key = adjustment.collectionName + '/' + adjustment.itemId;
