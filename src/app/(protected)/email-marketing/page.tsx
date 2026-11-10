@@ -252,11 +252,19 @@ function EmailMarketingPage() {
         const logoMarkup = logoUrl ? '<img src="' + escapeHtml(logoUrl) + '" alt="' + escapeHtml(businessName) + '" width="180" style="display:block;width:180px;max-width:100%;height:auto;margin:0 auto 18px;border:0" />' : '';
         const html = '<!doctype html><html><body style="margin:0;padding:24px 10px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#fff;border-collapse:collapse"><tr><td style="background:' + safeColor + ';padding:13px 20px;text-align:center;color:#fff;font-size:13px;font-weight:bold">' + escapeHtml(banner) + '</td></tr><tr><td style="padding:28px 30px 12px;text-align:center">' + logoMarkup + '<h2 style="margin:0;font-size:22px;color:#0f172a">' + escapeHtml(businessName) + '</h2></td></tr><tr><td style="padding:18px 30px 28px;font-size:15px;line-height:1.7;white-space:pre-wrap">' + escapeHtml(renderedText) + '</td></tr><tr><td style="border-top:1px solid #e2e8f0;background:#f8fafc;padding:18px 24px;text-align:center;color:#64748b;font-size:12px">' + escapeHtml(String(emailConfig.footerText || 'Thank you for choosing us.')) + '</td></tr></table></body></html>';
         try {
-          const response = await fetch(baseUrl + '/api/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-            body: JSON.stringify({ to: contact.email, subject: renderedSubject, html, text: renderedText, fromName: businessName, attachments: [] }),
-          });
+          const controller = new AbortController();
+          const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+          let response: Response;
+          try {
+            response = await fetch(baseUrl + '/api/email/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+              body: JSON.stringify({ to: contact.email, subject: renderedSubject, html, text: renderedText, fromName: businessName, attachments: [] }),
+              signal: controller.signal,
+            });
+          } finally {
+            window.clearTimeout(timeoutId);
+          }
           const raw = await response.text();
           let payload: any = {};
           try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
