@@ -106,11 +106,13 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     // Calculate total quantity across both cart and activeRunningItems
     const totalInCart = cart.find((cartItem) => cartItem.id === item.id)?.sellQuantity || 0;
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === item.id)?.sellQuantity || 0;
+    const ownHeldQuantity = !restoredSaleData?.linkedBillId
+      ? Number(restoredSaleData?.cart?.find(runningItem => runningItem.id === item.id)?.sellQuantity || 0)
+      : 0;
 
-    // Calculate the total limit for this table:
-    // Current stock is unreserved availability; add this table's own running quantity
-    // back so it can continue adding items without competing against its own reservation.
-    const maxAllowed = hasFiniteStock ? currentStock + totalInRunning : Infinity;
+    // Current stock is unreserved availability. Add back this table's full persisted
+    // quantity, including items still visible in the cart after "Update Only".
+    const maxAllowed = hasFiniteStock ? currentStock + ownHeldQuantity : Infinity;
     const totalExisting = totalInCart + totalInRunning;
 
     // Always add to Current Sale (cart), not Active Running Table
@@ -219,9 +221,15 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       }
     }
 
-    // The current cart contains only additional units. The fetched currentStock
-    // is already the quantity available beyond all running-table reservations.
-    const maxCartQuantity = hasFiniteStock ? currentStock : Infinity;
+    // The cart contains additional units. Add back this table's persisted reservation
+    // and subtract the part already represented by activeRunningItems.
+    const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === itemId)?.sellQuantity || 0;
+    const ownHeldQuantity = !restoredSaleData?.linkedBillId
+      ? Number(restoredSaleData?.cart?.find(runningItem => runningItem.id === itemId)?.sellQuantity || 0)
+      : 0;
+    const maxCartQuantity = hasFiniteStock
+      ? Math.max(0, currentStock + ownHeldQuantity - totalInRunning)
+      : Infinity;
 
     if (hasFiniteStock && quantity > maxCartQuantity) {
         toast({
