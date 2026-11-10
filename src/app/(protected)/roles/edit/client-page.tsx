@@ -31,7 +31,7 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import type { Role } from '@/lib/types';
-import { PagePermission, STANDALONE_PERMISSIONS, POS_PERMISSION_GUIDANCE } from '@/lib/permissions';
+import { PagePermission, STANDALONE_PERMISSIONS, POS_PERMISSION_GUIDANCE, normalizeRolePermissions } from '@/lib/permissions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -91,7 +91,7 @@ function EditRolePageContent({ role }: { role: Role }) {
         defaultValues: {
             name: role.name || '',
             description: role.description || '',
-            permissions: role.permissions || [],
+            permissions: normalizeRolePermissions(role.permissions || []),
             isGlobalRole: role.isGlobalRole || false,
             applicableBranches: role.applicableBranches || [],
         },
@@ -125,7 +125,7 @@ function EditRolePageContent({ role }: { role: Role }) {
             form.reset({
                 name: role.name,
                 description: role.description || '',
-                permissions: role.permissions || [],
+                permissions: normalizeRolePermissions(role.permissions || []),
                 isGlobalRole: role.isGlobalRole || false,
                 applicableBranches: role.applicableBranches || [],
             });
@@ -151,7 +151,7 @@ function EditRolePageContent({ role }: { role: Role }) {
             const dataToUpdate = {
                 name: values.name,
                 description: values.description,
-                permissions: values.permissions,
+                permissions: normalizeRolePermissions(values.permissions || []),
                 isGlobalRole: values.isGlobalRole || false,
                 applicableBranches: values.isGlobalRole ? [] : (values.applicableBranches || []),
             };
@@ -215,7 +215,7 @@ function EditRolePageContent({ role }: { role: Role }) {
     const applyTemplate = (templateName: string) => {
         const template = ROLE_TEMPLATES.find(t => t.name === templateName);
         if (template) {
-            form.setValue('permissions', template.permissions, { shouldDirty: true });
+            form.setValue('permissions', normalizeRolePermissions(template.permissions), { shouldDirty: true });
 
             const templatePerms = new Set(template.permissions);
             let groupsToOpen = dynamicPermissionGroups
@@ -435,9 +435,11 @@ function EditRolePageContent({ role }: { role: Role }) {
                                                                                 <Checkbox
                                                                                     checked={field.value?.includes(item.id)}
                                                                                     onCheckedChange={(checked) => {
-                                                                                        return checked
-                                                                                        ? field.onChange([...(field.value || []), item.id])
-                                                                                        : field.onChange(field.value?.filter((value) => value !== item.id))
+                                                                                        const current = field.value || [];
+                                                                                        const next = checked
+                                                                                            ? [...current, item.id]
+                                                                                            : current.filter((value) => value !== item.id);
+                                                                                        field.onChange(normalizeRolePermissions(next));
                                                                                     }}
                                                                                 />
                                                                             </FormControl>
