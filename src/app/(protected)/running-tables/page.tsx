@@ -455,25 +455,27 @@ function RunningTablesPage() {
   const releaseRunningTableStock = async (transaction: any, saleData: HeldSale) => {
     if (!firestore) throw new Error('Firestore is not initialized.');
     const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
+    const returnQuantities = new Map<string, number>();
+    itemsToReturnToStock.forEach(item => returnQuantities.set(item.id, (returnQuantities.get(item.id) || 0) + Number(item.sellQuantity || 0)));
     const stockDocs = new Map<string, { ref: any; data: any }>();
 
-    for (const cartItem of itemsToReturnToStock) {
-      const stockRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
+    for (const [itemId, quantity] of returnQuantities) {
+      const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
       const stockDoc = await transaction.get(stockRef);
-      if (!stockDoc.exists()) throw new Error(`Stock item "${cartItem.name}" no longer exists.`);
+      if (!stockDoc.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
       const stockData = stockDoc.data();
-      if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < Number(cartItem.sellQuantity || 0)) {
-        throw new Error(`The reserved stock for "${cartItem.name}" is inconsistent. Refresh inventory before deleting this table.`);
+      if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < quantity) {
+        throw new Error(`The reserved stock for "${itemId}" is inconsistent. Refresh inventory before deleting this table.`);
       }
-      stockDocs.set(cartItem.id, { ref: stockRef, data: stockData });
+      stockDocs.set(itemId, { ref: stockRef, data: stockData });
     }
 
-    for (const cartItem of itemsToReturnToStock) {
-      const stock = stockDocs.get(cartItem.id)!;
+    for (const [itemId, quantity] of returnQuantities) {
+      const stock = stockDocs.get(itemId)!;
       if (saleData.stockReservationMode === 'reserved') {
-        transaction.update(stock.ref, { reservedQuantity: increment(-Number(cartItem.sellQuantity || 0)) });
+        transaction.update(stock.ref, { reservedQuantity: increment(-quantity) });
       } else {
-        transaction.update(stock.ref, { quantity: increment(cartItem.sellQuantity) });
+        transaction.update(stock.ref, { quantity: increment(quantity) });
       }
     }
     return itemsToReturnToStock;
