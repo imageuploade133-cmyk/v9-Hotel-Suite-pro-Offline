@@ -653,6 +653,8 @@ export interface HeldSale {
   isCreditSale?: boolean;
   linkedStockSaleId?: string;
   linkedStockSaleNumber?: string;
+  /** New running tables reserve stock without reducing physical on-hand quantity. */
+  stockReservationMode?: 'reserved';
 }
 
 export interface StockCategory {
