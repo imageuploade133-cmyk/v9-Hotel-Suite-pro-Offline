@@ -96,6 +96,7 @@ export const BRANCH_COMPATIBLE_PERMISSIONS = new Set([
   // Other
   PagePermission.VIEW_TUTORIAL_PAGE,
   PagePermission.MANAGE_WHATSAPP_MESSAGING,
+  PagePermission.MANAGE_EMAIL_MARKETING,
 
   // Management Section
   PagePermission.VIEW_MANAGEMENT,
