@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Send } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ export function EbulkSmsSettingsForm() {
   const [isSaving, setIsSaving] = React.useState(false);
   const [showApiKey, setShowApiKey] = React.useState(false);
   const [testStatus, setTestStatus] = React.useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [enabled, setEnabled] = React.useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,6 +63,7 @@ export function EbulkSmsSettingsForm() {
             username: data.username || '',
             apiKey: data.apiKey || '',
           });
+          setEnabled(data.enabled === true);
         }
       } catch (error) {
         console.error('Error loading EbulkSMS settings:', error);
@@ -75,7 +79,7 @@ export function EbulkSmsSettingsForm() {
     setIsSaving(true);
     try {
       const docRef = doc(db, 'settings', 'ebulkSms');
-      await setDoc(docRef, values, { merge: true });
+      await setDoc(docRef, { ...values, enabled }, { merge: true });
       toast({
         title: 'Settings saved',
         description: 'EbulkSMS credentials have been updated successfully.',
@@ -120,7 +124,7 @@ export function EbulkSmsSettingsForm() {
         return;
       }
 
-      await setDoc(doc(db, 'settings', 'ebulkSms'), values, { merge: true });
+      await setDoc(doc(db, 'settings', 'ebulkSms'), { ...values, enabled }, { merge: true });
 
       toast({
         title: 'Test Initiated',
@@ -167,14 +171,15 @@ export function EbulkSmsSettingsForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>EbulkSMS Settings</CardTitle>
-        <CardDescription>
-          Configure your EbulkSMS API credentials.
-        </CardDescription>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><CardTitle>EbulkSMS Settings</CardTitle><CardDescription>Configure your EbulkSMS credentials and choose whether this provider can send WhatsApp campaigns.</CardDescription></div>
+          <div className="flex items-center gap-2"><Label htmlFor="ebulksms-enabled">{enabled ? 'EbulkSMS Enabled' : 'EbulkSMS Disabled'}</Label><Switch id="ebulksms-enabled" checked={enabled} onCheckedChange={setEnabled} /></div>
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <p className="text-xs text-muted-foreground">The Enable switch is saved together with your credentials when you click Save Changes. When disabled, bulk WhatsApp sending will not use this provider.</p>
             <FormField
               control={form.control}
               name="username"
