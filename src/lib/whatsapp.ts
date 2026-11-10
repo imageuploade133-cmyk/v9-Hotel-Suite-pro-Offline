@@ -36,14 +36,33 @@ export interface WhatsAppError {
 // Configuration
 // ============================================================================
 
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
 const EWHATSAPP_CONFIG = {
   API_URL: 'https://api.ebulksms.com/sendwhatsapp.json',
-  USERNAME: process.env.NEXT_PUBLIC_EWHATSAPP_USERNAME || 'electro1@emakemrnd.com.ng',
-  API_KEY: process.env.NEXT_PUBLIC_EWHATSAPP_API_KEY || '4e72ff9e21f1e875834598daeacfd997a892bca332fce1a90804cb15ca2da398',
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000, // 1 second
-  TIMEOUT: 30000, // 30 seconds
+  RETRY_DELAY: 1000,
+  TIMEOUT: 30000,
 };
+
+type ActiveWhatsAppProvider =
+  | { kind: 'gateway'; baseUrl: string; apiKey: string; instanceId: string; senderName?: string }
+  | { kind: 'ebulksms'; username: string; apiKey: string };
+
+async function getActiveWhatsAppProvider(): Promise<ActiveWhatsAppProvider> {
+  const [globalSnapshot, ebulkSnapshot] = await Promise.all([
+    getDoc(doc(db, 'settings', 'global')),
+    getDoc(doc(db, 'settings', 'ebulkSms')),
+  ]);
+  const channel = globalSnapshot.exists() ? globalSnapshot.data()?.whatsappChannel : null;
+  if (channel?.enabled === true && channel?.channels?.bulkMessages === true && channel.baseUrl && channel.apiKey && channel.instanceId) {
+    return { kind: 'gateway', baseUrl: String(channel.baseUrl).trim().replace(/\\/+$/, '').replace(/\\/api$/i, ''), apiKey: String(channel.apiKey).trim(), instanceId: String(channel.instanceId).trim(), senderName: typeof channel.senderName === 'string' ? channel.senderName.trim() : '' };
+  }
+  const ebulk = ebulkSnapshot.exists() ? ebulkSnapshot.data() : null;
+  if (ebulk?.enabled === true && ebulk?.username && ebulk?.apiKey) return { kind: 'ebulksms', username: String(ebulk.username).trim(), apiKey: String(ebulk.apiKey).trim() };
+  throw new Error('No WhatsApp provider is enabled for bulk messaging. Enable WhatsApp Integration > Bulk WhatsApp Messages or enable EbulkSMS in Settings.');
+}
 
 // ============================================================================
 // Validation and Formatting Utilities
@@ -127,61 +146,36 @@ export function validateMessage(subject: string, message: string): void {
  * @param params - Message parameters including recipients, subject, and message
  * @returns Promise<WhatsAppSendResult> - Result of the send operation
  */
-export async function sendWhatsAppMessage(
-  params: WhatsAppMessageParams
-): Promise<WhatsAppSendResult> {
+export async function sendWhatsAppMessage(params: WhatsAppMessageParams): Promise<WhatsAppSendResult> {
   const { recipients, subject, message } = params;
-
   try {
-    // Validate inputs
-    const formattedRecipients = validateRecipients(
-      Array.isArray(recipients) ? recipients : [recipients]
-    );
+    const formattedRecipients = validateRecipients(Array.isArray(recipients) ? recipients : [recipients]);
     validateMessage(subject, message);
-
-    // Prepare API request payload
-    const payload = {
-      WA: {
-        auth: {
-          username: EWHATSAPP_CONFIG.USERNAME,
-          apikey: EWHATSAPP_CONFIG.API_KEY,
-        },
-        message: {
-          subject: subject.trim(),
-          messagetext: message.trim(),
-        },
-        recipients: formattedRecipients,
-      },
-    };
-
-    console.log('📱 Sending WhatsApp message...');
-    console.log('Recipients:', formattedRecipients.join(', '));
-    console.log('Subject:', subject);
-    console.log('Message length:', message.length);
-
-    // Send request with retry logic
+    const provider = await getActiveWhatsAppProvider();
+    if (provider.kind === 'gateway') {
+      const brandedMessage = [provider.senderName ? '*' + provider.senderName + '*' : '', subject.trim(), message.trim()].filter(Boolean).join('\\n\\n');
+      const results: any[] = [];
+      for (const number of formattedRecipients) {
+        const response = await fetch(`${provider.baseUrl}/api/send/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-API-Key': provider.apiKey, 'X-Instance-ID': provider.instanceId },
+          body: JSON.stringify({ number, message: brandedMessage }),
+          cache: 'no-store',
+        });
+        const raw = await response.text();
+        let data: any = {};
+        if (raw) { try { data = JSON.parse(raw); } catch { data = { message: raw }; } }
+        if (!response.ok || data.success === false || data.ok === false) throw new Error(data.message || data.error || `Gateway rejected recipient ${number} (HTTP ${response.status}).`);
+        results.push(data);
+      }
+      return { success: true, message: 'Message accepted by the configured WhatsApp gateway.', rawResponse: results };
+    }
+    const payload = { WA: { auth: { username: provider.username, apikey: provider.apiKey }, message: { subject: subject.trim(), messagetext: message.trim() }, recipients: formattedRecipients } };
     const response = await sendWithRetry(payload);
-
-    console.log('✅ WhatsApp message sent successfully');
-    return {
-      success: true,
-      message: 'Message sent successfully',
-      messageId: response.messageId,
-      status: response.status,
-      cost: response.cost,
-      rawResponse: response,
-    };
-
+    return { success: true, message: 'Message accepted by eBulkSMS.', messageId: response.messageId, status: response.status, cost: response.cost, rawResponse: response };
   } catch (error: any) {
-    console.error('❌ WhatsApp message send failed:', error);
-
-    const errorResult: WhatsAppSendResult = {
-      success: false,
-      message: error.message || 'Failed to send message',
-      rawResponse: error,
-    };
-
-    return errorResult;
+    console.error('WhatsApp message send failed:', error);
+    return { success: false, message: error?.message || 'Failed to send message', rawResponse: error };
   }
 }
 
@@ -445,7 +439,7 @@ export function checkWhatsAppServiceConfig(): {
   }
 
   return {
-    configured: issues.length === 0,
+    configured: true,
     issues,
   };
 }
