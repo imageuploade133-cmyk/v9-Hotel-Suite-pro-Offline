@@ -1674,14 +1674,49 @@ function RunningTablesPage() {
                           </div>
                           {history.items && history.items.length > 0 && (
                             <div className="mt-3 pt-3 border-t">
-                              <p className="text-xs font-medium text-muted-foreground mb-2">Items:</p>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Original Docket Items:</p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
                                 {history.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between">
+                                  <div key={idx} className="flex justify-between gap-3">
                                     <span>{item.itemName} x{item.quantity}</span>
                                     <span className="text-muted-foreground">{formatCurrency(item.price * item.quantity)}</span>
                                   </div>
                                 ))}
+                              </div>
+                            </div>
+                          )}
+                          {history.actionType !== 'Completed' && (history.itemsReturnedToStock || []).length > 0 && (
+                            <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50/70 p-3 dark:border-orange-900 dark:bg-orange-950/20">
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Items Returned to Stock</p>
+                                <Badge variant="warning">
+                                  {(history.itemsReturnedToStock || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} items
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                {(history.itemsReturnedToStock || []).map((item, idx) => {
+                                  const unitPrice = Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0);
+                                  const lineValue = unitPrice * Number(item.quantity || 0);
+                                  return (
+                                    <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                                      <div className="min-w-0">
+                                        <p className="font-medium">{item.itemName}</p>
+                                        <p className="text-xs text-muted-foreground">Returned quantity: {item.quantity}</p>
+                                      </div>
+                                      <div className="shrink-0 text-right">
+                                        <p className="font-medium">{formatCurrency(lineValue)}</p>
+                                        <p className="text-xs text-muted-foreground">{formatCurrency(unitPrice)} each</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-2 flex items-center justify-between border-t border-orange-200 pt-2 text-sm font-semibold dark:border-orange-900">
+                                <span>Total returned value</span>
+                                <span>{formatCurrency((history.itemsReturnedToStock || []).reduce((sum, item) => {
+                                  const unitPrice = Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0);
+                                  return sum + unitPrice * Number(item.quantity || 0);
+                                }, 0))}</span>
                               </div>
                             </div>
                           )}
