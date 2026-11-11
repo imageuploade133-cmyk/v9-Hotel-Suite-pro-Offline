@@ -25,7 +25,7 @@ import type { HeldSale, UserProfile, StockReturn, DocketHistory } from '@/lib/ty
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown, Package } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import {
