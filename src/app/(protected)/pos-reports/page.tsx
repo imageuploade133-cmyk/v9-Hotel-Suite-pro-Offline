@@ -9,7 +9,6 @@ import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import type { StockSale, StockReturn, HeldSale } from '@/lib/types';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
-import { useUser } from '@/contexts/user-context';
 import { TopHeader } from '@/components/top-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -22,7 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, UserRound, X } from 'lucide-react';
+import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, X } from 'lucide-react';
 
 type ReportEvent =
   | { id: string; kind: 'sale'; date: Date | null; staff: string; items: string; amount: number; reference: string; sale: StockSale }
@@ -32,7 +31,6 @@ type ReportEvent =
 function POSReportsPage() {
   const firestore = useFirestore();
   const { settings } = useSettings();
-  const { userProfile } = useUser();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -113,8 +111,6 @@ function POSReportsPage() {
     if (!term) return events;
     return events.filter(event => [event.staff, event.items, event.reference, event.kind].some(value => value.toLowerCase().includes(term)));
   }, [events, searchTerm]);
-
-  const activeUserCanSeeAll = userProfile?.isFirebaseOnlyAdmin === true || userProfile?.isSuperAdmin === true || userProfile?.role === 'Admin' || userProfile?.role === 'Super Admin';
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
