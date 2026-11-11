@@ -30,6 +30,51 @@ interface UsePOSProps {
   toast: ReturnType<typeof useToast>['toast'];
 }
 
+type PosStockMovement = {
+  collectionName: string;
+  itemId: string;
+  quantityDelta: number;
+  reservedDelta: number;
+  requested: number;
+  held: number;
+};
+
+/** Build one stock movement per product for both LAN Master and Firestore sale commits. */
+function buildPosStockMovements(
+  items: UnifiedItem[],
+  heldSaleId: string | null,
+  heldSale: HeldSale | null,
+  stockCollection: string
+): PosStockMovement[] {
+  const requestedById = new Map<string, number>();
+  items.filter(item => !item.isService).forEach(item => {
+    requestedById.set(item.id, (requestedById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+  });
+
+  const isHeldTable = !!heldSaleId && !!heldSale && !heldSale.linkedBillId;
+  const heldById = new Map<string, number>();
+  if (isHeldTable) {
+    (heldSale?.cart || []).filter(item => !item.isService).forEach(item => {
+      heldById.set(item.id, (heldById.get(item.id) || 0) + Number(item.sellQuantity || 0));
+    });
+  }
+
+  const itemIds = new Set([...requestedById.keys(), ...heldById.keys()]);
+  return [...itemIds].map(itemId => {
+    const requested = requestedById.get(itemId) || 0;
+    const held = heldById.get(itemId) || 0;
+    const isReservedHold = isHeldTable && heldSale?.stockReservationMode === 'reserved';
+    return {
+      collectionName: stockCollection,
+      itemId,
+      quantityDelta: isReservedHold ? -requested : (isHeldTable ? held - requested : -requested),
+      reservedDelta: isReservedHold ? -held : 0,
+      requested,
+      held,
+    };
+  });
+}
+
 export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
   const [cart, setCart] = React.useState<UnifiedItem[]>([]);
   const [activeRunningItems, setActiveRunningItems] = React.useState<UnifiedItem[]>([]);
@@ -110,6 +155,9 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
     // Calculate total quantity across both cart and activeRunningItems
     const totalInCart = cart.find((cartItem) => cartItem.id === item.id)?.sellQuantity || 0;
     const totalInRunning = activeRunningItems.find((runningItem) => runningItem.id === item.id)?.sellQuantity || 0;
+    const ownHeldQuantity = !restoredSaleData?.linkedBillId
+      ? Number(restoredSaleData?.cart?.find(runningItem => runningItem.id === item.id)?.sellQuantity || 0)
+      : 0;
 
     // On-hand includes running-table stock; held quantities protect other tables.
     const maxAllowed = hasFiniteStock ? availableQty : Infinity;
@@ -230,10 +278,10 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         toast({
             variant: 'warning',
             title: 'Stock Limit Reached',
-            description: `Only ${maxAllowed} units of "${itemInCart.name}" are available.`,
+            description: `Only ${maxCartQuantity} additional units of "${itemInCart.name}" are available beyond running-table reservations.`,
         });
         setCart((prevCart) =>
-            prevCart.map((i) => (i.id === itemId ? { ...i, sellQuantity: maxAllowed } : i))
+            prevCart.map((i) => (i.id === itemId ? { ...i, sellQuantity: maxCartQuantity } : i))
         );
         return;
     }
@@ -412,6 +460,7 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 if (restoredSaleData.linkedBillId && restoredSaleData.customer?.id) {
                     const billRef = doc(firestore, `bookings/${restoredSaleData.customer.id}/bills`, restoredSaleData.linkedBillId);
                     billDoc = await transaction.get(billRef);
+                    if (!billDoc.exists()) throw new Error('The room bill linked to this running table no longer exists. No inventory changes were made.');
                 }
             }
             if (!restoredSaleData?.linkedBillId) {
@@ -423,7 +472,20 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                     if (!stockDoc.exists() || available < Number(cartItem.sellQuantity || 0)) {
                         throw new Error(`Not enough available stock for ${cartItem.name}. Available: ${Math.max(0, available)}, Requested: ${cartItem.sellQuantity}`);
                     }
-                    stockDocs.push({ ref: stockDocRef, data: stockDoc.data() });
+                    stockDocs.push({ ref: stockDocRef, data: stockData });
+                }
+            }
+            if (restoredSaleId && restoredSaleData && !restoredSaleData.linkedBillId) {
+                const itemsToVerify = [...restoredSaleData.cart, ...combinedItems].filter(item => !item.isService);
+                const stockById = new Map(stockDocs.map(item => [item.ref.id, item]));
+                for (const stockItem of itemsToVerify) {
+                    if (stockById.has(stockItem.id)) continue;
+                    const stockRef = doc(firestore, getCollectionPath('stock'), stockItem.id);
+                    const stockDoc = await transaction.get(stockRef);
+                    if (!stockDoc.exists()) throw new Error(`Stock item "${stockItem.name}" no longer exists.`);
+                    const entry = { ref: stockRef, data: stockDoc.data() };
+                    stockDocs.push(entry);
+                    stockById.set(stockItem.id, entry);
                 }
             }
 
@@ -502,6 +564,26 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
             }
         }
 
+        // Keep the in-memory table snapshot in sync after Update Only.
+        // This prevents a second save from migrating the same legacy stock twice.
+        setRestoredSaleId(saleId);
+        setRestoredSaleData({
+          ...(restoredSaleData || {}),
+          id: saleId,
+          name,
+          cart: combinedItems.map(item => ({ ...item })),
+          customer: customer?.id
+            ? { id: customer.id, name: customer.name || 'Walk-in Customer' }
+            : { name: name || 'Walk-in Customer' },
+          heldByUid: currentUid,
+          heldByName: userProfile.name,
+          heldAt: new Date() as any,
+          printStatus: 'pending',
+          ...(restoredSaleData?.linkedBillId ? { linkedBillId: restoredSaleData.linkedBillId } : {}),
+          ...(!restoredSaleData?.linkedBillId ? { stockReservationMode: 'reserved' as const } : {}),
+        } as HeldSale);
+        setHoldName(name);
+
         toast({ variant: 'success', title: 'Table Added', description: `The table "${name}" has been ${restoredSaleId ? 'updated' : 'added to running tables.'}.` });
 
         if (clearCartOnSuccess) {
@@ -510,7 +592,8 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
         return saleId;
     } catch(e: any) {
-        toast({ variant: 'destructive', title: 'Failed to Add Table', description: e.message });
+        const isStockError = /insufficient available stock|not enough stock|out of stock/i.test(String(e?.message || ''));
+        toast({ variant: 'destructive', title: isStockError ? 'Out of Stock' : 'Failed to Add Table', description: e.message });
         throw e;
     }
   };
@@ -577,24 +660,33 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
 
       const saleData = heldSaleDoc.data() as HeldSale;
       let billDoc = null;
-      let stockItemDocs = [];
+      let stockItemDocs: Array<{ ref: any; data: any; quantity: number }> = [];
 
       // If it was billed to a room, read the bill
-      if (saleData.linkedBillId && saleData.customer?.id) {
+      if (saleData.linkedBillId) {
+        if (saleData.customer?.id) {
           const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
           billDoc = await transaction.get(billRef);
-      } else if (!saleData.isCreditSale) {
-        // Only return stock to inventory for non-credit sales
-        // For credit sales, stock was already deducted when the sale was processed
-        const itemsToReturnToStock = saleData.cart.filter(item => !item.isService);
-        if (itemsToReturnToStock.length > 0) {
-            const stockItemRefs = itemsToReturnToStock.map(item => doc(firestore, getCollectionPath('stock'), item.id));
-            stockItemDocs = await Promise.all(stockItemRefs.map(ref => transaction.get(ref)));
+        }
+      } else if (!saleData.isCreditSale || saleData.stockReservationMode === 'reserved') {
+        const quantities = new Map<string, number>();
+        saleData.cart.filter(item => !item.isService).forEach(item => {
+          quantities.set(item.id, (quantities.get(item.id) || 0) + Number(item.sellQuantity || 0));
+        });
+        for (const [itemId, quantity] of quantities) {
+          const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
+          const stockDoc = await transaction.get(stockRef);
+          if (!stockDoc.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
+          const stockData = stockDoc.data();
+          if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < quantity) {
+            throw new Error(`Reserved stock for "${itemId}" is inconsistent. Refresh inventory before deleting this table.`);
+          }
+          stockItemDocs.push({ ref: stockRef, data: stockData, quantity });
         }
       }
 
       // ===== PHASE 2: Perform ALL writes =====
-      if (saleData.linkedBillId && saleData.customer?.id) {
+      if (saleData.linkedBillId) {
           if (billDoc && billDoc.exists()) {
             transaction.delete(billDoc.ref);
           }

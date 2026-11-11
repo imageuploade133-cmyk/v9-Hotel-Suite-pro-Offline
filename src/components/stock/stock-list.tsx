@@ -24,11 +24,12 @@ interface StockListProps {
   stockCollection?: string;
   globalData?: StockItem[]; // Pre-fetched global data from useGlobalCollectionData
   globalLoading?: boolean; // Loading state for global data
+  runningTableQuantities?: Record<string, number>;
 }
 
 const TABLE_ID = 'stock_management';
 
-export function StockList({ onEdit, onDelete, reloadCounter, stockCollection = 'stock', globalData, globalLoading }: StockListProps) {
+export function StockList({ onEdit, onDelete, reloadCounter, stockCollection = 'stock', globalData, globalLoading, runningTableQuantities = {} }: StockListProps) {
   const firestore = useFirestore();
   const { getCollectionPath, isGlobalMode } = useBranch();
   const { settings } = useSettings();
@@ -47,8 +48,8 @@ export function StockList({ onEdit, onDelete, reloadCounter, stockCollection = '
   const isLoading = globalLoading !== undefined ? globalLoading : branchLoading;
 
   const columns = React.useMemo(
-    () => getStockColumns({ onEdit, onDelete, settings }),
-    [onEdit, onDelete, settings]
+    () => getStockColumns({ onEdit, onDelete, settings, runningTableQuantities }),
+    [onEdit, onDelete, settings, runningTableQuantities]
   );
 
   if (isLoading) {

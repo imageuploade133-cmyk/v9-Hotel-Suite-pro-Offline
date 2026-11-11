@@ -141,8 +141,11 @@ export function ReverseTransferDialog({ isOpen, onClose, log, onSuccess }: Rever
                 const mainStockDoc = mainStockDocs[i];
                 const { itemData } = itemRefs[i];
 
-                if (!mainStockDoc.exists() || mainStockDoc.data().quantity < itemData.quantityToReverse) {
-                    throw new Error(`Not enough stock for "${itemData.name}" in the main inventory to reverse.`);
+                const availableMainStock = mainStockDoc.exists()
+                    ? Number(mainStockDoc.data().quantity || 0) - Number(mainStockDoc.data().reservedQuantity || 0)
+                    : 0;
+                if (!mainStockDoc.exists() || availableMainStock < itemData.quantityToReverse) {
+                    throw new Error(`Not enough unreserved stock for "${itemData.name}" in the main inventory to reverse. Available: ${availableMainStock}; reserved on running tables: ${Number(mainStockDoc.data()?.reservedQuantity || 0)}.`);
                 }
             }
 

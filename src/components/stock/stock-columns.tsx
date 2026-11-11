@@ -19,9 +19,10 @@ type GetStockColumnsProps = {
   onEdit: (item: StockItem) => void;
   onDelete: (item: StockItem) => void;
   settings: Settings | null;
+  runningTableQuantities?: Record<string, number>;
 };
 
-export const getStockColumns = ({ onEdit, onDelete, settings }: GetStockColumnsProps): ColumnDef<StockItem>[] => {
+export const getStockColumns = ({ onEdit, onDelete, settings, runningTableQuantities = {} }: GetStockColumnsProps): ColumnDef<StockItem>[] => {
   const currency = settings?.currency || 'USD';
   const globalStockImageUrl = settings?.globalStockImageUrl;
   const useGlobalStockImage = settings?.useGlobalStockImage;

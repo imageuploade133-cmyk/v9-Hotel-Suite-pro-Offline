@@ -452,6 +452,35 @@ function RunningTablesPage() {
     setSelectedSale(null);
   };
 
+  const releaseRunningTableStock = async (transaction: any, saleData: HeldSale) => {
+    if (!firestore) throw new Error('Firestore is not initialized.');
+    const itemsToReturnToStock = saleData.cart.filter(item => !item.isService && !saleData.linkedBillId);
+    const returnQuantities = new Map<string, number>();
+    itemsToReturnToStock.forEach(item => returnQuantities.set(item.id, (returnQuantities.get(item.id) || 0) + Number(item.sellQuantity || 0)));
+    const stockDocs = new Map<string, { ref: any; data: any }>();
+
+    for (const [itemId, quantity] of returnQuantities) {
+      const stockRef = doc(firestore, getCollectionPath('stock'), itemId);
+      const stockDoc = await transaction.get(stockRef);
+      if (!stockDoc.exists()) throw new Error(`Stock item "${itemId}" no longer exists.`);
+      const stockData = stockDoc.data();
+      if (saleData.stockReservationMode === 'reserved' && Number(stockData.reservedQuantity || 0) < quantity) {
+        throw new Error(`The reserved stock for "${itemId}" is inconsistent. Refresh inventory before deleting this table.`);
+      }
+      stockDocs.set(itemId, { ref: stockRef, data: stockData });
+    }
+
+    for (const [itemId, quantity] of returnQuantities) {
+      const stock = stockDocs.get(itemId)!;
+      if (saleData.stockReservationMode === 'reserved') {
+        transaction.update(stock.ref, { reservedQuantity: increment(-quantity) });
+      } else {
+        transaction.update(stock.ref, { quantity: increment(quantity) });
+      }
+    }
+    return itemsToReturnToStock;
+  };
+
   const handleDeleteSale = async () => {
     if (!firestore || !selectedSale) return;
     setIsProcessing(true);
@@ -828,7 +857,7 @@ function RunningTablesPage() {
         // Return items to stock (only for non-service items)
         const stockItems = saleData.linkedBillId ? [] : itemsToReturn.filter(rItem => {
           const originalItem = saleData.cart.find(i => i.id === rItem.itemId);
-          return originalItem && !originalItem.isService;
+          return originalItem && !originalItem.isService && !saleData.linkedBillId;
         });
 
         for (const returnItem of stockItems) {
@@ -873,12 +902,8 @@ function RunningTablesPage() {
         // If cart is now empty, delete the running table and record history
         if (updatedCart.length === 0) {
           // If billed to room, delete the associated bill
-          if (saleData.linkedBillId && saleData.customer?.id) {
-            const billRef = doc(firestore, `bookings/${saleData.customer.id}/bills`, saleData.linkedBillId);
-            const billDoc = await transaction.get(billRef);
-            if (billDoc.exists()) {
-              transaction.delete(billRef);
-            }
+          if (linkedBillDoc?.exists()) {
+            transaction.delete(linkedBillDoc.ref);
           }
           // Record history for completed table
           const docketHistoryRef = doc(collection(firestore, getCollectionPath('docketHistory')));
