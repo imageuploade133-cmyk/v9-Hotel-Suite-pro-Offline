@@ -210,7 +210,7 @@ function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {eve
               </div>
             </ScrollArea>
             <DialogFooter className="shrink-0 border-t px-5 py-3 sm:px-8"><Button variant="outline" onClick={onClose}><X className="mr-2 h-4 w-4" />Close</Button></DialogFooter>
-          </div>}
+          </div>
     </DialogContent>
   </Dialog>;
 }
