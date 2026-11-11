@@ -152,9 +152,15 @@ function RunningTablesPage() {
     });
   }, [toast]);
 
-  // Date filters
-  const [returnsDateRange, setReturnsDateRange] = React.useState<DateRange | undefined>();
-  const [historyDateRange, setHistoryDateRange] = React.useState<DateRange | undefined>();
+  // One page-wide date range drives every Running Tables metric and tab.
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const rangeStart = React.useMemo(() => dateRange?.from ? startOfDay(dateRange.from) : null, [dateRange]);
+  const rangeEnd = React.useMemo(() => dateRange?.from ? endOfDay(dateRange.to || dateRange.from) : null, [dateRange]);
+  const isWithinSelectedRange = React.useCallback((value: unknown) => {
+    if (!rangeStart || !rangeEnd) return true;
+    const date = getSafeDate(value as any);
+    return !!date && isWithinInterval(date, { start: rangeStart, end: rangeEnd });
+  }, [rangeStart, rangeEnd]);
 
   // Pagination state for History Dockets
   const [historyPage, setHistoryPage] = React.useState(1);
@@ -205,6 +211,8 @@ function RunningTablesPage() {
   const paginatedReturnsQuery = useMemoFirebase(() => {
     if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
+      ...(rangeStart ? [where('returnedAt', '>=', Timestamp.fromDate(rangeStart))] : []),
+      ...(rangeEnd ? [where('returnedAt', '<=', Timestamp.fromDate(rangeEnd))] : []),
       orderBy('returnedAt', 'desc'),
       limit(returnsPageSize)
     ];
@@ -216,7 +224,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('stockReturns')), ...constraints);
-  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath, isPosStaff]);
+  }, [firestore, returnsDirection, returnsPageSize, getCollectionPath, isPosStaff, rangeStart, rangeEnd]);
 
   const { data: paginatedReturns, isLoading: areReturnsLoading } = useCollection<StockReturn>(paginatedReturnsQuery);
 
@@ -244,6 +252,8 @@ function RunningTablesPage() {
   const paginatedHistoryQuery = useMemoFirebase(() => {
     if (!firestore || isPosStaff) return null;
     const constraints: QueryConstraint[] = [
+      ...(rangeStart ? [where('actionAt', '>=', Timestamp.fromDate(rangeStart))] : []),
+      ...(rangeEnd ? [where('actionAt', '<=', Timestamp.fromDate(rangeEnd))] : []),
       orderBy('actionAt', 'desc'),
       limit(historyPageSize)
     ];
@@ -255,7 +265,7 @@ function RunningTablesPage() {
     }
 
     return query(collection(firestore, getCollectionPath('docketHistory')), ...constraints);
-  }, [firestore, historyDirection, historyPageSize, getCollectionPath, isPosStaff]);
+  }, [firestore, historyDirection, historyPageSize, getCollectionPath, isPosStaff, rangeStart, rangeEnd]);
 
   const { data: paginatedHistories, isLoading: isHistoryLoading } = useCollection<DocketHistory>(paginatedHistoryQuery);
 
@@ -272,6 +282,8 @@ function RunningTablesPage() {
   const heldSalesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     const constraints: QueryConstraint[] = [];
+    if (rangeStart) constraints.push(where('heldAt', '>=', Timestamp.fromDate(rangeStart)));
+    if (rangeEnd) constraints.push(where('heldAt', '<=', Timestamp.fromDate(rangeEnd)));
     if (isPosStaff) {
       if (!currentUserUid) return null;
       constraints.push(where('heldByUid', '==', currentUserUid));
@@ -282,7 +294,7 @@ function RunningTablesPage() {
     // LAN/Firestore installations do not depend on a composite index.
     if (!isPosStaff) constraints.push(orderBy('heldAt', 'desc'));
     return query(collection(firestore, getCollectionPath('heldSales')), ...constraints);
-  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid]);
+  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid, rangeStart, rangeEnd]);
 
   const { data: heldSalesData, isLoading } = useCollection<HeldSale>(heldSalesQuery);
   const heldSales = React.useMemo(() => [...(heldSalesData || [])].sort((a, b) => {
@@ -299,18 +311,19 @@ function RunningTablesPage() {
   const stats = React.useMemo(() => {
     if (!heldSales) return { totalTables: 0, printedTables: 0, totalAmount: 0, totalRefundAmount: 0, totalRefundCount: 0, myCreditSalesCount: 0, myCreditSalesAmount: 0 };
 
-    const totalTables = heldSales.length;
-    const printedTables = heldSales.filter(sale =>
+    const filteredHeldSales = heldSales.filter(sale => isWithinSelectedRange(sale.heldAt));
+    const totalTables = filteredHeldSales.length;
+    const printedTables = filteredHeldSales.filter(sale =>
       sale.cart.some(item => (item.printedQuantity || 0) > 0)
     ).length;
-    const totalAmount = heldSales.reduce((sum, sale) =>
+    const totalAmount = filteredHeldSales.reduce((sum, sale) =>
       sum + sale.cart.reduce((itemSum, item) =>
         itemSum + ((item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0)), 0
       ), 0
     );
 
     // Filter credit sales for current user
-    const myCreditSales = heldSales.filter(sale =>
+    const myCreditSales = filteredHeldSales.filter(sale =>
       sale.isCreditSale === true && sale.heldByUid === currentUserUid
     );
     const myCreditSalesCount = myCreditSales.length;
@@ -321,27 +334,27 @@ function RunningTablesPage() {
     );
 
     return { totalTables, printedTables, totalAmount, myCreditSalesCount, myCreditSalesAmount };
-  }, [heldSales, currentUserUid]);
+  }, [heldSales, currentUserUid, isWithinSelectedRange]);
 
   // Calculate refund stats from running tables
   const refundStats = React.useMemo(() => {
     if (!allStockReturns) return { totalRefundAmount: 0, totalRefundCount: 0 };
 
     // Filter returns that came from running tables using the source field
-    const runningTableReturns = allStockReturns.filter(r => r.source === 'RunningTable');
+    const runningTableReturns = allStockReturns.filter(r => r.source === 'RunningTable' && isWithinSelectedRange(r.returnedAt));
 
     const totalRefundAmount = runningTableReturns.reduce((sum, r) => sum + r.totalRefundAmount, 0);
     const totalRefundCount = runningTableReturns.length;
 
     return { totalRefundAmount, totalRefundCount };
-  }, [allStockReturns]);
+  }, [allStockReturns, isWithinSelectedRange]);
 
   // All-time running-table stock return summary. Partial returns come from
   // stockReturns; deleted/reset tables contribute only the items actually
   // recorded as returned to stock, avoiding counting the same items twice.
   const stockReturnSummary = React.useMemo(() => {
-    const runningReturns = (allStockReturns || []).filter(record => record.source === 'RunningTable');
-    const historyRecords = allDocketHistories || [];
+    const runningReturns = (allStockReturns || []).filter(record => record.source === 'RunningTable' && isWithinSelectedRange(record.returnedAt));
+    const historyRecords = (allDocketHistories || []).filter(record => isWithinSelectedRange(record.actionAt));
     const returnedItemsFromReturns = runningReturns.reduce((sum, record) =>
       sum + (record.items || []).reduce((itemSum, item) => itemSum + Math.max(0, Number(item.quantity || 0)), 0), 0
     );
@@ -365,64 +378,18 @@ function RunningTablesPage() {
       + resetRecords.reduce((sum, record) => sum + historyItemValue(record), 0)
       + deletedRecords.reduce((sum, record) => sum + historyItemValue(record), 0);
     return { returnedItems, returnedValue, resetItems, deletedItems, partialReturnItems: returnedItemsFromReturns };
-  }, [allStockReturns, allDocketHistories]);
+  }, [allStockReturns, allDocketHistories, isWithinSelectedRange]);
 
-  // Filter returns by date range
-  const filteredReturns = React.useMemo(() => {
-    if (!paginatedReturns) return [];
-    let returns = paginatedReturns.filter(r => r.source === 'RunningTable');
+  // Query-level date filtering means the selected range is applied before pagination.
+  const filteredReturns = React.useMemo(() =>
+    (paginatedReturns || []).filter(record => record.source === 'RunningTable'),
+  [paginatedReturns]);
 
-    if (returnsDateRange?.from) {
-      returns = returns.filter(r => {
-        const returnedAt = getSafeDate(r.returnedAt);
-        if (!returnedAt) return false;
-        return isWithinInterval(returnedAt, {
-          start: startOfDay(returnsDateRange.from!),
-          end: endOfDay(returnsDateRange.to || returnsDateRange.from!)
-        });
-      });
-    }
+  const filteredResets = React.useMemo(() =>
+    (paginatedHistories || []).filter(record => record.actionType === 'Reset'),
+  [paginatedHistories]);
 
-    return returns;
-  }, [paginatedReturns, returnsDateRange]);
-
-  // Filter resets by date range
-  const filteredResets = React.useMemo(() => {
-    if (!paginatedHistories) return [];
-    let resets = paginatedHistories.filter(h => h.actionType === 'Reset');
-
-    if (returnsDateRange?.from) {
-      resets = resets.filter(h => {
-        const actionAt = getSafeDate(h.actionAt);
-        if (!actionAt) return false;
-        return isWithinInterval(actionAt, {
-          start: startOfDay(returnsDateRange.from!),
-          end: endOfDay(returnsDateRange.to || returnsDateRange.from!)
-        });
-      });
-    }
-
-    return resets;
-  }, [paginatedHistories, returnsDateRange]);
-
-  // Filter history by date range
-  const filteredHistory = React.useMemo(() => {
-    if (!paginatedHistories) return [];
-    let history = [...paginatedHistories];
-
-    if (historyDateRange?.from) {
-      history = history.filter(h => {
-        const actionAt = getSafeDate(h.actionAt);
-        if (!actionAt) return false;
-        return isWithinInterval(actionAt, {
-          start: startOfDay(historyDateRange.from!),
-          end: endOfDay(historyDateRange.to || historyDateRange.from!)
-        });
-      });
-    }
-
-    return history;
-  }, [paginatedHistories, historyDateRange]);
+  const filteredHistory = React.useMemo(() => paginatedHistories || [], [paginatedHistories]);
 
   const allStaffMembers = React.useMemo(() => {
     if (!staffMembers) return [];
@@ -463,14 +430,17 @@ function RunningTablesPage() {
     setReturnsPage(1);
   };
 
-  // Reset pagination when date filters change
+  // Reset cursors whenever the shared date range changes.
   React.useEffect(() => {
-    handleHistoryPageReset();
-  }, [historyDateRange]);
-
-  React.useEffect(() => {
-    handleReturnsPageReset();
-  }, [returnsDateRange]);
+    setHistoryDirection(null);
+    setHistoryPage(1);
+    historyFirstDocRef.current = null;
+    historyLastDocRef.current = null;
+    setReturnsDirection(null);
+    setReturnsPage(1);
+    returnsFirstDocRef.current = null;
+    returnsLastDocRef.current = null;
+  }, [rangeStart?.getTime(), rangeEnd?.getTime()]);
 
   const handleOpenActions = (sale: HeldSale) => {
     setSelectedSale(sale);
