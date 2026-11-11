@@ -282,8 +282,6 @@ function RunningTablesPage() {
   const heldSalesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     const constraints: QueryConstraint[] = [];
-    if (rangeStart) constraints.push(where('heldAt', '>=', Timestamp.fromDate(rangeStart)));
-    if (rangeEnd) constraints.push(where('heldAt', '<=', Timestamp.fromDate(rangeEnd)));
     if (isPosStaff) {
       if (!currentUserUid) return null;
       constraints.push(where('heldByUid', '==', currentUserUid));
@@ -294,14 +292,18 @@ function RunningTablesPage() {
     // LAN/Firestore installations do not depend on a composite index.
     if (!isPosStaff) constraints.push(orderBy('heldAt', 'desc'));
     return query(collection(firestore, getCollectionPath('heldSales')), ...constraints);
-  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid, rangeStart, rangeEnd]);
+  }, [firestore, reloadCounter, selectedUserId, getCollectionPath, isPosStaff, currentUserUid]);
 
   const { data: heldSalesData, isLoading } = useCollection<HeldSale>(heldSalesQuery);
-  const heldSales = React.useMemo(() => [...(heldSalesData || [])].sort((a, b) => {
+  const allHeldSales = React.useMemo(() => [...(heldSalesData || [])].sort((a, b) => {
     const dateA = getSafeDate(a.heldAt)?.getTime() || 0;
     const dateB = getSafeDate(b.heldAt)?.getTime() || 0;
     return dateB - dateA;
   }), [heldSalesData]);
+  const heldSales = React.useMemo(
+    () => allHeldSales.filter(sale => isWithinSelectedRange(sale.heldAt)),
+    [allHeldSales, isWithinSelectedRange]
+  );
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
@@ -311,19 +313,18 @@ function RunningTablesPage() {
   const stats = React.useMemo(() => {
     if (!heldSales) return { totalTables: 0, printedTables: 0, totalAmount: 0, totalRefundAmount: 0, totalRefundCount: 0, myCreditSalesCount: 0, myCreditSalesAmount: 0 };
 
-    const filteredHeldSales = heldSales.filter(sale => isWithinSelectedRange(sale.heldAt));
-    const totalTables = filteredHeldSales.length;
-    const printedTables = filteredHeldSales.filter(sale =>
+    const totalTables = heldSales.length;
+    const printedTables = heldSales.filter(sale =>
       sale.cart.some(item => (item.printedQuantity || 0) > 0)
     ).length;
-    const totalAmount = filteredHeldSales.reduce((sum, sale) =>
+    const totalAmount = heldSales.reduce((sum, sale) =>
       sum + sale.cart.reduce((itemSum, item) =>
         itemSum + ((item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0)), 0
       ), 0
     );
 
     // Filter credit sales for current user
-    const myCreditSales = filteredHeldSales.filter(sale =>
+    const myCreditSales = heldSales.filter(sale =>
       sale.isCreditSale === true && sale.heldByUid === currentUserUid
     );
     const myCreditSalesCount = myCreditSales.length;
@@ -1278,6 +1279,37 @@ function RunningTablesPage() {
         description={isBranchMode ? `Branch: ${currentBranch?.name}` : undefined}
       />
 
+      <Card className="border-primary/15 shadow-sm">
+        <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold">Filter Running Tables by Date</p>
+              <p className="text-xs text-muted-foreground">
+                {dateRange?.from
+                  ? `Showing records from ${format(rangeStart!, 'PP')} to ${format(rangeEnd!, 'PP')}`
+                  : 'Choose a date range to update the cards, active tables, credit sales, history and returns together.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <DateRangePicker
+              date={dateRange}
+              onDateChange={setDateRange}
+              showTimePicker={false}
+              className="w-full sm:w-auto"
+            />
+            {dateRange?.from && (
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setDateRange(undefined)}>
+                Clear Filter
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Statistics Cards */}
       <div className={`grid grid-cols-1 md:grid-cols-2 ${isPosStaff ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-4`}>
         <StatCard
@@ -1380,8 +1412,8 @@ function RunningTablesPage() {
             <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="h-4 w-4" />
               History Dockets
-              {(allDocketHistories || []).length > 0 && (
-                <Badge variant="secondary" className="ml-1">{allDocketHistories?.length || 0}</Badge>
+              {(allDocketHistories || []).filter(record => isWithinSelectedRange(record.actionAt)).length > 0 && (
+                <Badge variant="secondary" className="ml-1">{(allDocketHistories || []).filter(record => isWithinSelectedRange(record.actionAt)).length}</Badge>
               )}
             </TabsTrigger>
           )}
@@ -1389,9 +1421,9 @@ function RunningTablesPage() {
             <TabsTrigger value="returns" className="flex items-center gap-2">
               <RotateCcw className="h-4 w-4" />
               Returns & Resets
-              {((allStockReturns?.filter(r => r.source === 'RunningTable') || []).length + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)) > 0 && (
+              {((allStockReturns?.filter(record => record.source === 'RunningTable' && isWithinSelectedRange(record.returnedAt)).length || 0) + (allDocketHistories?.filter(record => record.actionType === 'Reset' && isWithinSelectedRange(record.actionAt)).length || 0)) > 0 && (
                 <Badge variant="secondary" className="ml-1">
-                  {(allStockReturns?.filter(r => r.source === 'RunningTable').length || 0) + (allDocketHistories?.filter(h => h.actionType === 'Reset').length || 0)}
+                  {(allStockReturns?.filter(record => record.source === 'RunningTable' && isWithinSelectedRange(record.returnedAt)).length || 0) + (allDocketHistories?.filter(record => record.actionType === 'Reset' && isWithinSelectedRange(record.actionAt)).length || 0)}
                 </Badge>
               )}
             </TabsTrigger>
@@ -1479,7 +1511,7 @@ function RunningTablesPage() {
             <CardContent className="p-0">
               {(() => {
                 const myCreditSales = (heldSales || []).filter(sale =>
-                  sale.isCreditSale === true && sale.heldByUid === userProfile?.uid
+                  sale.isCreditSale === true && sale.heldByUid === (userProfile?.uid || userProfile?.id)
                 );
 
                 if (myCreditSales.length === 0) {
@@ -1568,10 +1600,7 @@ function RunningTablesPage() {
                     View all past dockets that have been deleted, reset, or completed.
                   </CardDescription>
                 </div>
-                <DateRangePicker
-                  date={historyDateRange}
-                  onDateChange={setHistoryDateRange}
-                />
+
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1586,7 +1615,7 @@ function RunningTablesPage() {
                   icon={History}
                   title="No History Dockets"
                   description={
-                    historyDateRange?.from
+                    dateRange?.from
                       ? 'No history found for the selected date range.'
                       : 'There are no history dockets yet. When tables are deleted or reset, they will appear here.'
                   }
@@ -1760,10 +1789,7 @@ function RunningTablesPage() {
                     View all returns and resets with full information including day, date, time, original and remaining amounts.
                   </CardDescription>
                 </div>
-                <DateRangePicker
-                  date={returnsDateRange}
-                  onDateChange={setReturnsDateRange}
-                />
+
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1823,7 +1849,7 @@ function RunningTablesPage() {
                             icon={RotateCcw}
                             title="No Returns or Resets"
                             description={
-                              returnsDateRange?.from
+                              dateRange?.from
                                 ? 'No returns or resets found for the selected date range.'
                                 : 'When items are returned or tables are reset, they will appear here.'
                             }
