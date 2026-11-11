@@ -348,11 +348,8 @@ function RunningTablesPage() {
     const returnedValueFromReturns = runningReturns.reduce((sum, record) =>
       sum + Math.max(0, Number(record.totalRefundAmount || 0)), 0
     );
-    const returnedItemsFromHistory = (record: DocketHistory) => {
-      const recordedItems = record.itemsReturnedToStock;
-      const sourceItems = recordedItems || (!record.linkedBillId ? record.items : []);
-      return (sourceItems || []).filter(item => Number(item.quantity || 0) > 0);
-    };
+    const returnedItemsFromHistory = (record: DocketHistory) =>
+      (record.itemsReturnedToStock || []).filter(item => Number(item.quantity || 0) > 0);
     const historyItemCount = (record: DocketHistory) =>
       returnedItemsFromHistory(record).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     const historyItemValue = (record: DocketHistory) =>
@@ -1632,6 +1629,25 @@ function RunningTablesPage() {
                     {filteredHistory.map((history) => {
                       const actionDate = getSafeDate(history.actionAt);
                       const heldDate = getSafeDate(history.heldAt);
+                      // Include partial returns made while the table was still active,
+                      // plus any remaining stock returned when it was deleted/reset.
+                      const partialReturnItems = (allStockReturns || [])
+                        .filter(record => record.source === 'RunningTable' && record.originalSaleId === history.originalSaleId)
+                        .flatMap(record => (record.items || []).map(item => ({
+                          itemId: item.itemId,
+                          itemName: item.itemName,
+                          quantity: Number(item.quantity || 0),
+                          price: Number(item.sellingPrice ?? (Number(item.quantity || 0) > 0 ? item.refundAmount / item.quantity : 0)),
+                        })));
+                      const returnedToStockItems = [
+                        ...partialReturnItems,
+                        ...(history.itemsReturnedToStock || []).map(item => ({
+                          itemId: item.itemId,
+                          itemName: item.itemName,
+                          quantity: Number(item.quantity || 0),
+                          price: Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0),
+                        })),
+                      ].filter(item => item.quantity > 0);
                       return (
                         <div key={history.id} className="border rounded-lg p-4 bg-card">
                           <div className="flex items-start justify-between gap-4">
@@ -1685,38 +1701,31 @@ function RunningTablesPage() {
                               </div>
                             </div>
                           )}
-                          {history.actionType !== 'Completed' && (history.itemsReturnedToStock || []).length > 0 && (
+                          {returnedToStockItems.length > 0 && (
                             <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50/70 p-3 dark:border-orange-900 dark:bg-orange-950/20">
                               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Items Returned to Stock</p>
                                 <Badge variant="warning">
-                                  {(history.itemsReturnedToStock || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} items
+                                  {returnedToStockItems.reduce((sum, item) => sum + item.quantity, 0)} items
                                 </Badge>
                               </div>
                               <div className="space-y-2">
-                                {(history.itemsReturnedToStock || []).map((item, idx) => {
-                                  const unitPrice = Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0);
-                                  const lineValue = unitPrice * Number(item.quantity || 0);
-                                  return (
-                                    <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
-                                      <div className="min-w-0">
-                                        <p className="font-medium">{item.itemName}</p>
-                                        <p className="text-xs text-muted-foreground">Returned quantity: {item.quantity}</p>
-                                      </div>
-                                      <div className="shrink-0 text-right">
-                                        <p className="font-medium">{formatCurrency(lineValue)}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(unitPrice)} each</p>
-                                      </div>
+                                {returnedToStockItems.map((item, idx) => (
+                                  <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                                    <div className="min-w-0">
+                                      <p className="font-medium">{item.itemName}</p>
+                                      <p className="text-xs text-muted-foreground">Returned quantity: {item.quantity}</p>
                                     </div>
-                                  );
-                                })}
+                                    <div className="shrink-0 text-right">
+                                      <p className="font-medium">{formatCurrency(item.price * item.quantity)}</p>
+                                      <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} each</p>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                               <div className="mt-2 flex items-center justify-between border-t border-orange-200 pt-2 text-sm font-semibold dark:border-orange-900">
                                 <span>Total returned value</span>
-                                <span>{formatCurrency((history.itemsReturnedToStock || []).reduce((sum, item) => {
-                                  const unitPrice = Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0);
-                                  return sum + unitPrice * Number(item.quantity || 0);
-                                }, 0))}</span>
+                                <span>{formatCurrency(returnedToStockItems.reduce((sum, item) => sum + item.price * item.quantity, 0))}</span>
                               </div>
                             </div>
                           )}
