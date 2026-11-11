@@ -467,10 +467,20 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
                 for (const cartItem of combinedItems.filter(item => !item.isService)) {
                     const stockDocRef = doc(firestore, getCollectionPath('stock'), cartItem.id);
                     const stockDoc = await transaction.get(stockDocRef);
-                    const oldQty = restoredSaleData?.cart.find(old => old.id === cartItem.id)?.sellQuantity || 0;
-                    const available = Number(stockDoc.data()?.quantity || 0) - Number(stockDoc.data()?.held || 0) + oldQty;
-                    if (!stockDoc.exists() || available < Number(cartItem.sellQuantity || 0)) {
-                        throw new Error(`Not enough available stock for ${cartItem.name}. Available: ${Math.max(0, available)}, Requested: ${cartItem.sellQuantity}`);
+                    if (!stockDoc.exists()) {
+                        throw new Error(`Stock item "${cartItem.name}" no longer exists. Refresh inventory and try again.`);
+                    }
+                    // Keep the exact snapshot read by this transaction. Using an
+                    // undeclared stockData variable here caused every online
+                    // running-table save with stock items to fail at runtime.
+                    const stockData = stockDoc.data();
+                    const oldQty = Number(restoredSaleData?.cart.find(old => old.id === cartItem.id)?.sellQuantity || 0);
+                    const onHand = Number(stockData.quantity ?? stockData.stockCount ?? 0);
+                    const alreadyHeld = Number(stockData.held || 0);
+                    const available = onHand - alreadyHeld + oldQty;
+                    const requested = Number(cartItem.sellQuantity || 0);
+                    if (available < requested) {
+                        throw new Error(`Not enough available stock for ${cartItem.name}. Available: ${Math.max(0, available)}, Requested: ${requested}`);
                     }
                     stockDocs.push({ ref: stockDocRef, data: stockData });
                 }
