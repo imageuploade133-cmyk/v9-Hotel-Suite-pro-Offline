@@ -544,6 +544,7 @@ export default function ProtectedLayout({
       { href: '/running-tables', icon: List, label: 'Running Tables', notificationCount: runningTablesCount, permission: PagePermission.VIEW_RUNNING_TABLES, requiredPermission: PagePermission.VIEW_RUNNING_TABLES },
       { href: '/product-sales', icon: TrendingUp, label: 'Product Sales', permission: PagePermission.VIEW_SALES_REPORTS, requiredPermission: PagePermission.VIEW_SALES_REPORTS },
       { href: '/sales-history', icon: TrendingUp, label: 'Sales History', permission: PagePermission.VIEW_SALES_REPORTS, requiredPermission: PagePermission.VIEW_SALES_REPORTS },
+      { href: '/pos-reports', icon: TrendingUp, label: 'POS Reports', permission: PagePermission.VIEW_POS_REPORTS, requiredPermission: PagePermission.VIEW_POS_REPORTS },
       { href: '/credit-sales', icon: CreditCard, label: 'Credit Sales', permission: PagePermission.MANAGE_CREDIT_SALES, requiredPermission: PagePermission.MANAGE_CREDIT_SALES },
       { href: '/refund-sales', icon: Undo2, label: 'Refund Sales', permission: PagePermission.PROCESS_SALE_REFUNDS, requiredPermission: PagePermission.PROCESS_SALE_REFUNDS },
       { href: '/pos-accounting', icon: Calculator, label: 'POS Accounting', permission: PagePermission.VIEW_POS_ACCOUNTING, requiredPermission: PagePermission.VIEW_POS_ACCOUNTING },
