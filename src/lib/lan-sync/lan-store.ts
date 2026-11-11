@@ -263,7 +263,7 @@ export class LanStore {
       data?: Record<string, unknown>;
     }>,
     transactionKey?: string,
-    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta?: number; reservedDelta?: number; initialData?: Record<string, unknown> }> = []
+    stockAdjustments: Array<{ collectionName: string; itemId: string; quantityDelta: number; heldDelta?: number; initialData?: Record<string, unknown> }> = []
   ): { mutations: SyncMutation[]; duplicate: boolean } {
     if ((!Array.isArray(inputs) || inputs.length === 0) && stockAdjustments.length === 0) {
       throw new Error('A non-empty mutation batch or stock adjustment is required.');
@@ -277,9 +277,10 @@ export class LanStore {
     // Validate every stock movement before changing any document.
     const stockUpdates = new Map<string, { collectionName: string; itemId: string; data: Record<string, unknown> }>();
     for (const adjustment of stockAdjustments) {
-      const quantityDelta = Number(adjustment.quantityDelta || 0);
-      const reservedDelta = Number(adjustment.reservedDelta || 0);
-      if (!adjustment.collectionName || !adjustment.itemId || !Number.isFinite(quantityDelta) || !Number.isFinite(reservedDelta) || (quantityDelta === 0 && reservedDelta === 0)) {
+      const heldDelta = Number(adjustment.heldDelta || 0);
+      if (!adjustment.collectionName || !adjustment.itemId
+        || !Number.isFinite(adjustment.quantityDelta) || !Number.isFinite(heldDelta)
+        || (adjustment.quantityDelta === 0 && heldDelta === 0)) {
         throw new Error('Invalid stock adjustment.');
       }
       const key = adjustment.collectionName + '/' + adjustment.itemId;
@@ -287,16 +288,16 @@ export class LanStore {
       const current = prior?.data || this.getDoc(adjustment.collectionName, adjustment.itemId) || adjustment.initialData || null;
       if (!current) throw new Error(`Stock item "${adjustment.itemId}" is missing from the Master PC database.`);
       const currentQty = Number(current.quantity ?? current.stockCount ?? 0);
-      const currentReserved = Number(current.reservedQuantity || 0);
-      const nextQty = currentQty + quantityDelta;
-      const nextReserved = currentReserved + reservedDelta;
-      if (!Number.isFinite(nextQty) || !Number.isFinite(nextReserved) || nextQty < 0 || nextReserved < 0 || nextReserved > nextQty) {
-        throw new Error(`Insufficient available stock for "${String(current.name || adjustment.itemId)}". On hand: ${currentQty}, reserved: ${currentReserved}.`);
+      const currentHeld = Number(current.held || 0);
+      const nextQty = currentQty + adjustment.quantityDelta;
+      const nextHeld = currentHeld + Number(adjustment.heldDelta || 0);
+      if (!Number.isFinite(nextQty) || nextQty < 0 || !Number.isFinite(nextHeld) || nextHeld < 0 || nextHeld > nextQty) {
+        throw new Error(`Insufficient available stock for "${String(current.name || adjustment.itemId)}". On-hand: ${currentQty}, reserved: ${currentHeld}.`);
       }
       stockUpdates.set(key, {
         collectionName: adjustment.collectionName,
         itemId: adjustment.itemId,
-        data: { ...current, quantity: nextQty, stockCount: nextQty, reservedQuantity: nextReserved, updatedAt: Date.now() },
+        data: { ...current, quantity: nextQty, stockCount: nextQty, held: nextHeld, updatedAt: Date.now() },
       });
     }
     const expandedInputs = [

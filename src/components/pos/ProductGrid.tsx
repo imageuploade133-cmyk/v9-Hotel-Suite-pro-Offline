@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import type { StockItem, StockCategory, ServiceCategory, ServiceItem, UnifiedItem } from '@/lib/types';
 import { useBranch } from '@/contexts/branch-context';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { lanSseClient } from '@/lib/lan-sync/sse-client';
 
 interface CategoryOption {
   name: string;
@@ -50,8 +52,11 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
       return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
     };
 
-    const hasFiniteStock = item.quantity !== Infinity;
-    const isOutOfStock = hasFiniteStock && item.quantity <= 0;
+    const hasFiniteStock = !item.isService && item.quantity !== Infinity;
+    const availableQuantity = hasFiniteStock
+      ? Math.max(0, Number(item.quantity || 0) - Number((item as any).held || 0))
+      : Infinity;
+    const isOutOfStock = hasFiniteStock && availableQuantity <= 0;
 
     const handleAddToCart = () => {
         setIsAdding(true);
@@ -97,7 +102,7 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
                 ) : (
                     <div className="flex items-center justify-center h-full w-full"><ConciergeBell className="h-10 w-10 text-muted-foreground/50"/></div>
                 )}
-                 {hasFiniteStock && <Badge className="absolute top-2 right-2">{item.quantity} in stock</Badge>}
+                 {hasFiniteStock && <Badge className="absolute top-2 right-2">{availableQuantity} available</Badge>}
             </div>
             <div className="p-3 flex-1 flex flex-col">
                 <CardTitle className="text-sm font-semibold flex-1">{item.name}</CardTitle>
@@ -260,25 +265,37 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
     setIsLoading(true);
 
     const fetchCollection = async (collectionName: string) => {
-        try {
-            let q = query(collection(firestore, collectionName), orderBy('name'));
-            const snapshot = await getDocs(q);
-            if (snapshot.docs.length > 0) {
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            }
-        } catch {}
-
-        // Fallback to Master PC LAN Store for zero-delay offline reliability
-        try {
-            const res = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(collectionName)}`);
-            if (res.ok) {
-                const json = await res.json();
-                if (json.data) {
-                    return Object.values(json.data) as any[];
+        const fetchFromLanMaster = async () => {
+            try {
+                const res = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(collectionName)}`, { cache: 'no-store' });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.data) return Object.values(json.data) as any[];
                 }
+            } catch {}
+            return null;
+        };
+
+        // On the hotel LAN, the Local Master is authoritative for offline and
+        // online terminals alike. Prefer its durable local copy over cloud cache.
+        if (isLocalMasterHost()) {
+            const localData = await fetchFromLanMaster();
+            if (localData) return localData;
+        }
+
+        try {
+            const q = query(collection(firestore, collectionName), orderBy('name'));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (snapshot.metadata.fromCache) {
+                const localData = await fetchFromLanMaster();
+                if (localData) return localData;
             }
-        } catch {}
-        return [];
+            return [];
+        } catch {
+            const localData = await fetchFromLanMaster();
+            return localData || [];
+        }
     };
 
     try {
@@ -304,6 +321,81 @@ export function ProductGrid({ onAddToCart, reloadTrigger }: ProductGridProps) {
   React.useEffect(() => {
       fetchItems();
   }, [fetchItems, reloadTrigger]);
+
+  // Cloud-only terminals receive stock changes directly from Firestore.
+  // Local Master/LAN terminals receive the durable local mutations over SSE,
+  // so stock cards react immediately even while the hotel has no internet.
+  React.useEffect(() => {
+    if (!firestore) return;
+    const stockCollectionName = getCollectionPath('stock');
+    let active = true;
+    const applyStockItem = (rawItem: Record<string, any>) => {
+      const stockItem = { ...rawItem, isService: false, price: rawItem.sellingPrice, sourceType: 'Stock' as const } as UnifiedItem;
+      if (!stockItem.id || stockItem.hideFromPOS) {
+        if (stockItem.id) setItems(current => current.filter(item => item.id !== stockItem.id || item.isService));
+        return;
+      }
+      setItems(current => {
+        const next = current.filter(item => item.id !== stockItem.id || item.isService);
+        next.push(stockItem);
+        return next.sort((a, b) => a.name.localeCompare(b.name));
+      });
+    };
+
+    const refreshLanStock = async () => {
+      try {
+        const response = await fetch(`/api/lan-sync/?collection=${encodeURIComponent(stockCollectionName)}`, { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!active || !payload?.data) return;
+        const latest = Object.values(payload.data) as Record<string, any>[];
+        const nextStock = latest.filter(item => !item.hideFromPOS).map(item => ({
+          ...item, isService: false, price: item.sellingPrice, sourceType: 'Stock' as const,
+        })) as UnifiedItem[];
+        setItems(current => [...current.filter(item => item.isService), ...nextStock].sort((a, b) => a.name.localeCompare(b.name)));
+      } catch {
+        // SSE reconnects automatically; polling below is the recovery fallback.
+      }
+    };
+
+    if (isLocalMasterHost()) {
+      const unsubscribe = lanSseClient.subscribe(event => {
+        if (event.type === 'connected') {
+          // Reconcile once after connect/reconnect in case events were missed.
+          void refreshLanStock();
+          return;
+        }
+        if (event.collectionName !== stockCollectionName || !event.docId) return;
+        if (event.action === 'delete') {
+          setItems(current => current.filter(item => item.id !== event.docId || item.isService));
+          return;
+        }
+        if (event.data) applyStockItem({ ...event.data, id: event.docId });
+      });
+      void refreshLanStock();
+      const recoveryPoll = window.setInterval(() => { void refreshLanStock(); }, 5000);
+      return () => {
+        active = false;
+        unsubscribe();
+        window.clearInterval(recoveryPoll);
+      };
+    }
+
+    const stockQuery = query(collection(firestore, stockCollectionName), orderBy('name'));
+    const unsubscribe = onSnapshot(stockQuery, snapshot => {
+      if (!active) return;
+      const nextStock = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data(), isService: false, price: d.data().sellingPrice, sourceType: 'Stock' as const }))
+        .filter(item => !item.hideFromPOS) as UnifiedItem[];
+      setItems(current => [...current.filter(item => item.isService), ...nextStock].sort((a, b) => a.name.localeCompare(b.name)));
+    }, error => {
+      console.error('[POS] Real-time stock listener failed:', error);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [firestore, getCollectionPath]);
 
   const filteredItems = React.useMemo(() => {
     let tempItems = items;

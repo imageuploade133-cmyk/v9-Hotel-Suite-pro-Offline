@@ -80,28 +80,25 @@ export const getStockColumns = ({ onEdit, onDelete, settings, runningTableQuanti
     },
     {
       accessorKey: 'quantity',
-      header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          Main Stock (On Hand)
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <div className="text-center font-bold text-lg">{Number(row.original.quantity || 0)}</div>,
+      header: 'On-hand',
+      cell: ({ row }) => <div className="text-center font-semibold">{Number(row.original.quantity || 0)}</div>,
     },
     {
       id: 'runningTableStock',
-      accessorFn: (row) => Number(runningTableQuantities[row.id] || 0),
-      header: () => <div className="text-center">Running Tables</div>,
-      cell: ({ row }) => <div className="text-center font-semibold text-amber-600">{Number(runningTableQuantities[row.original.id] || 0)}</div>,
+      accessorFn: row => Number(row.held || 0),
+      header: 'Running Table',
+      cell: ({ row }) => <div className="text-center font-medium text-amber-600">{Number(row.original.held || 0)}</div>,
+      enableSorting: true,
     },
     {
       id: 'availableStock',
-      accessorFn: (row) => Math.max(0, Number(row.quantity || 0) - Number(row.reservedQuantity || 0)),
-      header: () => <div className="text-center">Available to Sell</div>,
+      accessorFn: row => Math.max(0, Number(row.quantity || 0) - Number(row.held || 0)),
+      header: 'Available',
       cell: ({ row }) => {
-        const available = Number(row.original.quantity || 0) - Number(row.original.reservedQuantity || 0);
-        return <div className={`text-center font-bold ${available <= 0 ? 'text-destructive' : 'text-emerald-600'}`}>{Math.max(0, available)}</div>;
+        const available = Math.max(0, Number(row.original.quantity || 0) - Number(row.original.held || 0));
+        return <div className={`text-center font-bold text-lg ${available <= 0 ? 'text-destructive' : 'text-emerald-600'}`}>{available}</div>;
       },
+      enableSorting: true,
     },
     {
       accessorKey: 'costPrice',
