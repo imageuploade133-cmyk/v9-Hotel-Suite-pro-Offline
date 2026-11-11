@@ -184,7 +184,7 @@ function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {eve
     <DialogContent className="!inset-0 !h-[100dvh] !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none p-0 sm:!inset-0 sm:!h-[100dvh] sm:!max-h-none sm:!w-screen sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:rounded-none">
           <div className="flex h-full min-h-0 flex-col">
             <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 text-left sm:px-8">
-              <DialogTitle className="px-0 text-left text-xl">{selectedEvent.kind === 'sale' ? 'Sale breakdown' : selectedEvent.kind === 'refund' ? 'Refund breakdown' : 'Running table breakdown'}</DialogTitle>
+              <DialogTitle className="px-0 text-left text-xl">{selectedEvent.kind === 'sale' ? 'Sale breakdown' : 'Refund breakdown'}</DialogTitle>
               <DialogDescription>{selectedEvent.reference} · {selectedEvent.staff}{selectedEvent.date ? ` · ${format(selectedEvent.date, 'PPpp')}` : ''}</DialogDescription>
             </DialogHeader>
             <ScrollArea className="min-h-0 flex-1">
@@ -192,7 +192,7 @@ function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {eve
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-xl border p-4"><p className="text-sm text-muted-foreground">Staff</p><p className="mt-1 font-semibold">{selectedEvent.staff}</p></div>
                   <div className="rounded-xl border p-4"><p className="text-sm text-muted-foreground">Reference / Table</p><p className="mt-1 font-semibold">{selectedEvent.reference}</p></div>
-                  <div className="rounded-xl border p-4"><p className="text-sm text-muted-foreground">{selectedEvent.kind === 'refund' ? 'Refund amount' : selectedEvent.kind === 'running' ? 'Running table value' : 'Amount paid'}</p><p className="mt-1 text-xl font-bold">{money(selectedEvent.amount)}</p></div>
+                  <div className="rounded-xl border p-4"><p className="text-sm text-muted-foreground">{selectedEvent.kind === 'refund' ? 'Refund amount' : 'Amount paid'}</p><p className="mt-1 text-xl font-bold">{money(selectedEvent.amount)}</p></div>
                 </div>
                 {selectedEvent.kind === 'sale' && <>
                   <div className="grid gap-3 sm:grid-cols-3">
