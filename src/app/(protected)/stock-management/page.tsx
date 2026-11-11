@@ -314,6 +314,7 @@ function StockManagementPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard icon={Package} title="Total Products" value={stats.totalProducts} description="Number of unique product types." />
               <StatCard icon={Package} title="Total Stock Items" value={stats.totalStock} description="Total units of all items currently in stock." />
+              <StatCard icon={Hand} title="Running Table Items Stock" value={Object.values(runningTableQuantities).reduce((sum, quantity) => sum + quantity, 0)} description="Total units reserved by active POS running tables; still included in on-hand stock." />
               <StatCard icon={ShoppingBag} title="Total Stock Sold" value={stats.totalSoldStock} description="Total units of all items sold in period." />
               <StatCard icon={DollarSign} title="Total Inventory Value" value={stats.totalInventoryValue} description="Based on the cost price of all stock items." />
             </div>
