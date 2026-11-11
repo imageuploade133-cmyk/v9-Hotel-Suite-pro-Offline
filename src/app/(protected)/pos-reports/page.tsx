@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
@@ -17,11 +18,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, X } from 'lucide-react';
+import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type ReportEvent =
   | { id: string; kind: 'sale'; date: Date | null; staff: string; items: string; amount: number; reference: string; sale: StockSale }
@@ -29,12 +28,15 @@ type ReportEvent =
   | { id: string; kind: 'running'; date: Date | null; staff: string; items: string; amount: number; reference: string; table: HeldSale };
 
 function POSReportsPage() {
+  const router = useRouter();
   const firestore = useFirestore();
   const { settings } = useSettings();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedEvent, setSelectedEvent] = React.useState<ReportEvent | null>(null);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const pageSize = 10;
 
   const branchSalesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, isGlobalMode, getCollectionPath]);
   const branchReturnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, isGlobalMode, getCollectionPath]);
@@ -112,6 +114,11 @@ function POSReportsPage() {
     return events.filter(event => [event.staff, event.items, event.reference, event.kind].some(value => value.toLowerCase().includes(term)));
   }, [events, searchTerm]);
 
+  React.useEffect(() => { setCurrentPage(1); }, [searchTerm, dateRange]);
+  const totalPages = Math.max(1, Math.ceil(visibleEvents.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedEvents = visibleEvents.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -120,11 +127,11 @@ function POSReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={ShoppingBag} title="Total Sold Items" value={summary.soldItems.toLocaleString()} description="Units in completed sales for the selected period." />
-        <StatCard icon={Table2} title="Total Running Tables" value={summary.runningCount.toLocaleString()} description={`${summary.runningItems.toLocaleString()} item units currently held in these tables.`} />
-        <StatCard icon={Banknote} title="Total Income" value={money(summary.income)} description="Payments collected against completed POS sales." />
-        <StatCard icon={RotateCcw} title="Total Refund" value={money(summary.refundTotal)} description="Refund value recorded in the selected period." />
-        <StatCard icon={Package} title="Total Return Table" value={summary.returnedTables.toLocaleString()} description="Refund records originating from running tables." />
+        <StatCard icon={ShoppingBag} title="Total Sold Items" value={summary.soldItems.toLocaleString()} description="Units in completed sales for the selected period." className="border-0 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg [&_p]:text-white/80 [&_svg]:text-white [&_h3]:text-white" />
+        <StatCard icon={Table2} title="Total Running Tables" value={summary.runningCount.toLocaleString()} description={`${summary.runningItems.toLocaleString()} item units currently held in these tables.`} className="border-0 bg-gradient-to-br from-violet-600 to-purple-800 text-white shadow-lg [&_p]:text-white/80 [&_svg]:text-white [&_h3]:text-white" />
+        <StatCard icon={Banknote} title="Total Income" value={money(summary.income)} description="Payments collected against completed POS sales." className="border-0 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg [&_p]:text-white/80 [&_svg]:text-white [&_h3]:text-white" />
+        <StatCard icon={RotateCcw} title="Total Refund" value={money(summary.refundTotal)} description="Refund value recorded in the selected period." className="border-0 bg-gradient-to-br from-rose-600 to-red-700 text-white shadow-lg [&_p]:text-white/80 [&_svg]:text-white [&_h3]:text-white" />
+        <StatCard icon={Package} title="Total Return Table" value={summary.returnedTables.toLocaleString()} description="Refund records originating from running tables." className="border-0 bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg [&_p]:text-white/80 [&_svg]:text-white [&_h3]:text-white" />
       </div>
 
       <Card>
@@ -141,23 +148,38 @@ function POSReportsPage() {
                 <th className="px-3 py-3 font-medium">Date &amp; Time</th><th className="px-3 py-3 font-medium">Staff</th><th className="px-3 py-3 font-medium">Item</th><th className="px-3 py-3 text-right font-medium">Amount Paid / Value</th><th className="px-3 py-3 font-medium">Running Table</th><th className="px-3 py-3 font-medium">Refunds</th><th className="px-3 py-3 text-right font-medium">Details</th>
               </tr></thead>
               <tbody>
-                {visibleEvents.map(event => <tr key={event.id} onClick={() => setSelectedEvent(event)} className="cursor-pointer border-b transition-colors hover:bg-muted/50">
+                {paginatedEvents.map(event => <tr key={event.id} onClick={() => event.kind === 'running' ? router.push(`/pos-reports/running-table/${encodeURIComponent(event.table.id)}`) : setSelectedEvent(event)} className="cursor-pointer border-b transition-colors hover:bg-muted/50">
                   <td className="whitespace-nowrap px-3 py-3">{event.date ? format(event.date, 'PP p') : '—'}</td>
                   <td className="px-3 py-3 font-medium">{event.staff}</td>
                   <td className="max-w-[260px] truncate px-3 py-3" title={event.items}>{event.items || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">{event.kind === 'refund' ? `−${money(event.amount)}` : money(event.amount)}</td>
                   <td className="px-3 py-3">{event.kind === 'running' ? <Badge variant="secondary">{event.reference}</Badge> : event.kind === 'sale' && event.sale.linkedHeldSaleId ? <Badge variant="outline">Completed table</Badge> : '—'}</td>
                   <td className="px-3 py-3">{event.kind === 'refund' ? <Badge variant="destructive">Refund</Badge> : '—'}</td>
-                  <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); setSelectedEvent(event); }}>View breakdown</Button></td>
+                  <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); if (event.kind === 'running') router.push(`/pos-reports/running-table/${encodeURIComponent(event.table.id)}`); else setSelectedEvent(event); }}>View breakdown</Button></td>
                 </tr>)}
               </tbody>
             </table>
           </div>}
+          {!isLoading && visibleEvents.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">Showing {((safePage - 1) * pageSize) + 1}–{Math.min(safePage * pageSize, visibleEvents.length)} of {visibleEvents.length} records</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+              <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button>
+              <span className="min-w-[88px] text-center text-sm font-medium tabular-nums">Page {safePage} of {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button>
+            </div>
+          </div>}
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedEvent} onOpenChange={open => { if (!open) setSelectedEvent(null); }}>
-        <DialogContent className="!inset-0 !h-[100dvh] !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none p-0 sm:!inset-0 sm:!h-[100dvh] sm:!max-h-none sm:!w-screen sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:rounded-none">
+      {selectedEvent && <TransactionBreakdownDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} money={money} />}
+    </div>
+  );
+}
+
+function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {event: Exclude<ReportEvent, {kind:'running'}>; onClose: () => void; money: (amount:number)=>string}) {
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+
+    <DialogContent className="!inset-0 !h-[100dvh] !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none p-0 sm:!inset-0 sm:!h-[100dvh] sm:!max-h-none sm:!w-screen sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:rounded-none">
           {selectedEvent && <div className="flex h-full min-h-0 flex-col">
             <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 text-left sm:px-8">
               <DialogTitle className="px-0 text-left text-xl">{selectedEvent.kind === 'sale' ? 'Sale breakdown' : selectedEvent.kind === 'refund' ? 'Refund breakdown' : 'Running table breakdown'}</DialogTitle>
@@ -183,19 +205,12 @@ function POSReportsPage() {
                   <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Original sale</p><p className="font-medium">{selectedEvent.refund.originalSaleId}</p></div><div><p className="text-xs text-muted-foreground">Reason</p><p className="font-medium">{selectedEvent.refund.reason || 'Not specified'}</p></div></div>
                   <ItemsTable items={selectedEvent.refund.items.map(item => ({name:item.itemName,quantity:item.quantity,price:item.refundAmount / Math.max(1,item.quantity)}))} money={money} />
                 </>}
-                {selectedEvent.kind === 'running' && <>
-                  <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Customer</p><p className="font-medium">{selectedEvent.table.customer?.name || 'Walk-in'}</p></div><div><p className="text-xs text-muted-foreground">Table notes</p><p className="font-medium">{selectedEvent.table.notes || '—'}</p></div></div>
-                  <ItemsTable items={selectedEvent.table.cart.map(item => ({name:item.name,quantity:item.sellQuantity,price:Number(item.price ?? item.sellingPrice ?? 0)}))} money={money} />
-                  <p className="text-sm text-muted-foreground">These items are still reserved on an active running table. They are not counted as completed sales or collected income.</p>
-                </>}
               </div>
             </ScrollArea>
             <DialogFooter className="shrink-0 border-t px-5 py-3 sm:px-8"><Button variant="outline" onClick={() => setSelectedEvent(null)}><X className="mr-2 h-4 w-4" />Close</Button></DialogFooter>
           </div>}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+    </DialogContent>
+  </Dialog>;
 }
 
 function ItemsTable({items, money}: {items: {name: string; quantity: number; price: number}[]; money: (value: number) => string}) {
