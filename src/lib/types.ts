@@ -581,6 +581,13 @@ export interface DocketHistory {
   actionByUid: string;
   actionByName: string;
   linkedBillId?: string;
+  /** Physical stock items released when a running table is deleted or reset. */
+  itemsReturnedToStock?: {
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    price?: number;
+  }[];
 }
 
 export interface SalonService {
