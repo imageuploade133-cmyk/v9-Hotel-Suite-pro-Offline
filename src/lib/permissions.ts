@@ -35,6 +35,7 @@ export enum PagePermission {
   MANAGE_CREDIT_SALES = 'manage:credit_sales',
   CREATE_CREDIT_SALES = 'create:credit_sales',
   VIEW_SALES_REPORTS = 'view:sales_reports',
+  VIEW_POS_REPORTS = 'view:pos_reports',
   VIEW_POS_ACCOUNTING = 'view:pos_accounting',
   VIEW_MY_SALES_HISTORY = 'view:my_sales_history',
   MANAGE_POS_CUSTOMERS = 'manage:pos_customers',
@@ -198,6 +199,13 @@ export const PERMISSION_GROUPS = [
       { id: PagePermission.MANAGE_POS_CATEGORIES, description: 'Manage categories for POS products and services' },
       { id: PagePermission.VIEW_RUNNING_TABLES, description: 'View running tables and sales data' },
       { id: PagePermission.MANAGE_RUNNING_TABLES, description: 'Manage running tables, including Return to Unprinted on eligible tables' },
+    ],
+  },
+  {
+    id: 'pos_reports',
+    name: 'POS Reports',
+    permissions: [
+      { id: PagePermission.VIEW_POS_REPORTS, description: 'Access dedicated POS performance reports and staff transaction breakdowns' },
     ],
   },
   {
