@@ -57,6 +57,7 @@ import { ReturnItemDialog } from '@/components/running-tables/return-item-dialog
 import { ReturnReceiptDialog } from '@/components/running-tables/return-receipt-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -84,6 +85,7 @@ function RunningTablesPage() {
   const { userProfile } = useUser();
   const currentUserUid = userProfile?.uid || userProfile?.id || null;
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [showMoreReturnStats, setShowMoreReturnStats] = React.useState(false);
 
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
     || userProfile?.isSuperAdmin === true
@@ -333,6 +335,40 @@ function RunningTablesPage() {
 
     return { totalRefundAmount, totalRefundCount };
   }, [allStockReturns]);
+
+  // All-time running-table stock return summary. Partial returns come from
+  // stockReturns; deleted/reset tables contribute only the items actually
+  // recorded as returned to stock, avoiding counting the same items twice.
+  const stockReturnSummary = React.useMemo(() => {
+    const runningReturns = (allStockReturns || []).filter(record => record.source === 'RunningTable');
+    const historyRecords = allDocketHistories || [];
+    const returnedItemsFromReturns = runningReturns.reduce((sum, record) =>
+      sum + (record.items || []).reduce((itemSum, item) => itemSum + Math.max(0, Number(item.quantity || 0)), 0), 0
+    );
+    const returnedValueFromReturns = runningReturns.reduce((sum, record) =>
+      sum + Math.max(0, Number(record.totalRefundAmount || 0)), 0
+    );
+    const returnedItemsFromHistory = (record: DocketHistory) => {
+      const recordedItems = record.itemsReturnedToStock;
+      const sourceItems = recordedItems || (!record.linkedBillId ? record.items : []);
+      return (sourceItems || []).filter(item => Number(item.quantity || 0) > 0);
+    };
+    const historyItemCount = (record: DocketHistory) =>
+      returnedItemsFromHistory(record).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const historyItemValue = (record: DocketHistory) =>
+      returnedItemsFromHistory(record).reduce((sum, item) =>
+        sum + Number(item.quantity || 0) * Number(item.price ?? record.items.find(original => original.itemId === item.itemId)?.price ?? 0), 0
+      );
+    const resetRecords = historyRecords.filter(record => record.actionType === 'Reset');
+    const deletedRecords = historyRecords.filter(record => record.actionType === 'Deleted');
+    const resetItems = resetRecords.reduce((sum, record) => sum + historyItemCount(record), 0);
+    const deletedItems = deletedRecords.reduce((sum, record) => sum + historyItemCount(record), 0);
+    const returnedItems = returnedItemsFromReturns + resetItems + deletedItems;
+    const returnedValue = returnedValueFromReturns
+      + resetRecords.reduce((sum, record) => sum + historyItemValue(record), 0)
+      + deletedRecords.reduce((sum, record) => sum + historyItemValue(record), 0);
+    return { returnedItems, returnedValue, resetItems, deletedItems, partialReturnItems: returnedItemsFromReturns };
+  }, [allStockReturns, allDocketHistories]);
 
   // Filter returns by date range
   const filteredReturns = React.useMemo(() => {
@@ -1312,6 +1348,49 @@ function RunningTablesPage() {
           />
         )}
       </div>
+
+      {!isPosStaff && (
+        <Collapsible open={showMoreReturnStats} onOpenChange={setShowMoreReturnStats}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <StatCard
+              title="Total Returned Amount"
+              value={formatCurrency(stockReturnSummary.returnedValue)}
+              icon={Undo2}
+              description="Value of items returned to stock through returns, deletions and resets."
+              className="border-orange-500"
+            />
+            <StatCard
+              title="Total Returned Items"
+              value={stockReturnSummary.returnedItems.toLocaleString()}
+              icon={Package}
+              description="Total item quantity released back into inventory."
+              className="border-orange-500"
+            />
+          </div>
+          <CollapsibleContent className="grid animate-in fade-in-0 zoom-in-95 grid-cols-1 gap-4 pt-4 md:grid-cols-2">
+            <StatCard
+              title="Total Reset Items"
+              value={stockReturnSummary.resetItems.toLocaleString()}
+              icon={RefreshCw}
+              description="Total item quantity returned to stock by resetting running tables."
+            />
+            <StatCard
+              title="Total Deleted Items"
+              value={stockReturnSummary.deletedItems.toLocaleString()}
+              icon={Trash2}
+              description="Total item quantity returned to stock when running tables were deleted."
+            />
+          </CollapsibleContent>
+          <div className="mt-4 flex items-center justify-center">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                {showMoreReturnStats ? 'Show Less' : 'See More'}
+                <ChevronDown className={cn('ml-2 h-4 w-4 transition-transform', showMoreReturnStats && 'rotate-180')} />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+        </Collapsible>
+      )}
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
