@@ -18,9 +18,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 type ReportEvent =
   | { id: string; kind: 'sale'; date: Date | null; staff: string; items: string; amount: number; reference: string; sale: StockSale }
@@ -180,7 +182,7 @@ function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {eve
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
 
     <DialogContent className="!inset-0 !h-[100dvh] !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none p-0 sm:!inset-0 sm:!h-[100dvh] sm:!max-h-none sm:!w-screen sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:rounded-none">
-          {selectedEvent && <div className="flex h-full min-h-0 flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 text-left sm:px-8">
               <DialogTitle className="px-0 text-left text-xl">{selectedEvent.kind === 'sale' ? 'Sale breakdown' : selectedEvent.kind === 'refund' ? 'Refund breakdown' : 'Running table breakdown'}</DialogTitle>
               <DialogDescription>{selectedEvent.reference} · {selectedEvent.staff}{selectedEvent.date ? ` · ${format(selectedEvent.date, 'PPpp')}` : ''}</DialogDescription>
@@ -207,7 +209,7 @@ function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {eve
                 </>}
               </div>
             </ScrollArea>
-            <DialogFooter className="shrink-0 border-t px-5 py-3 sm:px-8"><Button variant="outline" onClick={() => setSelectedEvent(null)}><X className="mr-2 h-4 w-4" />Close</Button></DialogFooter>
+            <DialogFooter className="shrink-0 border-t px-5 py-3 sm:px-8"><Button variant="outline" onClick={onClose}><X className="mr-2 h-4 w-4" />Close</Button></DialogFooter>
           </div>}
     </DialogContent>
   </Dialog>;
