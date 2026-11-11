@@ -1631,7 +1631,9 @@ function RunningTablesPage() {
                       // Include partial returns made while the table was still active,
                       // plus any remaining stock returned when it was deleted/reset.
                       const partialReturnItems = (allStockReturns || [])
-                        .filter(record => record.source === 'RunningTable' && record.originalSaleId === history.originalSaleId)
+                        .filter(record => record.source === 'RunningTable'
+                          && record.originalSaleId === history.originalSaleId
+                          && isWithinSelectedRange(record.returnedAt))
                         .flatMap(record => (record.items || []).map(item => ({
                           itemId: item.itemId,
                           itemName: item.itemName,
