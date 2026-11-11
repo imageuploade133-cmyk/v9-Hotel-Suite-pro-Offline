@@ -97,8 +97,10 @@ function POSReportsPage() {
     const refundEvents: ReportEvent[] = (returns || []).map(refund => {
       const originalSale = saleById.get(refund.originalSaleId);
       const originalTotal = Number(refund.originalTotal ?? originalSale?.totalAmount ?? 0);
-      const cumulativeRefund = refundTotalsBySale.get(refund.originalSaleId) || Number(refund.totalRefundAmount || 0);
-      const isFullRefund = originalTotal > 0 && cumulativeRefund >= originalTotal;
+      const isFullRefund = originalTotal > 0 && (
+        Number(refund.totalRefundAmount || 0) >= originalTotal ||
+        (typeof refund.remainingAmount === 'number' && refund.remainingAmount <= 0)
+      );
       return {
         id: `refund-${refund.id}`, kind: 'refund',
         status: isFullRefund ? 'Full Refund' : 'Partial Refund',
