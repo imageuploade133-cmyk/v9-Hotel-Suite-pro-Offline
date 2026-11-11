@@ -24,7 +24,7 @@ function RunningTableReportDetailPage() {
   const firestore = useFirestore();
   const { getCollectionPath, isGlobalMode, currentBranch } = useBranch();
   const { settings } = useSettings();
-  const tableId = decodeURIComponent(params.id || '');
+  const tableId = params.id || '';
 
   const branchQuery = React.useMemo(
     () => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales'))) : null,
@@ -64,7 +64,7 @@ function RunningTableReportDetailPage() {
           <CardHeader><CardTitle>Table Information</CardTitle><CardDescription>Staff and customer details associated with this running table.</CardDescription></CardHeader>
           <CardContent className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <div className="flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Staff</p><p className="font-semibold">{table.heldByName || 'Unknown staff'}</p><p className="text-xs text-muted-foreground">{table.heldByUid || ''}</p></div></div>
-            <div className="flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Customer</p><p className="font-semibold">{table.customer?.name || 'Walk-in customer'}</p><p className="text-xs text-muted-foreground">{table.customer?.phone || ''}</p></div></div>
+            <div className="flex items-start gap-3"><UserRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Customer</p><p className="font-semibold">{table.customer?.name || 'Walk-in customer'}</p><p className="text-xs text-muted-foreground">{table.customer?.phoneNumber || ''}</p></div></div>
             <div className="flex items-start gap-3"><CalendarClock className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Created / Held At</p><p className="font-semibold">{heldDate ? format(heldDate, 'PPpp') : 'Date unavailable'}</p></div></div>
             <div className="flex items-start gap-3"><StickyNote className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Notes</p><p className="font-semibold">{table.notes || 'No notes'}</p></div></div>
           </CardContent>
