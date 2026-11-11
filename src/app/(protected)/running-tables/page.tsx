@@ -544,7 +544,8 @@ function RunningTablesPage() {
           itemsReturnedToStock: itemsToReturnToStock.map(item => ({
             itemId: item.id,
             itemName: item.name,
-            quantity: item.sellQuantity,
+            quantity: Number(item.sellQuantity || 0),
+            price: Number(item.price || item.sellingPrice || 0),
           })),
         };
         if (saleData.linkedBillId) {
@@ -630,7 +631,8 @@ function RunningTablesPage() {
           itemsReturnedToStock: itemsToReturnToStock.map(item => ({
             itemId: item.id,
             itemName: item.name,
-            quantity: item.sellQuantity,
+            quantity: Number(item.sellQuantity || 0),
+            price: Number(item.price || item.sellingPrice || 0),
           })),
         };
         if (saleData.linkedBillId) {
@@ -883,6 +885,7 @@ function RunningTablesPage() {
             itemName: item.itemName,
             quantity: item.quantity,
             refundAmount: item.price * item.quantity,
+            sellingPrice: item.price,
             originalQuantity: saleData.cart.find(i => i.id === item.itemId)?.sellQuantity || 0,
             remainingQuantity: (saleData.cart.find(i => i.id === item.itemId)?.sellQuantity || 0) - item.quantity,
           })),
