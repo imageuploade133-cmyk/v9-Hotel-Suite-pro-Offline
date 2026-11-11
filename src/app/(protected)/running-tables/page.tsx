@@ -25,7 +25,7 @@ import type { HeldSale, UserProfile, StockReturn, DocketHistory } from '@/lib/ty
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { List, Trash2, Printer, Undo, MoreHorizontal, RefreshCw, Bell, Eye, User, Undo2, Calculator, History, CalendarClock, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown, Package } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import {
@@ -57,6 +57,7 @@ import { ReturnItemDialog } from '@/components/running-tables/return-item-dialog
 import { ReturnReceiptDialog } from '@/components/running-tables/return-receipt-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -84,6 +85,7 @@ function RunningTablesPage() {
   const { userProfile } = useUser();
   const currentUserUid = userProfile?.uid || userProfile?.id || null;
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [showMoreReturnStats, setShowMoreReturnStats] = React.useState(false);
 
   const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true
     || userProfile?.isSuperAdmin === true
@@ -334,6 +336,37 @@ function RunningTablesPage() {
     return { totalRefundAmount, totalRefundCount };
   }, [allStockReturns]);
 
+  // All-time running-table stock return summary. Partial returns come from
+  // stockReturns; deleted/reset tables contribute only the items actually
+  // recorded as returned to stock, avoiding counting the same items twice.
+  const stockReturnSummary = React.useMemo(() => {
+    const runningReturns = (allStockReturns || []).filter(record => record.source === 'RunningTable');
+    const historyRecords = allDocketHistories || [];
+    const returnedItemsFromReturns = runningReturns.reduce((sum, record) =>
+      sum + (record.items || []).reduce((itemSum, item) => itemSum + Math.max(0, Number(item.quantity || 0)), 0), 0
+    );
+    const returnedValueFromReturns = runningReturns.reduce((sum, record) =>
+      sum + Math.max(0, Number(record.totalRefundAmount || 0)), 0
+    );
+    const returnedItemsFromHistory = (record: DocketHistory) =>
+      (record.itemsReturnedToStock || []).filter(item => Number(item.quantity || 0) > 0);
+    const historyItemCount = (record: DocketHistory) =>
+      returnedItemsFromHistory(record).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const historyItemValue = (record: DocketHistory) =>
+      returnedItemsFromHistory(record).reduce((sum, item) =>
+        sum + Number(item.quantity || 0) * Number(item.price ?? record.items.find(original => original.itemId === item.itemId)?.price ?? 0), 0
+      );
+    const resetRecords = historyRecords.filter(record => record.actionType === 'Reset');
+    const deletedRecords = historyRecords.filter(record => record.actionType === 'Deleted');
+    const resetItems = resetRecords.reduce((sum, record) => sum + historyItemCount(record), 0);
+    const deletedItems = deletedRecords.reduce((sum, record) => sum + historyItemCount(record), 0);
+    const returnedItems = returnedItemsFromReturns + resetItems + deletedItems;
+    const returnedValue = returnedValueFromReturns
+      + resetRecords.reduce((sum, record) => sum + historyItemValue(record), 0)
+      + deletedRecords.reduce((sum, record) => sum + historyItemValue(record), 0);
+    return { returnedItems, returnedValue, resetItems, deletedItems, partialReturnItems: returnedItemsFromReturns };
+  }, [allStockReturns, allDocketHistories]);
+
   // Filter returns by date range
   const filteredReturns = React.useMemo(() => {
     if (!paginatedReturns) return [];
@@ -544,7 +577,8 @@ function RunningTablesPage() {
           itemsReturnedToStock: itemsToReturnToStock.map(item => ({
             itemId: item.id,
             itemName: item.name,
-            quantity: item.sellQuantity,
+            quantity: Number(item.sellQuantity || 0),
+            price: Number(item.price || item.sellingPrice || 0),
           })),
         };
         if (saleData.linkedBillId) {
@@ -630,7 +664,8 @@ function RunningTablesPage() {
           itemsReturnedToStock: itemsToReturnToStock.map(item => ({
             itemId: item.id,
             itemName: item.name,
-            quantity: item.sellQuantity,
+            quantity: Number(item.sellQuantity || 0),
+            price: Number(item.price || item.sellingPrice || 0),
           })),
         };
         if (saleData.linkedBillId) {
@@ -883,6 +918,7 @@ function RunningTablesPage() {
             itemName: item.itemName,
             quantity: item.quantity,
             refundAmount: item.price * item.quantity,
+            sellingPrice: item.price,
             originalQuantity: saleData.cart.find(i => i.id === item.itemId)?.sellQuantity || 0,
             remainingQuantity: (saleData.cart.find(i => i.id === item.itemId)?.sellQuantity || 0) - item.quantity,
           })),
@@ -1310,6 +1346,49 @@ function RunningTablesPage() {
         )}
       </div>
 
+      {!isPosStaff && (
+        <Collapsible open={showMoreReturnStats} onOpenChange={setShowMoreReturnStats}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <StatCard
+              title="Total Returned Amount"
+              value={formatCurrency(stockReturnSummary.returnedValue)}
+              icon={Undo2}
+              description="Value of items returned to stock through returns, deletions and resets."
+              className="border-orange-500"
+            />
+            <StatCard
+              title="Total Returned Items"
+              value={stockReturnSummary.returnedItems.toLocaleString()}
+              icon={Package}
+              description="Total item quantity released back into inventory."
+              className="border-orange-500"
+            />
+          </div>
+          <CollapsibleContent className="grid animate-in fade-in-0 zoom-in-95 grid-cols-1 gap-4 pt-4 md:grid-cols-2">
+            <StatCard
+              title="Total Reset Items"
+              value={stockReturnSummary.resetItems.toLocaleString()}
+              icon={RefreshCw}
+              description="Total item quantity returned to stock by resetting running tables."
+            />
+            <StatCard
+              title="Total Deleted Items"
+              value={stockReturnSummary.deletedItems.toLocaleString()}
+              icon={Trash2}
+              description="Total item quantity returned to stock when running tables were deleted."
+            />
+          </CollapsibleContent>
+          <div className="mt-4 flex items-center justify-center">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                {showMoreReturnStats ? 'Show Less' : 'See More'}
+                <ChevronDown className={cn('ml-2 h-4 w-4 transition-transform', showMoreReturnStats && 'rotate-180')} />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+        </Collapsible>
+      )}
+
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={`grid w-full ${isPosStaff ? 'grid-cols-2' : 'grid-cols-4'}`}>
@@ -1550,6 +1629,25 @@ function RunningTablesPage() {
                     {filteredHistory.map((history) => {
                       const actionDate = getSafeDate(history.actionAt);
                       const heldDate = getSafeDate(history.heldAt);
+                      // Include partial returns made while the table was still active,
+                      // plus any remaining stock returned when it was deleted/reset.
+                      const partialReturnItems = (allStockReturns || [])
+                        .filter(record => record.source === 'RunningTable' && record.originalSaleId === history.originalSaleId)
+                        .flatMap(record => (record.items || []).map(item => ({
+                          itemId: item.itemId,
+                          itemName: item.itemName,
+                          quantity: Number(item.quantity || 0),
+                          price: Number(item.sellingPrice ?? (Number(item.quantity || 0) > 0 ? item.refundAmount / item.quantity : 0)),
+                        })));
+                      const returnedToStockItems = [
+                        ...partialReturnItems,
+                        ...(history.itemsReturnedToStock || []).map(item => ({
+                          itemId: item.itemId,
+                          itemName: item.itemName,
+                          quantity: Number(item.quantity || 0),
+                          price: Number(item.price ?? history.items.find(original => original.itemId === item.itemId)?.price ?? 0),
+                        })),
+                      ].filter(item => item.quantity > 0);
                       return (
                         <div key={history.id} className="border rounded-lg p-4 bg-card">
                           <div className="flex items-start justify-between gap-4">
@@ -1592,14 +1690,42 @@ function RunningTablesPage() {
                           </div>
                           {history.items && history.items.length > 0 && (
                             <div className="mt-3 pt-3 border-t">
-                              <p className="text-xs font-medium text-muted-foreground mb-2">Items:</p>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Original Docket Items:</p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
                                 {history.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between">
+                                  <div key={idx} className="flex justify-between gap-3">
                                     <span>{item.itemName} x{item.quantity}</span>
                                     <span className="text-muted-foreground">{formatCurrency(item.price * item.quantity)}</span>
                                   </div>
                                 ))}
+                              </div>
+                            </div>
+                          )}
+                          {returnedToStockItems.length > 0 && (
+                            <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50/70 p-3 dark:border-orange-900 dark:bg-orange-950/20">
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Items Returned to Stock</p>
+                                <Badge variant="warning">
+                                  {returnedToStockItems.reduce((sum, item) => sum + item.quantity, 0)} items
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                {returnedToStockItems.map((item, idx) => (
+                                  <div key={`${item.itemId}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                                    <div className="min-w-0">
+                                      <p className="font-medium">{item.itemName}</p>
+                                      <p className="text-xs text-muted-foreground">Returned quantity: {item.quantity}</p>
+                                    </div>
+                                    <div className="shrink-0 text-right">
+                                      <p className="font-medium">{formatCurrency(item.price * item.quantity)}</p>
+                                      <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} each</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mt-2 flex items-center justify-between border-t border-orange-200 pt-2 text-sm font-semibold dark:border-orange-900">
+                                <span>Total returned value</span>
+                                <span>{formatCurrency(returnedToStockItems.reduce((sum, item) => sum + item.price * item.quantity, 0))}</span>
                               </div>
                             </div>
                           )}
