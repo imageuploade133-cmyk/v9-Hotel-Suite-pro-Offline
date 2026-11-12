@@ -9,16 +9,40 @@ export interface PosBankDetails {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  bankLogoUrl?: string;
+  showAccountOnDocket?: boolean;
+  showAccountOnPaid?: boolean;
 }
 
 export const EMPTY_POS_BANK_DETAILS: PosBankDetails = {
   bankName: '',
   accountName: '',
   accountNumber: '',
+  bankLogoUrl: '',
+  showAccountOnDocket: true,
+  showAccountOnPaid: true,
 };
 
 export const posStaffBankStorageKey = (uid: string) => `pos_staff_bank_details_${uid}`;
 export const posStaffBankPendingKey = (uid: string) => `pos_staff_bank_details_pending_${uid}`;
+
+export async function uploadPosBankLogo(file: File, apiKey: string): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the bank logo.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Bank logo must be 5 MB or smaller.');
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result.split(',')[1] || '') : reject(new Error('Could not read the selected image.'));
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+  const body = new FormData();
+  body.append('image', base64);
+  body.append('name', `pos-bank-logo-${Date.now()}`);
+  const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`, { method: 'POST', body });
+  const result = await response.json();
+  if (!response.ok || !result?.success || !result?.data?.url) throw new Error(result?.error?.message || 'Bank logo upload failed.');
+  return result.data.url as string;
+}
 
 export function normalizePosBankDetails(value: Partial<PosBankDetails> | null | undefined): PosBankDetails {
   return {
@@ -147,17 +171,21 @@ export function POSReceiptBankDetails({
   staffUid,
   fallback,
   variant = 'terminal',
+  receiptType = 'paid',
 }: {
   staffUid?: string;
   fallback: Partial<PosBankDetails>;
   variant?: 'terminal' | 'invoice';
+  receiptType?: 'docket' | 'paid';
 }) {
   const { details, hasDetails } = usePosReceiptBankDetails(staffUid, fallback);
-  if (!hasDetails) return null;
+  const shouldShow = receiptType === 'docket' ? details.showAccountOnDocket !== false : details.showAccountOnPaid !== false;
+  if (!hasDetails || !shouldShow) return null;
 
   if (variant === 'terminal') {
     return (
       <div className="mt-4 border-t border-dashed border-black pt-2 text-center text-xs leading-relaxed">
+        {details.bankLogoUrl && <img src={details.bankLogoUrl} alt="Bank logo" className="mx-auto mb-2 max-h-12 max-w-[120px] object-contain" />}
         <p className="mb-1 font-bold uppercase">Bank Transfer Details</p>
         {details.bankName && <p>Bank: {details.bankName}</p>}
         {details.accountName && <p>Account Name: {details.accountName}</p>}
@@ -168,6 +196,7 @@ export function POSReceiptBankDetails({
 
   return (
     <div className="mt-6 rounded-md border border-slate-300 p-4 text-sm text-slate-800">
+      {details.bankLogoUrl && <img src={details.bankLogoUrl} alt="Bank logo" className="mb-3 max-h-14 max-w-[150px] object-contain" />}
       <h3 className="mb-2 font-bold uppercase tracking-wide">Bank Transfer Details</h3>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
         {details.bankName && <p><strong>Bank:</strong> {details.bankName}</p>}
