@@ -93,7 +93,29 @@ function MyPOSAccountSettingsPage() {
 
     const load = async () => {
       if (!firestore) {
-        await loadFromLocalMaster();
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
+          catch { return false; }
+        })();
+        if (pending && typeof navigator !== 'undefined' && navigator.onLine && isLocalMasterHost()) {
+          let cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
+          if (offlineLogoKey) {
+            const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
+            if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+          }
+          const response = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionName: 'posStaffAccountSettings', docId: uid, action: 'set', data: { ...cached, uid, updatedAt: new Date().toISOString() } }),
+          });
+          if (!response.ok) throw new Error('Local Master staff settings sync failed.');
+          localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
+          localStorage.removeItem(posStaffBankPendingKey(uid));
+          setValues(cached);
+        } else if (!pending) {
+          await loadFromLocalMaster();
+        }
         if (active) setIsLoading(false);
         return;
       }
