@@ -17,6 +17,7 @@ import type { DateRange } from 'react-day-picker';
 import { TopHeader } from '@/components/top-header';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -79,6 +80,26 @@ function StaffTransactionBreakdownPage() {
     ...staffTables.map(table => ({ id: 'running-' + table.id, kind: 'running' as const, date: getSafeDate(table.heldAt), reference: table.name || table.id, amount: (table.cart || []).reduce((sum, item) => sum + Number(item.price || item.sellingPrice || 0) * Math.max(0, Number(item.sellQuantity || 0)), 0), table })),
   ].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)), [staffSales, staffReturns, staffTables]);
 
+
+  const [pageSize, setPageSize] = React.useState(10);
+  const [customPageSize, setCustomPageSize] = React.useState('10');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const totalPages = Math.max(1, Math.ceil(events.length / pageSize));
+  const paginatedEvents = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return events.slice(start, start + pageSize);
+  }, [events, currentPage, pageSize]);
+  const firstRecord = events.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastRecord = Math.min(currentPage * pageSize, events.length);
+  React.useEffect(() => { setCurrentPage(1); }, [dateRange, pageSize, staffUid]);
+  React.useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
+  const updatePageSize = (value: string) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return;
+    const next = Math.min(500, Math.max(1, parsed));
+    setPageSize(next);
+    setCustomPageSize(String(next));
+  };
   const soldUnits = staffSales.reduce((sum, sale) => sum + (sale.items || []).reduce((s, item) => s + Number(item.quantity || 0), 0), 0);
   const income = staffSales.reduce((sum, sale) => sum + Number(sale.initialPaymentAmount ?? (sale.paymentStatus === 'Paid' ? sale.totalAmount : 0)), 0);
   const refunds = staffReturns.reduce((sum, refund) => sum + Number(refund.totalRefundAmount || 0), 0);
@@ -117,11 +138,27 @@ function StaffTransactionBreakdownPage() {
     </div>
 
     <Card>
-      <CardHeader><CardTitle>Transaction History</CardTitle><CardDescription>Every sale, refund and active running table attributed to this staff account in the selected date range.</CardDescription></CardHeader>
+
+      <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><CardTitle>Transaction History</CardTitle><CardDescription>Every sale, refund and active running table attributed to this staff account in the selected date range.</CardDescription></div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <label htmlFor="staff-breakdown-page-size" className="text-xs font-medium text-muted-foreground">Rows per page</label>
+            <select id="staff-breakdown-page-size" value={String(pageSize)} onChange={event => updatePageSize(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <option value="10">10 rows</option><option value="20">20 rows</option><option value="50">50 rows</option><option value="100">100 rows</option><option value="200">200 rows</option><option value="500">500 rows</option>
+            </select>
+          </div>
+          <div className="w-28 space-y-1">
+            <label htmlFor="staff-breakdown-custom-size" className="text-xs font-medium text-muted-foreground">Custom rows (1–500)</label>
+            <Input id="staff-breakdown-custom-size" type="number" min={1} max={500} step={1} value={customPageSize} onChange={event => setCustomPageSize(event.target.value)} onBlur={() => updatePageSize(customPageSize)} onKeyDown={event => { if (event.key === 'Enter') updatePageSize(customPageSize); }} className="h-10" />
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => updatePageSize(customPageSize)}>Apply</Button>
+        </div>
+      </CardHeader>
       <CardContent>
         {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff transactions...</div> : events.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No transactions found for this staff member and date range.</div> :
         <div className="space-y-4">
-          {events.map(event => <div key={event.id} className="rounded-xl border p-4">
+          {paginatedEvents.map(event => <div key={event.id} className="rounded-xl border p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -160,6 +197,17 @@ function StaffTransactionBreakdownPage() {
               <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.table.cart || []).map((item, i) => { const qty = Number(item.sellQuantity || 0); const price = Number(item.price ?? item.sellingPrice ?? 0); return <tr key={item.id + '-' + i} className="border-t"><td className="px-3 py-2">{item.name}</td><td className="px-3 py-2 text-right">{qty}</td><td className="px-3 py-2 text-right">{money(price)}</td><td className="px-3 py-2 text-right font-medium">{money(qty * price)}</td></tr>; })}</tbody></table></div>
             </>}
           </div>)}
+
+        </div>}
+        {!isLoading && events.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{firstRecord.toLocaleString()}–{lastRecord.toLocaleString()}</span> of <span className="font-semibold text-foreground">{events.length.toLocaleString()}</span> records</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>First</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.max(1, page - 1))} disabled={currentPage <= 1}>Previous</Button>
+            <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {currentPage} of {totalPages}</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>Next</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+          </div>
         </div>}
       </CardContent>
     </Card>
