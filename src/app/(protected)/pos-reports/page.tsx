@@ -1,13 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
-import type { StockSale, StockReturn, HeldSale } from '@/lib/types';
+import type { StockSale, StockReturn, HeldSale, UserProfile, Role } from '@/lib/types';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import { TopHeader } from '@/components/top-header';
@@ -31,14 +31,30 @@ type ReportEvent =
 
 function POSReportsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const firestore = useFirestore();
   const { settings } = useSettings();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const initialRange = React.useMemo<DateRange | undefined>(() => {
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    if (!from) return undefined;
+    const start = new Date(from + 'T00:00:00');
+    const end = new Date((to || from) + 'T00:00:00');
+    return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? undefined : { from: start, to: end };
+  }, [searchParams]);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialRange);
+  React.useEffect(() => setDateRange(initialRange), [initialRange]);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedEvent, setSelectedEvent] = React.useState<ReportEvent | null>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
+
+  // Canonical staff identity and role data, matching Staff Management.
+  const staffProfilesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]);
+  const staffRolesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'roles')) : null, [firestore]);
+  const { data: staffProfiles, isLoading: staffProfilesLoading } = useCollection<UserProfile>(staffProfilesQuery);
+  const { data: staffRoles } = useCollection<Role>(staffRolesQuery);
 
   const branchSalesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, isGlobalMode, getCollectionPath]);
   const branchReturnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, isGlobalMode, getCollectionPath]);
@@ -139,6 +155,77 @@ function POSReportsPage() {
     };
   }, [sales, returns, heldTables, inRange]);
 
+  const staffRows = React.useMemo(() => {
+    const profiles = staffProfiles || [];
+    const roles = staffRoles || [];
+    const groups = new Map<string, { uid: string; name: string; email: string; phone: string; role: string; income: number; soldUnits: number; runningCount: number; latest: Date | null }>();
+    const resolveProfile = (uid: string | undefined, name: string) => {
+      if (uid) {
+        const byUid = profiles.find(profile => profile.uid === uid || profile.id === uid);
+        if (byUid) return byUid;
+      }
+      // Legacy transactions without a UID may only use an unambiguous name match.
+      if (!uid && name) {
+        const matches = profiles.filter(profile => profile.name?.trim().toLowerCase() === name.trim().toLowerCase());
+        if (matches.length === 1) return matches[0];
+      }
+      return undefined;
+    };
+    const resolveRole = (profile?: UserProfile) => {
+      if (!profile?.role) return 'Not assigned';
+      const role = roles.find(item => item.id === profile.role || item.name === profile.role);
+      return role?.name || profile.role;
+    };
+    const getGroup = (uid: string | undefined, name: string, date: Date | null) => {
+      const profile = resolveProfile(uid, name);
+      const key = uid || 'legacy-name:' + (name || 'Unknown staff').trim().toLowerCase();
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          uid: key,
+          name: profile?.name || name || 'Unknown staff',
+          email: profile?.email?.trim() || '',
+          phone: profile?.phoneNumber?.trim() || '',
+          role: resolveRole(profile),
+          income: 0,
+          soldUnits: 0,
+          runningCount: 0,
+          latest: date,
+        };
+        groups.set(key, group);
+      }
+      if (date && (!group.latest || date > group.latest)) group.latest = date;
+      if (profile) {
+        group.name = profile.name || group.name;
+        group.email = profile.email?.trim() || group.email;
+        group.phone = profile.phoneNumber?.trim() || group.phone;
+        group.role = resolveRole(profile);
+      } else if (name && group.name === 'Unknown staff') {
+        group.name = name;
+      }
+      return group;
+    };
+    (sales || []).filter(sale => inRange(getSafeDate(sale.soldAt))).forEach(sale => {
+      const group = getGroup(sale.soldByUid, sale.soldByName, getSafeDate(sale.soldAt));
+      group.income += Number(sale.initialPaymentAmount ?? (sale.paymentStatus === 'Paid' ? sale.totalAmount : 0));
+      group.soldUnits += (sale.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    });
+    (returns || []).filter(refund => inRange(getSafeDate(refund.returnedAt))).forEach(refund => {
+      getGroup(refund.returnedByUid, refund.returnedByName, getSafeDate(refund.returnedAt));
+    });
+    (heldTables || []).filter(table => inRange(getSafeDate(table.heldAt))).forEach(table => {
+      getGroup(table.heldByUid, table.heldByName, getSafeDate(table.heldAt)).runningCount += 1;
+    });
+    return Array.from(groups.values()).sort((a, b) => b.income - a.income || (b.latest?.getTime() || 0) - (a.latest?.getTime() || 0));
+  }, [sales, returns, heldTables, inRange, staffProfiles, staffRoles]);
+
+  const staffDateQuery = React.useMemo(() => {
+    const params = new URLSearchParams();
+    if (dateRange?.from) params.set('from', format(dateRange.from, 'yyyy-MM-dd'));
+    if (dateRange?.to) params.set('to', format(dateRange.to, 'yyyy-MM-dd'));
+    return params.toString();
+  }, [dateRange]);
+
   const visibleEvents = React.useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return events;
@@ -167,38 +254,31 @@ function POSReportsPage() {
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><CardTitle>POS Transactions</CardTitle><CardDescription>Sales, refunds and active running tables. Select any row to inspect its full breakdown.</CardDescription></div>
-          <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search staff, item, reference..." className="pl-9" /></div>
+          <div><CardTitle>POS Staff Transactions</CardTitle><CardDescription>One consolidated row per staff account. Contact details and role are sourced from Staff Management.</CardDescription></div>
+          <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search name, email, phone or role..." className="pl-9" /></div>
         </CardHeader>
         <CardContent>
-          {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading POS report records...</div> :
-          visibleEvents.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No POS transactions found for this period.</div> :
+          {isLoading || staffProfilesLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff POS report...</div> :
+          staffRows.filter(row => !searchTerm.trim() || [row.name, row.email, row.phone, row.role].some(value => value.toLowerCase().includes(searchTerm.trim().toLowerCase()))).length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No staff transactions found for this period.</div> :
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[920px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead><tr className="border-b text-left text-muted-foreground">
-                <th className="px-3 py-3 font-medium">Date &amp; Time</th><th className="px-3 py-3 font-medium">Staff</th><th className="px-3 py-3 font-medium">Item</th><th className="px-3 py-3 text-right font-medium">Amount Paid / Value</th><th className="px-3 py-3 font-medium">Running Table</th><th className="px-3 py-3 font-medium">Refunds</th><th className="px-3 py-3 font-medium">Status</th><th className="px-3 py-3 text-right font-medium">Details</th>
+                <th className="px-3 py-3 font-medium">Staff Name</th><th className="px-3 py-3 font-medium">Email</th><th className="px-3 py-3 font-medium">Phone Number</th><th className="px-3 py-3 font-medium">Staff Role</th><th className="px-3 py-3 text-right font-medium">Total Income</th><th className="px-3 py-3 text-right font-medium">Sold Item Units</th><th className="px-3 py-3 text-right font-medium">Running Tables</th><th className="px-3 py-3 font-medium">Latest Activity</th><th className="px-3 py-3 text-right font-medium">Action</th>
               </tr></thead>
               <tbody>
-                {paginatedEvents.map(event => <tr key={event.id} onClick={() => event.kind === 'running' ? router.push(`/pos-reports/running-table/${encodeURIComponent(event.table.id)}`) : setSelectedEvent(event)} className="cursor-pointer border-b transition-colors hover:bg-muted/50">
-                  <td className="whitespace-nowrap px-3 py-3">{event.date ? format(event.date, 'PP p') : '—'}</td>
-                  <td className="px-3 py-3 font-medium">{event.staff}</td>
-                  <td className="max-w-[260px] truncate px-3 py-3" title={event.items}>{event.items || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">{event.kind === 'refund' ? `−${money(event.amount)}` : money(event.amount)}</td>
-                  <td className="px-3 py-3">{event.kind === 'running' ? <Badge variant="secondary">{event.reference}</Badge> : event.kind === 'sale' && event.sale.linkedHeldSaleId ? <Badge variant="outline">Completed table</Badge> : '—'}</td>
-                  <td className="px-3 py-3">{event.kind === 'refund' ? <Badge variant="destructive">Refund</Badge> : '—'}</td>
-                  <td className="px-3 py-3"><StatusBadge status={event.status} /></td>
-                  <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); if (event.kind === 'running') router.push(`/pos-reports/running-table/${encodeURIComponent(event.table.id)}`); else setSelectedEvent(event); }}>View breakdown</Button></td>
+                {staffRows.filter(row => !searchTerm.trim() || [row.name, row.email, row.phone, row.role].some(value => value.toLowerCase().includes(searchTerm.trim().toLowerCase()))).map(row => <tr key={row.uid} className="border-b transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-4 font-semibold">{row.name}</td>
+                  <td className="px-3 py-4">{row.email || <span className="text-muted-foreground">Not provided</span>}</td>
+                  <td className="px-3 py-4">{row.phone || <span className="text-muted-foreground">Not provided</span>}</td>
+                  <td className="px-3 py-4"><Badge variant="outline">{row.role}</Badge></td>
+                  <td className="whitespace-nowrap px-3 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-400">{money(row.income)}</td>
+                  <td className="px-3 py-4 text-right tabular-nums">{row.soldUnits.toLocaleString()}</td>
+                  <td className="px-3 py-4 text-right"><Badge variant={row.runningCount ? 'secondary' : 'outline'}>{row.runningCount}</Badge></td>
+                  <td className="whitespace-nowrap px-3 py-4">{row.latest ? format(row.latest, 'EEEE, MMMM do, yyyy h:mm a') : '—'}</td>
+                  <td className="px-3 py-4 text-right"><Button size="sm" variant="outline" onClick={() => router.push('/pos-reports/staff/' + encodeURIComponent(row.uid) + (staffDateQuery ? '?' + staffDateQuery : ''))}>View Breakdown</Button></td>
                 </tr>)}
               </tbody>
             </table>
-          </div>}
-          {!isLoading && visibleEvents.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">Showing {((safePage - 1) * pageSize) + 1}–{Math.min(safePage * pageSize, visibleEvents.length)} of {visibleEvents.length} records</p>
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
-              <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button>
-              <span className="min-w-[88px] text-center text-sm font-medium tabular-nums">Page {safePage} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button>
-            </div>
           </div>}
         </CardContent>
       </Card>
