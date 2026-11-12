@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { ShoppingCart, History, RefreshCw, FileText } from 'lucide-react';
+import { ShoppingCart, History, RefreshCw, FileText, CreditCard } from 'lucide-react';
 import { TopHeader } from '@/components/ui/top-header';
 import { Button } from '@/components/ui/button';
 import { HotelPos } from '@/components/pos/hotel-pos';
@@ -39,6 +39,11 @@ function PointOfSalePage() {
              <Button variant="outline" size="icon" asChild title="My Sales History">
               <Link href="/my-sales-history">
                 <History className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="outline" size="icon" asChild title="My POS Account Settings">
+              <Link href="/pos/my-account-settings" aria-label="My POS Account Settings">
+                <CreditCard className="h-4 w-4" />
               </Link>
             </Button>
             <Button variant="outline" size="icon" asChild title="My POS Report">
