@@ -307,6 +307,48 @@ export function ImageUploadSettings() {
                                         />
                                     )}
                                     <Separator />
+                                    <div className="space-y-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="useGlobalServiceImage"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel className="text-base">Use Global Default Service Image</FormLabel>
+                                                        <FormDescription>Use this image for services that do not have their own image. Individual service images always take priority.</FormDescription>
+                                                    </div>
+                                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        {useGlobalServiceImage && (
+                                            <FormItem className="pl-4 border-l-2 ml-4">
+                                                <FormLabel>Global Default Service Image</FormLabel>
+                                                <FormDescription>This image is used as the default for services and foods without an uploaded image.</FormDescription>
+                                                {globalServiceImagePreview ? (
+                                                    <div className="relative group w-40 h-40">
+                                                        <Image src={globalServiceImagePreview} alt="Global default service image preview" fill style={{ objectFit: 'cover' }} className="rounded-md border p-2" />
+                                                        <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Button type="button" variant="destructive" size="icon" onClick={() => { form.setValue('globalServiceImageFile', undefined, { shouldDirty: true }); form.setValue('globalServiceImageUrl', '', { shouldDirty: true }); if (serviceImageFileInputRef.current) serviceImageFileInputRef.current.value = ''; }}><X className="h-5 w-5" /></Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer hover:border-primary/50" onClick={() => serviceImageFileInputRef.current?.click()}>
+                                                        <Upload className="w-8 h-8 text-muted-foreground" />
+                                                        <p className="mt-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Click to upload</span></p>
+                                                        <p className="text-xs text-muted-foreground">PNG, JPG up to {maxFileSizeMb}MB</p>
+                                                    </div>
+                                                )}
+                                                <Input ref={serviceImageFileInputRef} type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    if (file.size > maxFileSizeMb * 1024 * 1024) { toast({ variant: 'destructive', title: 'File Too Large', description: `${file.name} is larger than the allowed ${maxFileSizeMb}MB.` }); return; }
+                                                    form.setValue('globalServiceImageFile', file, { shouldDirty: true });
+                                                }} />
+                                            </FormItem>
+                                        )}
+                                    </div>
+                                    <Separator />
                                      <FormField
                                         control={form.control}
                                         name="imgbbApiKey"
