@@ -1,37 +1,85 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const ConnectivityContext = createContext<boolean>(true);
 
 export const useConnectivity = () => useContext(ConnectivityContext);
 
+const CHECK_TIMEOUT_MS = 8000;
+const RETRY_DELAY_MS = 2500;
+const CHECK_INTERVAL_MS = 30000;
+const FAILED_CHECKS_BEFORE_OFFLINE = 2;
+
 export const ConnectivityProvider = ({ children }: { children: React.ReactNode }) => {
   const [isOnline, setIsOnline] = useState<boolean>(true);
+  const failedChecksRef = useRef(0);
+  const requestInFlightRef = useRef(false);
+  const activeControllerRef = useRef<AbortController | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const verifyReachability = useCallback(async () => {
-    if (typeof navigator === 'undefined' || !navigator.onLine) {
+    if (typeof navigator === 'undefined') return;
+
+    // The browser's offline event is the strongest immediate signal.
+    if (!navigator.onLine) {
+      failedChecksRef.current = FAILED_CHECKS_BEFORE_OFFLINE;
       setIsOnline(false);
       return;
     }
 
+    // Avoid overlapping checks on slow or congested connections.
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 1400);
+    activeControllerRef.current = controller;
+    const timeoutId = window.setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
+
     try {
-      // Any HTTP response means this app's host is reachable. A 503 from the
-      // LAN-only endpoint on a cloud deployment is expected and still means
-      // the browser is online; only a network failure/timeout means offline.
-      await fetch('/api/lan-sync', {
+      // This endpoint is deliberately lightweight and does not read the LAN
+      // database, query Firebase, or perform any other application work.
+      // Any HTTP response proves that this app's server can be reached.
+      await fetch('/api/health', {
         method: 'GET',
         cache: 'no-store',
+        credentials: 'same-origin',
         signal: controller.signal,
-        headers: { 'x-connectivity-check': '1' },
+        headers: { 'Cache-Control': 'no-cache' },
       });
+
+      if (!navigator.onLine) {
+        failedChecksRef.current = FAILED_CHECKS_BEFORE_OFFLINE;
+        setIsOnline(false);
+        return;
+      }
+
+      failedChecksRef.current = 0;
       setIsOnline(true);
     } catch {
-      setIsOnline(false);
+      if (!navigator.onLine) {
+        failedChecksRef.current = FAILED_CHECKS_BEFORE_OFFLINE;
+        setIsOnline(false);
+      } else {
+        failedChecksRef.current += 1;
+
+        // A single timeout is not enough to declare the user offline. Slow
+        // connections, brief packet loss, and server cold starts are common.
+        if (failedChecksRef.current >= FAILED_CHECKS_BEFORE_OFFLINE) {
+          setIsOnline(false);
+        } else if (retryTimerRef.current === null) {
+          retryTimerRef.current = window.setTimeout(() => {
+            retryTimerRef.current = null;
+            void verifyReachability();
+          }, RETRY_DELAY_MS);
+        }
+      }
     } finally {
-      window.clearTimeout(timeout);
+      window.clearTimeout(timeoutId);
+      if (activeControllerRef.current === controller) {
+        activeControllerRef.current = null;
+      }
+      requestInFlightRef.current = false;
     }
   }, []);
 
@@ -39,27 +87,51 @@ export const ConnectivityProvider = ({ children }: { children: React.ReactNode }
     if (typeof window === 'undefined') return;
 
     setIsOnline(navigator.onLine);
+    failedChecksRef.current = navigator.onLine ? 0 : FAILED_CHECKS_BEFORE_OFFLINE;
+
     const handleOnline = () => {
+      failedChecksRef.current = 0;
       setIsOnline(true);
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       void verifyReachability();
     };
-    const handleOffline = () => setIsOnline(false);
+
+    const handleOffline = () => {
+      failedChecksRef.current = FAILED_CHECKS_BEFORE_OFFLINE;
+      activeControllerRef.current?.abort();
+      setIsOnline(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void verifyReachability();
+      }
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // navigator.onLine can remain true when Wi-Fi is connected but the
-    // application host cannot be reached. Verify occasionally without
-    // blocking normal app operations.
     void verifyReachability();
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void verifyReachability();
-    }, 20000);
+      if (document.visibilityState === 'visible') {
+        void verifyReachability();
+      }
+    }, CHECK_INTERVAL_MS);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.clearInterval(intervalId);
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      activeControllerRef.current?.abort();
     };
   }, [verifyReachability]);
 
