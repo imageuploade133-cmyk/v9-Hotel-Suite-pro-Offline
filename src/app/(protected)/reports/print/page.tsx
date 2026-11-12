@@ -58,6 +58,8 @@ function ProductReportPrintPage() {
     ? globalStock.isLoading || globalSales.isLoading || globalReturns.isLoading || globalRestocks.isLoading
     : branchStock.isLoading || branchSales.isLoading || branchReturns.isLoading || branchRestocks.isLoading;
 
+  const rangeFrom = dateRange.from <= dateRange.to ? dateRange.from : dateRange.to;
+  const rangeTo = dateRange.from <= dateRange.to ? dateRange.to : dateRange.from;
   const currency = settings?.currency || 'USD';
   const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number.isFinite(value) ? value : 0);
   const products = React.useMemo(() => (stock || []).filter(item => {
@@ -65,10 +67,10 @@ function ProductReportPrintPage() {
     if (categoryFilter && item.category !== categoryFilter) return false;
     return true;
   }).map(item => {
-    const summary = getProductMovementSummary(item, sales || [], returns || [], restocks || [], dateRange.from, dateRange.to);
+    const summary = getProductMovementSummary(item, sales || [], returns || [], restocks || [], rangeFrom, rangeTo);
     const grossRevenue = (sales || []).filter(sale => {
       const date = toReportDate(sale.soldAt);
-      return !!date && isWithinInterval(date, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) });
+      return !!date && isWithinInterval(date, { start: startOfDay(rangeFrom), end: endOfDay(rangeTo) });
     }).reduce((sum, sale) => sum + sale.items.filter(line => line.itemId === item.id && !line.isService).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) || 0) * Math.max(0, Number(line.sellingPrice) || 0), 0), 0);
     return { ...item, ...summary, grossRevenue };
   }).sort((a, b) => (a.category || 'Uncategorized').localeCompare(b.category || 'Uncategorized') || a.name.localeCompare(b.name)), [stock, sales, returns, restocks, productId, categoryFilter, dateRange]);
@@ -92,7 +94,7 @@ function ProductReportPrintPage() {
   }), { opening: 0, available: 0, sold: 0, returned: 0, revenue: 0 }), [products]);
 
   const title = productId ? (products[0]?.name || 'Product Stock & Sales Report') : categoryFilter ? `${categoryFilter} — Product Report` : 'Product Stock & Sales Report';
-  const dateLabel = `${format(dateRange.from, 'dd MMM yyyy')} – ${format(dateRange.to, 'dd MMM yyyy')}`;
+  const dateLabel = `${format(rangeFrom, 'dd MMM yyyy')} – ${format(rangeTo, 'dd MMM yyyy')}`;
   const columnCount = 2 + Number(showOriginal) + Number(showAvailable) + Number(showSold) + Number(showReturned) + Number(showRevenue);
 
   return (
@@ -105,9 +107,9 @@ function ProductReportPrintPage() {
       <Card className="print:hidden"><CardContent className="grid gap-4 p-4 lg:grid-cols-4">
         <div className="space-y-2"><p className="text-sm font-semibold">Print format</p><div className="flex gap-2"><Button type="button" size="sm" variant={printFormat === 'terminal' ? 'default' : 'outline'} onClick={() => setPrintFormat('terminal')}>Terminal</Button><Button type="button" size="sm" variant={printFormat === 'invoice' ? 'default' : 'outline'} onClick={() => setPrintFormat('invoice')}>Invoice (A4)</Button></div></div>
         <div className="space-y-2"><p className="text-sm font-semibold">Product arrangement</p><div className="flex gap-2"><Button type="button" size="sm" variant={printMode === 'category' ? 'default' : 'outline'} onClick={() => setPrintMode('category')}>By Category</Button><Button type="button" size="sm" variant={printMode === 'product' ? 'default' : 'outline'} onClick={() => setPrintMode('product')}>Products Only</Button></div></div>
-        <div className="space-y-2"><p className="text-sm font-semibold">Date range</p><div className="flex gap-2"><input aria-label="Start date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(dateRange.from, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, from: d })); }} /><input aria-label="End date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(dateRange.to, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, to: d })); }} /></div></div>
+        <div className="space-y-2"><p className="text-sm font-semibold">Date range</p><div className="flex gap-2"><input aria-label="Start date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(rangeFrom, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, from: d })); }} /><input aria-label="End date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(rangeTo, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, to: d })); }} /></div></div>
         <div className="space-y-2"><p className="text-sm font-semibold">Show columns</p><div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={showOriginal} onChange={e => setShowOriginal(e.target.checked)} />Original stock</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={showOriginal} onChange={e => setShowOriginal(e.target.checked)} />Opening stock (original)</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={showAvailable} onChange={e => setShowAvailable(e.target.checked)} />Available stock</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={showSold} onChange={e => setShowSold(e.target.checked)} />Sold</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={showReturned} onChange={e => setShowReturned(e.target.checked)} />Returned</label>
