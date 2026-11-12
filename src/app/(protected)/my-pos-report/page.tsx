@@ -329,4 +329,4 @@ function MyPOSReportPage() {
   </div>;
 }
 
-export default withAuth(MyPOSReportPage, PagePermission.VIEW_MY_SALES_HISTORY);
+export default withAuth(MyPOSReportPage, PagePermission.VIEW_POS);
