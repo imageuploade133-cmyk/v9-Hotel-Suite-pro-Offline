@@ -212,6 +212,7 @@ export function POSReceiptPreview({
 
             <TabsContent value="a4">
               <div className={`p-8 bg-white text-black text-sm max-w-2xl mx-auto${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                <style>{".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}"}</style>
                 {/* Header */}
                 <header className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
