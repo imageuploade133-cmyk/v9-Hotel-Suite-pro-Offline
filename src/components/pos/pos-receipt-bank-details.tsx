@@ -161,8 +161,11 @@ export function usePosReceiptBankDetails(
       bankName: own.bankName || global.bankName,
       accountName: own.accountName || global.accountName,
       accountNumber: own.accountNumber || global.accountNumber,
+      bankLogoUrl: own.bankLogoUrl || global.bankLogoUrl,
+      showAccountOnDocket: own.showAccountOnDocket,
+      showAccountOnPaid: own.showAccountOnPaid,
     };
-  }, [personal, fallback.bankName, fallback.accountName, fallback.accountNumber]);
+  }, [personal, fallback.bankName, fallback.accountName, fallback.accountNumber, fallback.bankLogoUrl]);
 
   return { details: effective, isLoading, hasDetails: !!(effective.bankName || effective.accountName || effective.accountNumber) };
 }
