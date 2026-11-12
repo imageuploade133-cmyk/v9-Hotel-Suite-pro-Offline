@@ -100,6 +100,9 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   // Display name - use effective POS settings business name
@@ -321,7 +324,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
                     <p className="font-bold uppercase text-center mb-2 text-3xl">QTY: {qtyToPrint}</p>
                     <div className="text-center text-xs mt-6">
                       <p>This is a draft for a single item from a running table.</p>
-                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="terminal" />
+                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="terminal" receiptType="docket" />
                       <p>No payment has been processed.</p>
                     </div>
                   </div>
@@ -371,7 +374,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
                       <h3 className="text-6xl font-bold text-slate-800">{qtyToPrint}</h3>
                     </div>
                     <div className="mt-12 text-center text-xs text-slate-500">
-                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="invoice" />
+                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="invoice" receiptType="docket" />
                       <p>This is a docket for preparation and is not a final bill.</p>
                     </div>
                   </div>
