@@ -109,6 +109,8 @@ export function usePosReceiptBankDetails(
           const remote = normalizePosBankDetails(snapshot.data() as Partial<PosBankDetails>);
           setPersonalState({ uid: staffUid, details: remote });
           try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote)); } catch {}
+        } else {
+          await loadLocalMaster();
         }
       } catch (error) {
         // The local per-user cache remains authoritative while a save/clear is pending.
