@@ -55,6 +55,7 @@ import {
   FileText,
   MessageSquareText,
   Mail,
+  BarChart3,
   Banknote,
   Clock,
   Printer,
