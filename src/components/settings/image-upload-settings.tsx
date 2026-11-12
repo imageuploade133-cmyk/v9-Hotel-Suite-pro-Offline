@@ -204,12 +204,12 @@ export function ImageUploadSettings() {
             if (data.globalStockImageFile) {
                 toast({ title: 'Uploading Global Default Product Image...', description: 'Please wait.' });
                 const imageName = `global-product-default_${Date.now()}`;
-                finalGlobalStockImageUrl = await uploadImage(data.globalStockImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, expiration);
+                finalGlobalStockImageUrl = await uploadImage(data.globalStockImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, 0);
             }
             if (data.globalServiceImageFile) {
                 toast({ title: 'Uploading Global Default Service Image...', description: 'Please wait.' });
                 const imageName = `global-service-default_${Date.now()}`;
-                finalGlobalServiceImageUrl = await uploadImage(data.globalServiceImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, expiration);
+                finalGlobalServiceImageUrl = await uploadImage(data.globalServiceImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, 0);
             }
 
             const settingsToSave = {
@@ -371,9 +371,9 @@ export function ImageUploadSettings() {
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                                                 <div className="space-y-0.5">
-                                                    <FormLabel className="text-base">Use Global Stock Image</FormLabel>
+                                                    <FormLabel className="text-base">Use Global Default Product Image</FormLabel>
                                                     <FormDescription>
-                                                        Enable a default placeholder image for stock items without a specific image.
+                                                        Use a shared default image for products that do not have their own image. A product's own image always takes priority.
                                                     </FormDescription>
                                                 </div>
                                                 <FormControl>
@@ -387,8 +387,8 @@ export function ImageUploadSettings() {
                                         />
                                         {useGlobalImage && (
                                             <FormItem className="pl-4 border-l-2 ml-4">
-                                                <FormLabel>Global Stock Placeholder Image</FormLabel>
-                                                <FormDescription>This image will be used for any stock item that does not have its own image uploaded.</FormDescription>
+                                                <FormLabel>Global Default Product Image</FormLabel>
+                                                <FormDescription>This image is the global fallback for products without an individual image. It does not replace or modify product images.</FormDescription>
                                                 {globalStockImagePreview ? (
                                                     <div className="relative group w-40 h-40">
                                                         <Image src={globalStockImagePreview} alt="Global stock image preview" fill style={{ objectFit: 'cover' }} className="rounded-md border p-2" />
