@@ -103,17 +103,19 @@ function MyPOSAccountSettingsPage() {
           try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
           catch { return false; }
         })();
-        if (pending && typeof navigator !== 'undefined' && navigator.onLine) {
+        if (pending) {
           let cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
-          const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
-          if (offlineLogoKey) {
-            const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
-            if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+          if (typeof navigator !== 'undefined' && navigator.onLine) {
+            const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
+            if (offlineLogoKey) {
+              const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
+              if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+            }
+            await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
+            localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
+            localStorage.removeItem(posStaffBankPendingKey(uid));
           }
-          await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
           setValues(cached);
-          localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
-          localStorage.removeItem(posStaffBankPendingKey(uid));
           return;
         }
         const snapshot = await getDoc(ref);
