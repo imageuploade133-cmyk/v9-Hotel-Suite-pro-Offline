@@ -10,7 +10,7 @@ import { useFirestore, useCollection } from '@/firebase';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
-import type { StockSale, StockReturn, HeldSale } from '@/lib/types';
+import type { StockSale, StockReturn, HeldSale, StockItem } from '@/lib/types';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -46,21 +46,26 @@ function StaffTransactionBreakdownPage() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialRange);
   React.useEffect(() => setDateRange(initialRange), [initialRange]);
 
+  const stockQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stock'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const salesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const heldQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const branchStock = useCollection<StockItem>(stockQuery);
   const branchSales = useCollection<StockSale>(salesQuery);
   const branchReturns = useCollection<StockReturn>(returnsQuery);
   const branchHeld = useCollection<HeldSale>(heldQuery);
+  const globalStock = useGlobalCollectionData<StockItem>('stock', []);
   const globalSales = useGlobalCollectionData<StockSale>('stockSales', []);
   const globalReturns = useGlobalCollectionData<StockReturn>('stockReturns', []);
   const globalHeld = useGlobalCollectionData<HeldSale>('heldSales', []);
+  const stock = isGlobalMode ? globalStock.data : branchStock.data;
+  const stockById = React.useMemo(() => new Map((stock || []).map(item => [item.id, item])), [stock]);
   const sales = isGlobalMode ? globalSales.data : branchSales.data;
   const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
   const heldTables = isGlobalMode ? globalHeld.data : branchHeld.data;
   const isLoading = isGlobalMode
-    ? globalSales.isLoading || globalReturns.isLoading || globalHeld.isLoading
-    : branchSales.isLoading || branchReturns.isLoading || branchHeld.isLoading;
+    ? globalStock.isLoading || globalSales.isLoading || globalReturns.isLoading || globalHeld.isLoading
+    : branchStock.isLoading || branchSales.isLoading || branchReturns.isLoading || branchHeld.isLoading;
 
   const inRange = React.useCallback((date: Date | null) => {
     if (!date || !dateRange?.from) return true;
@@ -245,11 +250,11 @@ function StaffTransactionBreakdownPage() {
                 <p><span className="text-muted-foreground">Status: </span><Badge variant={event.sale.paymentStatus === 'Paid' ? 'success' : 'secondary'}>{event.sale.paymentStatus}</Badge></p>
                 <p><span className="text-muted-foreground">Sale total: </span>{money(event.sale.totalAmount)}</p>
               </div>
-              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.sale.items || []).map((item, i) => <tr key={item.itemId + '-' + i} className="border-t"><td className="px-3 py-2">{item.itemName}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.sellingPrice)}</td><td className="px-3 py-2 text-right font-medium">{money(item.quantity * item.sellingPrice)}</td></tr>)}</tbody></table></div>
+              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.sale.items || []).map((item, i) => <tr key={item.itemId + '-' + i} className="border-t"><td className="px-3 py-2"><div className="flex min-w-[180px] items-center gap-3"><div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-muted">{(stockById.get(item.itemId)?.imageUrl || stockById.get(item.itemId)?.images?.[0]) ? <img src={stockById.get(item.itemId)?.imageUrl || stockById.get(item.itemId)?.images?.[0]} alt={item.itemName} loading="lazy" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Package className="h-4 w-4" /></div>}</div><span>{item.itemName}</span></div></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{money(item.sellingPrice)}</td><td className="px-3 py-2 text-right font-medium">{money(item.quantity * item.sellingPrice)}</td></tr>)}</tbody></table></div>
             </>}
             {event.kind === 'refund' && <>
               <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">Original sale: </span>{event.refund.originalSaleId}</p><p><span className="text-muted-foreground">Reason: </span>{event.refund.reason || 'Not specified'}</p><p><span className="text-muted-foreground">Refund source: </span>{event.refund.source || 'POS'}</p><p><span className="text-muted-foreground">Customer: </span>{event.refund.customerName || 'Walk-in'}</p></div>
-              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Returned qty</th><th className="px-3 py-2 text-right">Refund amount</th></tr></thead><tbody>{(event.refund.items || []).map((item, i) => <tr key={item.itemId + '-' + i} className="border-t"><td className="px-3 py-2">{item.itemName}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right font-medium">{money(item.refundAmount)}</td></tr>)}</tbody></table></div>
+              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Returned qty</th><th className="px-3 py-2 text-right">Refund amount</th></tr></thead><tbody>{(event.refund.items || []).map((item, i) => <tr key={item.itemId + '-' + i} className="border-t"><td className="px-3 py-2"><div className="flex min-w-[180px] items-center gap-3"><div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-muted">{(stockById.get(item.itemId)?.imageUrl || stockById.get(item.itemId)?.images?.[0]) ? <img src={stockById.get(item.itemId)?.imageUrl || stockById.get(item.itemId)?.images?.[0]} alt={item.itemName} loading="lazy" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Package className="h-4 w-4" /></div>}</div><span>{item.itemName}</span></div></td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right font-medium">{money(item.refundAmount)}</td></tr>)}</tbody></table></div>
               <p className="mt-2 text-xs text-muted-foreground">{event.refund.remainingAmount !== undefined ? 'Remaining sale balance: ' + money(event.refund.remainingAmount) : 'Refund recorded separately; it does not reduce the collected-income figure above.'}</p>
             </>}
             {event.kind === 'running' && <>
@@ -259,7 +264,7 @@ function StaffTransactionBreakdownPage() {
                 <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">This is the current value of items on the active table. It is not counted as completed sales income.</p>
               </div>
               <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Customer: </span>{event.table.customer?.name || 'Walk-in'}</p><p><span className="text-muted-foreground">Items: </span>{tableUnits(event.table)}</p><p><span className="text-muted-foreground">Stock reservation: </span>{event.table.stockReserved || event.table.stockReservationMode === 'reserved' ? 'Reserved' : 'Legacy / unknown'}</p></div>
-              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.table.cart || []).map((item, i) => { const qty = Number(item.sellQuantity || 0); const price = Number(item.price ?? item.sellingPrice ?? 0); return <tr key={item.id + '-' + i} className="border-t"><td className="px-3 py-2">{item.name}</td><td className="px-3 py-2 text-right">{qty}</td><td className="px-3 py-2 text-right">{money(price)}</td><td className="px-3 py-2 text-right font-medium">{money(qty * price)}</td></tr>; })}</tbody></table></div>
+              <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.table.cart || []).map((item, i) => { const qty = Number(item.sellQuantity || 0); const price = Number(item.price ?? item.sellingPrice ?? 0); return <tr key={item.id + '-' + i} className="border-t"><td className="px-3 py-2"><div className="flex min-w-[180px] items-center gap-3"><div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-muted">{(item.imageUrl || item.images?.[0] || stockById.get(item.id)?.imageUrl || stockById.get(item.id)?.images?.[0]) ? <img src={item.imageUrl || item.images?.[0] || stockById.get(item.id)?.imageUrl || stockById.get(item.id)?.images?.[0]} alt={item.name} loading="lazy" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Package className="h-4 w-4" /></div>}</div><span>{item.name}</span></div></td><td className="px-3 py-2 text-right">{qty}</td><td className="px-3 py-2 text-right">{money(price)}</td><td className="px-3 py-2 text-right font-medium">{money(qty * price)}</td></tr>; })}</tbody></table></div>
             </>}
           </div>)}
 
