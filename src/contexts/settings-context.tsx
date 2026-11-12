@@ -149,6 +149,22 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
           console.warn('[Settings Context] LAN settings query error:', lanErr);
         }
 
+        // POS configuration is stored separately from general application settings.
+        // Read it from the Local Master cache as well so the POS defaults remain available offline.
+        if (isLocalMasterHost()) try {
+          const posRes = await fetchWithTimeout(fetch('/api/lan-sync?collection=posSettings'), 1000);
+          if (posRes && posRes.ok) {
+            const posResult = await posRes.json();
+            if (posResult.data) {
+              Object.values(posResult.data).forEach((docData: any) => {
+                if (docData && typeof docData === 'object') Object.assign(mergedSettings, docData);
+              });
+            }
+          }
+        } catch (posLanErr) {
+          console.warn('[Settings Context] LAN POS settings query error:', posLanErr);
+        }
+
         // Priority 3: Fetch directly from 'settings/global' document in Firestore
         try {
           const globalDocRef = doc(db, 'settings', 'global');
