@@ -43,10 +43,11 @@ export function usePosReceiptBankDetails(
   fallback: Partial<PosBankDetails>
 ) {
   const firestore = useFirestore();
-  const [personalState, setPersonalState] = React.useState<{ uid?: string; details: PosBankDetails }>(() => ({
+  // Start with a deterministic server/client value; load the UID-scoped cache in the effect.
+  const [personalState, setPersonalState] = React.useState<{ uid?: string; details: PosBankDetails }>({
     uid: staffUid,
-    details: staffUid ? readLocalDetails(staffUid) : EMPTY_POS_BANK_DETAILS,
-  }));
+    details: EMPTY_POS_BANK_DETAILS,
+  });
   // Never render the previous cashier's cached details during a staff UID change.
   const personal = personalState.uid === staffUid
     ? personalState.details
