@@ -286,7 +286,13 @@ export function POSSettingsForm() {
 
   // Load effective POS settings based on current context (Global vs Branch)
   React.useEffect(() => {
-    const posSettings = getEffectivePosSettings();
+    let locallyQueuedSettings: Record<string, any> = {};
+    try {
+      const pendingRaw = localStorage.getItem(`pos_settings_pending_${getCollectionPath('posSettings')}`);
+      const pending = pendingRaw ? JSON.parse(pendingRaw) : null;
+      if (pending?.data && typeof pending.data === 'object') locallyQueuedSettings = pending.data;
+    } catch {}
+    const posSettings = { ...getEffectivePosSettings(), ...locallyQueuedSettings };
     const isGlobal = isGlobalMode || !currentBranchId || currentBranchId === 'global';
 
     // Use appropriate defaults based on context
@@ -358,7 +364,7 @@ export function POSSettingsForm() {
       hotelPosBusinessAddress: posSettings.hotelPosBusinessAddress || '',
       hotelPosBusinessPhone: posSettings.hotelPosBusinessPhone || '',
     });
-  }, [settings, reset, getEffectivePosSettings, isGlobalMode, isBranchMode, currentBranchId, currentBranch, globalPosSettings]);
+  }, [settings, reset, getEffectivePosSettings, getCollectionPath, isGlobalMode, isBranchMode, currentBranchId, currentBranch, globalPosSettings]);
 
   const watchedValues = watch();
   const logoFile = watchedValues.posReceiptLogoFile;
