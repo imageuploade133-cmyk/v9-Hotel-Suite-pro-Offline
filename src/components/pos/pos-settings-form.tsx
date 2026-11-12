@@ -22,7 +22,13 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Receipt, Upload, X, RotateCcw, Printer, Settings2, Palette, FileText, Building2, Globe } from 'lucide-react';
 import { POSReceiptPreview } from './pos-receipt-preview';
-import { uploadPosBankLogo } from './pos-receipt-bank-details';
+import {
+  uploadPosBankLogo,
+  saveOfflinePosBankLogo,
+  getOfflinePosBankLogoKey,
+  getOfflinePosBankLogo,
+  removeOfflinePosBankLogo,
+} from './pos-receipt-bank-details';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -226,6 +232,48 @@ export function POSSettingsForm() {
 
   const { reset, watch, setValue } = form;
 
+  // Retry locally queued POS settings (including bank logos) when connectivity returns.
+  React.useEffect(() => {
+    if (!firestore || typeof window === 'undefined') return;
+    let syncing = false;
+    const syncPendingSettings = async () => {
+      if (syncing || !navigator.onLine) return;
+      const pendingKey = `pos_settings_pending_${getCollectionPath('posSettings')}`;
+      let pending: { collectionPath: string; data: Record<string, any> } | null = null;
+      try {
+        const raw = localStorage.getItem(pendingKey);
+        if (raw) pending = JSON.parse(raw);
+      } catch { return; }
+      if (!pending?.collectionPath || !pending.data) return;
+      syncing = true;
+      try {
+        const data = { ...pending.data };
+        const offlineLogoKey = getOfflinePosBankLogoKey(data.bankLogoUrl);
+        if (offlineLogoKey) {
+          const file = await getOfflinePosBankLogo(offlineLogoKey);
+          if (!file) throw new Error('The locally saved bank logo is unavailable.');
+          data.bankLogoUrl = await uploadPosBankLogo(file, imgbbApiKey);
+        }
+        await setDoc(doc(firestore, pending.collectionPath, 'settings'), data, { merge: true });
+        try {
+          const current = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
+          localStorage.setItem('app_saved_settings', JSON.stringify({ ...current, ...data }));
+          localStorage.removeItem(pendingKey);
+          if (offlineLogoKey) await removeOfflinePosBankLogo(offlineLogoKey);
+        } catch (storageError) {
+          console.warn('[POS Settings] Synced, but local cache cleanup failed:', storageError);
+        }
+      } catch (error) {
+        console.warn('[POS Settings] Offline changes remain queued:', error);
+      } finally {
+        syncing = false;
+      }
+    };
+    void syncPendingSettings();
+    window.addEventListener('online', syncPendingSettings);
+    return () => window.removeEventListener('online', syncPendingSettings);
+  }, [firestore, getCollectionPath, imgbbApiKey]);
+
   // Load effective POS settings based on current context (Global vs Branch)
   React.useEffect(() => {
     const posSettings = getEffectivePosSettings();
@@ -361,21 +409,30 @@ export function POSSettingsForm() {
   };
 
   async function onSubmit(data: POSSettingsFormValues) {
-    if (!user || !firestore || !userProfile) {
+    if (!user || !userProfile) {
       toast({ variant: 'destructive', title: 'Error', description: 'User must be logged in.' });
       return;
     }
 
     setIsSaving(true);
     try {
-      const batch = writeBatch(firestore);
+      const batch = firestore ? writeBatch(firestore) : null;
       const collectionPath = getCollectionPath('posSettings');
-      const settingsDocRef = doc(firestore, collectionPath, 'settings');
+      const settingsDocRef = firestore ? doc(firestore, collectionPath, 'settings') : null;
 
       let finalBankLogoUrl = data.bankLogoUrl || '';
       if (data.bankLogoFile) {
         toast({ title: 'Uploading Bank Logo...', description: 'Please wait.' });
-        finalBankLogoUrl = await uploadPosBankLogo(data.bankLogoFile, imgbbApiKey);
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          try {
+            finalBankLogoUrl = await uploadPosBankLogo(data.bankLogoFile, imgbbApiKey);
+          } catch (uploadError) {
+            finalBankLogoUrl = await saveOfflinePosBankLogo(`business:${collectionPath}`, data.bankLogoFile);
+            console.warn('[POS Settings] ImgBB upload deferred:', uploadError);
+          }
+        } else {
+          finalBankLogoUrl = await saveOfflinePosBankLogo(`business:${collectionPath}`, data.bankLogoFile);
+        }
       }
 
       let finalLogoUrl = data.posReceiptLogoUrl;
@@ -459,28 +516,54 @@ export function POSSettingsForm() {
       });
 
       if (changes.length > 0 || data.posReceiptLogoFile || data.bankLogoFile) {
-        batch.set(settingsDocRef, settingsToSave, { merge: true });
+        // Persist locally first: receipts and previews remain available offline.
+        try {
+          const current = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
+          localStorage.setItem('app_saved_settings', JSON.stringify({ ...current, ...settingsToSave }));
+          localStorage.setItem(`pos_settings_pending_${collectionPath}`, JSON.stringify({
+            collectionPath,
+            data: settingsToSave,
+          }));
+        } catch (storageError) {
+          throw new Error('Could not save POS settings locally. Check available browser storage and try again.');
+        }
 
-        const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-        batch.set(auditLogRef, {
-          timestamp: serverTimestamp(),
-          userId: userProfile.uid,
-          userName: userProfile.name,
-          changeType: 'Update',
-          entityType: 'Settings',
-          entityId: `POS Settings${currentBranchId && currentBranchId !== 'global' ? ` - ${currentBranch?.name || currentBranchId}` : ''}`,
-          details: `Updated POS receipt and invoice settings for ${currentBranchId === 'global' || !currentBranchId ? 'Global' : currentBranch?.name || 'Branch'}.`,
-          changes: changes.length > 0 ? changes : [{ field: 'Receipt Logo', before: 'No change', after: 'Updated' }],
-        });
-
-        await batch.commit();
+        if (batch && settingsDocRef) {
+          batch.set(settingsDocRef, settingsToSave, { merge: true });
+          const auditLogRef = doc(collection(firestore!, 'globalAuditLog'));
+          batch.set(auditLogRef, {
+            timestamp: serverTimestamp(),
+            userId: userProfile.uid,
+            userName: userProfile.name,
+            changeType: 'Update',
+            entityType: 'Settings',
+            entityId: `POS Settings${currentBranchId && currentBranchId !== 'global' ? ` - ${currentBranch?.name || currentBranchId}` : ''}`,
+            details: `Updated POS receipt and invoice settings for ${currentBranchId === 'global' || !currentBranchId ? 'Global' : currentBranch?.name || 'Branch'}.`,
+            changes: changes.length > 0 ? changes : [{ field: 'Bank Logo', before: 'No change', after: 'Updated' }],
+          });
+          if (typeof navigator === 'undefined' || navigator.onLine) {
+            await batch.commit();
+            localStorage.removeItem(`pos_settings_pending_${collectionPath}`);
+          } else {
+            // Firestore's offline queue will commit when the connection returns;
+            // the explicit pending record also preserves settings for no-Firestore LAN sessions.
+            toast({ title: 'Saved offline', description: 'POS settings are stored on this device and will synchronize when the connection returns.' });
+          }
+        }
       }
 
-      toast({
-        title: 'POS Settings Saved',
-        description: `POS receipt settings for ${contextLabel} have been updated successfully.`,
-        variant: 'success',
-      });
+      if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
+        toast({
+          title: 'POS Settings Saved',
+          description: `POS receipt settings for ${contextLabel} have been updated successfully.`,
+          variant: 'success',
+        });
+      } else {
+        toast({
+          title: 'POS Settings Saved Offline',
+          description: 'Your settings are stored locally and will synchronize when online.',
+        });
+      }
 
       reset(
         {
