@@ -199,8 +199,9 @@ function MyPOSAccountSettingsPage() {
   };
 
   const handleClear = async () => {
-    if (!uid) return;
+    if (!uid || isSaving) return;
     const cleared = { ...EMPTY_POS_BANK_DETAILS };
+    setIsSaving(true);
     setValues(cleared);
     try {
       localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cleared));
@@ -230,6 +231,8 @@ function MyPOSAccountSettingsPage() {
       toast({ title: 'Personal account details cleared', description: 'Your POS printouts will now use the default account details from POS Settings.' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Clear sync pending', description: 'The local details were cleared. Cloud sync will need to complete when online.' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
