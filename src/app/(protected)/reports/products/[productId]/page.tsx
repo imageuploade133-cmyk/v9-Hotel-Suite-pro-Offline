@@ -124,6 +124,13 @@ function ProductReportDetailPage() {
     return rows.sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [sales, returns, productId, inRange]);
 
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
+  const totalPages = Math.max(1, Math.ceil(events.length / pageSize));
+  const paginatedEvents = React.useMemo(() => events.slice((currentPage - 1) * pageSize, currentPage * pageSize), [events, currentPage, pageSize]);
+  React.useEffect(() => { setCurrentPage(1); }, [dateRange, productId]);
+  React.useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
+
   const totals = React.useMemo(() => events.reduce((acc, event) => {
     if (event.kind === 'sale') {
       acc.transactions += 1;
@@ -158,11 +165,20 @@ function ProductReportDetailPage() {
       ) : <>
         <Card>
           <CardHeader><CardTitle>Product information</CardTitle><CardDescription>{product?.category || 'Category not available'} · {dateLabel}</CardDescription></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CardContent className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="flex items-start justify-center lg:justify-start">
+              <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-2xl border bg-muted shadow-sm">
+                {(product?.imageUrl || product?.images?.[0]) ? <img src={product.imageUrl || product.images?.[0]} alt={product.name || 'Product image'} loading="lazy" className="h-full w-full object-contain" /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><Package className="h-12 w-12" /><span className="text-xs">No product image</span></div>}
+              </div>
+            </div>
+            <div className="grid content-start gap-4 sm:grid-cols-2">
+              <div><p className="text-xs text-muted-foreground">Product name</p><p className="font-semibold">{product?.name || productName}</p></div>
+              <div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{product?.category || 'Category not available'}</p></div>
             <div><p className="text-xs text-muted-foreground">SKU / Barcode</p><p className="font-medium">{product?.sku || product?.barcode || 'Not provided'}</p></div>
             <div><p className="text-xs text-muted-foreground">Current on-hand stock</p><p className="font-semibold">{Number(product?.quantity || 0).toLocaleString()}</p></div>
             <div><p className="text-xs text-muted-foreground">Reserved on running tables</p><p className="font-semibold">{Number(product?.reservedQuantity || 0).toLocaleString()}</p></div>
-            <div><p className="text-xs text-muted-foreground">Currently available to sell</p><p className="font-semibold">{(Number(product?.quantity || 0) - Number(product?.reservedQuantity || 0)).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">Currently available to sell</p><p className="font-semibold">{(Number(product?.quantity || 0) - Number(product?.reservedQuantity || 0)).toLocaleString()}</p></div>
+            </div>
           </CardContent>
         </Card>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -178,7 +194,7 @@ function ProductReportDetailPage() {
             {events.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No sales or returns for this product in {dateLabel}.</div> :
               <div className="w-full overflow-x-auto"><table className="w-full min-w-[1120px] text-sm">
                 <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Date & time</th><th className="px-3 py-3">Type / Reference</th><th className="px-3 py-3">Channel</th><th className="px-3 py-3">Customer</th><th className="px-3 py-3">Processed by</th><th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Amount</th><th className="px-3 py-3">Payment / Status</th></tr></thead>
-                <tbody>{events.map(event => <tr key={event.id} className="border-b last:border-0 hover:bg-muted/40">
+                <tbody>{paginatedEvents.map(event => <tr key={event.id} className="border-b last:border-0 hover:bg-muted/40">
                   <td className="whitespace-nowrap px-3 py-3"><span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5 text-muted-foreground" />{format(event.date, 'dd MMM yyyy, h:mm:ss a')}</span></td>
                   <td className="px-3 py-3"><div className="font-medium">{event.kind === 'sale' ? 'Sale' : 'Return'}</div><div className="text-xs text-muted-foreground">{event.reference}</div></td>
                   <td className="px-3 py-3"><Badge variant={event.channel === 'POS' ? 'default' : event.channel === 'Hotel POS' ? 'secondary' : 'outline'}>{event.channel}</Badge></td>
@@ -189,6 +205,21 @@ function ProductReportDetailPage() {
                   <td className="px-3 py-3"><Badge variant={event.kind === 'return' ? 'destructive' : event.status === 'Paid' ? 'success' : 'outline'}>{event.kind === 'return' ? 'Refunded' : event.status}</Badge><div className="text-xs text-muted-foreground">{event.payment}</div></td>
                 </tr>)}</tbody>
               </table></div>}
+            {events.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span>Showing <strong className="text-foreground">{((currentPage - 1) * pageSize + 1).toLocaleString()}–{Math.min(currentPage * pageSize, events.length).toLocaleString()}</strong> of <strong className="text-foreground">{events.length.toLocaleString()}</strong> transactions</span>
+                <label className="flex items-center gap-2">Rows
+                  <select aria-label="Product history rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setCurrentPage(1); }} className="h-9 rounded-md border bg-background px-2 text-sm">
+                    <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setCurrentPage(page => Math.max(1, page - 1))} disabled={currentPage <= 1}>Previous</Button>
+                <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {currentPage} of {totalPages}</span>
+                <Button type="button" size="sm" variant="outline" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>Next</Button>
+              </div>
+            </div>}
           </CardContent>
         </Card>
       </>}
