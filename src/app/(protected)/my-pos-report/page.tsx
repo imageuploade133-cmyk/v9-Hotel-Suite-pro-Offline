@@ -37,8 +37,8 @@ function MyPOSReportPage() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
 
   const salesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales')), where('soldByUid', '==', user?.uid || '__no_user__')) : null, [firestore, getCollectionPath, isGlobalMode, user?.uid]);
-  const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns')), where('returnedByUid', '==', user?.uid || '__no_user__')) : null, [firestore, getCollectionPath, isGlobalMode]);
-  const heldQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales')), where('heldByUid', '==', user?.uid || '__no_user__')) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns')), where('returnedByUid', '==', user?.uid || '__no_user__')) : null, [firestore, getCollectionPath, isGlobalMode, user?.uid]);
+  const heldQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales')), where('heldByUid', '==', user?.uid || '__no_user__')) : null, [firestore, getCollectionPath, isGlobalMode, user?.uid]);
   const branchSales = useCollection<StockSale>(salesQuery);
   const branchReturns = useCollection<StockReturn>(returnsQuery);
   const branchHeld = useCollection<HeldSale>(heldQuery);
@@ -163,7 +163,7 @@ function MyPOSReportPage() {
   `}</style>
 
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <TopHeader name="Staff Transactions Breakdown" icon={<ClipboardList className="h-8 w-8" />} description={isBranchMode ? 'Complete POS activity · ' + (currentBranch?.name || 'Current branch') : 'Detailed sales, refunds and running-table activity for this staff member.'} />
+      <TopHeader name="My POS Report" icon={<ClipboardList className="h-8 w-8" />} description={isBranchMode ? 'Complete POS activity · ' + (currentBranch?.name || 'Current branch') : 'Detailed sales, refunds and running-table activity for this staff member.'} />
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <DateRangePicker date={dateRange} onDateChange={setDateRange} className="w-full sm:w-auto" />
         <Button variant="default" onClick={openPrintPreview} disabled={isLoading}><Printer className="mr-2 h-4 w-4" />Print Report</Button>
@@ -246,7 +246,7 @@ function MyPOSReportPage() {
           </div>)}
 
         </div>}
-        {!isLoading && events.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        {!isLoading && filteredEvents.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{firstRecord.toLocaleString()}–{lastRecord.toLocaleString()}</span> of <span className="font-semibold text-foreground">{filteredEvents.length.toLocaleString()}</span> records</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>First</Button>
@@ -322,7 +322,7 @@ function MyPOSReportPage() {
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
-          <Button type="button" onClick={printReport} disabled={isLoading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
+          <Button type="button" onClick={printReport} disabled={isLoading || filteredEvents.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
