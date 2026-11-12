@@ -63,7 +63,8 @@ export default function withAuth<P extends object>(
     const isOwnProfileRoute = pathname === '/profile';
     const canViewOwnProfile = isAdminIdentity || finalPermissions.includes(PagePermission.MANAGE_OWN_PROFILE);
     const isEmailMarketingAdminAccess = requiredPermission === PagePermission.MANAGE_EMAIL_MARKETING && isAdminIdentity;
-    let hasRequiredPermission = (isOwnProfileRoute && canViewOwnProfile) || isEmailMarketingAdminAccess ||
+    const isPosStaffBreakdownAdminAccess = requiredPermission === PagePermission.VIEW_POS_STAFF_TRANSACTIONS && isAdminIdentity;
+    let hasRequiredPermission = (isOwnProfileRoute && canViewOwnProfile) || isEmailMarketingAdminAccess || isPosStaffBreakdownAdminAccess ||
       (requiredPermission ? finalPermissions.includes(requiredPermission) : true);
 
     // POS-assigned staff may open Running Tables; the page itself scopes them
