@@ -158,4 +158,140 @@ function ProductReportPrintPage() {
   );
 }
 
-export default withAuth(ProductReportPrintPage, PagePermission.VIEW_SALES_REPORTS);
+
+
+function SalesReportPrintPage() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const firestore = useFirestore();
+  const { settings } = useSettings();
+  const { getCollectionPath, isGlobalMode } = useBranch();
+  const transactionId = search.get('transactionId') || '';
+  const initialFrom = search.get('from') ? new Date(search.get('from') + 'T00:00:00') : subDays(new Date(), 29);
+  const initialTo = search.get('to') ? new Date(search.get('to') + 'T00:00:00') : new Date();
+  const [dateRange, setDateRange] = React.useState({ from: Number.isNaN(initialFrom.getTime()) ? subDays(new Date(), 29) : initialFrom, to: Number.isNaN(initialTo.getTime()) ? new Date() : initialTo });
+  const [printFormat, setPrintFormat] = React.useState<'terminal' | 'invoice'>((search.get('format') as 'terminal' | 'invoice') === 'terminal' ? 'terminal' : 'invoice');
+  const [arrangement, setArrangement] = React.useState<'date' | 'transaction'>((search.get('arrangement') as 'date' | 'transaction') === 'transaction' ? 'transaction' : 'date');
+  const [showStaff, setShowStaff] = React.useState(true);
+  const [showCustomer, setShowCustomer] = React.useState(true);
+  const [showItems, setShowItems] = React.useState(true);
+  const [showPayment, setShowPayment] = React.useState(true);
+  const [showStatus, setShowStatus] = React.useState(true);
+
+  const salesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const branchSales = useCollection<StockSale>(salesQuery);
+  const branchReturns = useCollection<StockReturn>(returnsQuery);
+  const globalSales = useGlobalCollectionData<StockSale>('stockSales', []);
+  const globalReturns = useGlobalCollectionData<StockReturn>('stockReturns', []);
+  const sales = isGlobalMode ? globalSales.data : branchSales.data;
+  const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
+  const loading = isGlobalMode ? globalSales.isLoading || globalReturns.isLoading : branchSales.isLoading || branchReturns.isLoading;
+
+  const from = dateRange.from <= dateRange.to ? dateRange.from : dateRange.to;
+  const to = dateRange.from <= dateRange.to ? dateRange.to : dateRange.from;
+  const events = React.useMemo(() => {
+    const within = (value: unknown) => {
+      const date = toReportDate(value);
+      return !!date && isWithinInterval(date, { start: startOfDay(from), end: endOfDay(to) });
+    };
+    const rows = [
+      ...(sales || []).filter(item => (!transactionId || item.id === transactionId) && within(item.soldAt)).map(item => ({
+        id: item.id, type: 'Sale' as const, reference: item.saleId || item.id, date: toReportDate(item.soldAt),
+        staff: item.soldByName || 'Unknown staff', customer: item.customerName || 'Walk-in customer',
+        items: (item.items || []).map(line => `${line.itemName} × ${line.quantity}`), payment: item.paymentMethod || '—',
+        status: item.paymentStatus || 'Unknown', amount: Number(item.totalAmount || 0), collected: Number(item.initialPaymentAmount ?? (item.paymentStatus === 'Paid' ? item.totalAmount : 0)),
+      })),
+      ...(returns || []).filter(item => (!transactionId || `refund-${item.id}` === transactionId) && within(item.returnedAt)).map(item => ({
+        id: `refund-${item.id}`, type: 'Refund' as const, reference: item.refundId || item.id, date: toReportDate(item.returnedAt),
+        staff: item.returnedByName || 'Unknown staff', customer: item.customerName || '—',
+        items: (item.items || []).map(line => `${line.itemName} × ${line.quantity}`), payment: 'Refund',
+        status: 'Refunded', amount: -Math.abs(Number(item.totalRefundAmount || 0)), collected: 0,
+      })),
+    ];
+    return rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  }, [sales, returns, transactionId, from, to]);
+
+  const currency = settings?.currency || 'USD';
+  const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number.isFinite(value) ? value : 0);
+  const totals = React.useMemo(() => events.reduce((sum, row) => ({
+    sales: sum.sales + (row.type === 'Sale' ? row.amount : 0),
+    collected: sum.collected + row.collected,
+    refunds: sum.refunds + (row.type === 'Refund' ? Math.abs(row.amount) : 0),
+    transactions: sum.transactions + (row.type === 'Sale' ? 1 : 0),
+    refundsCount: sum.refundsCount + (row.type === 'Refund' ? 1 : 0),
+  }), { sales: 0, collected: 0, refunds: 0, transactions: 0, refundsCount: 0 }), [events]);
+  const groups = React.useMemo(() => {
+    if (arrangement === 'transaction') return [{ name: '', events }];
+    const map = new Map<string, typeof events>();
+    events.forEach(row => {
+      const key = row.date ? format(row.date, 'dd MMM yyyy') : 'Date not recorded';
+      map.set(key, [...(map.get(key) || []), row]);
+    });
+    return Array.from(map.entries()).map(([name, rows]) => ({ name, events: rows }));
+  }, [events, arrangement]);
+  const dateLabel = `${format(from, 'dd MMM yyyy')} – ${format(to, 'dd MMM yyyy')}`;
+  const title = transactionId ? 'Sales Transaction Detail' : 'Sales Performance Report';
+
+  return <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-3 sm:p-6">
+    <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <div className="flex items-center gap-2"><Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button><div><h1 className="text-xl font-bold">Sales Report Printout</h1><p className="text-xs text-muted-foreground">Configure the sales report layout before printing.</p></div></div>
+      <Button onClick={() => window.print()} disabled={loading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print Report</Button>
+    </div>
+    <Card className="print:hidden"><CardContent className="grid gap-4 p-4 lg:grid-cols-4">
+      <div className="space-y-2"><p className="text-sm font-semibold">Print format</p><div className="flex gap-2"><Button type="button" size="sm" variant={printFormat === 'terminal' ? 'default' : 'outline'} onClick={() => setPrintFormat('terminal')}>Terminal</Button><Button type="button" size="sm" variant={printFormat === 'invoice' ? 'default' : 'outline'} onClick={() => setPrintFormat('invoice')}>Invoice (A4)</Button></div></div>
+      <div className="space-y-2"><p className="text-sm font-semibold">Arrange transactions</p><div className="flex gap-2"><Button type="button" size="sm" variant={arrangement === 'date' ? 'default' : 'outline'} onClick={() => setArrangement('date')}>By Date</Button><Button type="button" size="sm" variant={arrangement === 'transaction' ? 'default' : 'outline'} onClick={() => setArrangement('transaction')}>All Transactions</Button></div></div>
+      <div className="space-y-2"><p className="text-sm font-semibold">Date range</p><div className="flex gap-2"><input aria-label="Start date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(from, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, from: d })); }} /><input aria-label="End date" type="date" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={format(to, 'yyyy-MM-dd')} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (!Number.isNaN(d.getTime())) setDateRange(r => ({ ...r, to: d })); }} /></div></div>
+      <div className="space-y-2"><p className="text-sm font-semibold">Show details</p><div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showStaff} onChange={e => setShowStaff(e.target.checked)} />Staff</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showCustomer} onChange={e => setShowCustomer(e.target.checked)} />Customer</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showItems} onChange={e => setShowItems(e.target.checked)} />Items</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showPayment} onChange={e => setShowPayment(e.target.checked)} />Payment</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showStatus} onChange={e => setShowStatus(e.target.checked)} />Status</label>
+      </div></div>
+    </CardContent></Card>
+
+    {loading ? <div className="py-16 text-center text-muted-foreground print:hidden">Loading sales data…</div> : events.length === 0 ? <div className="py-16 text-center text-muted-foreground print:hidden">No sales transactions found for this selection.</div> : <main className={`sales-report-sheet mx-auto w-full bg-white text-black ${printFormat === 'terminal' ? 'max-w-[80mm] p-3' : 'max-w-[210mm] p-6 sm:p-10'}`}>
+      <header className="mb-5 text-center">
+        {settings?.businessLogoUrl && <img src={settings.businessLogoUrl} alt="Business logo" className={`mx-auto mb-2 object-contain ${printFormat === 'terminal' ? 'max-h-14 max-w-24' : 'max-h-20 max-w-40'}`} />}
+        <h2 className={`font-bold ${printFormat === 'terminal' ? 'text-base' : 'text-2xl'}`}>{settings?.businessName || 'Business Report'}</h2>
+        {settings?.businessAddress && <p className="mt-1 text-xs">{settings.businessAddress}</p>}
+        {settings?.businessPhone && <p className="text-xs">{settings.businessPhone}</p>}
+        <div className="my-3 border-y border-dashed border-black py-2"><h1 className={`font-bold uppercase ${printFormat === 'terminal' ? 'text-sm' : 'text-xl'}`}>{title}</h1><p className="mt-1 text-xs">Period: {dateLabel}</p><p className="text-xs">Generated: {format(new Date(), 'dd MMM yyyy, h:mm a')}</p></div>
+      </header>
+      <section className={`mb-4 grid gap-2 text-center ${printFormat === 'terminal' ? 'grid-cols-2 text-xs' : 'grid-cols-4 text-sm'}`}>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Gross sales</p><b>{money(totals.sales)}</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Collected</p><b>{money(totals.collected)}</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Refunds</p><b>{money(totals.refunds)}</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Transactions</p><b>{totals.transactions.toLocaleString()} / {totals.refundsCount.toLocaleString()} refunds</b></div>
+      </section>
+      {groups.map(group => <section key={group.name || 'all-transactions'} className="mb-4">
+        {group.name && <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold uppercase">{group.name}</h3>}
+        <div className="overflow-x-auto"><table className={`w-full border-collapse ${printFormat === 'terminal' ? 'text-[9px]' : 'text-xs'}`}>
+          <thead><tr className="border-b border-black text-left"><th className="py-2 pr-1">Date / Ref</th>{showStaff && <th className="px-1 py-2">Staff</th>}{showCustomer && <th className="px-1 py-2">Customer</th>}{showItems && <th className="px-1 py-2">Items</th>}{showPayment && <th className="px-1 py-2">Payment</th>}{showStatus && <th className="px-1 py-2">Status</th>}<th className="pl-1 py-2 text-right">Amount</th></tr></thead>
+          <tbody>{group.events.map(row => <tr key={row.id} className="border-b border-black/20 align-top"><td className="py-2 pr-1"><b>{row.type}</b><div>{row.reference}</div><div className="text-[9px]">{row.date ? format(row.date, 'dd MMM, h:mm a') : '—'}</div></td>{showStaff && <td className="px-1 py-2">{row.staff}</td>}{showCustomer && <td className="px-1 py-2">{row.customer}</td>}{showItems && <td className="px-1 py-2">{row.items.join(', ') || '—'}</td>}{showPayment && <td className="px-1 py-2">{row.payment}</td>}{showStatus && <td className="px-1 py-2">{row.status}</td>}<td className={`pl-1 py-2 text-right tabular-nums ${row.amount < 0 ? 'text-rose-700' : ''}`}>{money(row.amount)}</td></tr>)}</tbody>
+        </table></div>
+      </section>)}
+      <footer className="mt-6 border-t border-dashed border-black pt-3 text-center text-[10px]"><p>End of report</p><p className="mt-1">Sales and refund values are based on recorded transaction documents. Collected amounts reflect recorded initial payments.</p></footer>
+    </main>}
+    <style jsx global>{`
+      @media print {
+        @page { size: ${printFormat === 'terminal' ? '80mm auto' : 'A4 portrait'}; margin: ${printFormat === 'terminal' ? '3mm' : '10mm'}; }
+        html, body { background: #fff !important; }
+        body * { visibility: hidden !important; }
+        .sales-report-sheet, .sales-report-sheet * { visibility: visible !important; }
+        .sales-report-sheet { position: absolute !important; inset: 0 auto auto 0 !important; width: ${printFormat === 'terminal' ? '74mm' : '190mm'} !important; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+        .sales-report-sheet table { page-break-inside: auto; }
+        .sales-report-sheet tr { page-break-inside: avoid; }
+      }
+    `}</style>
+  </div>;
+}
+
+function ReportsPrintPage() {
+  const search = useSearchParams();
+  return search.get('report') === 'sales' ? <SalesReportPrintPage /> : <ProductReportPrintPage />;
+}
+
+export default withAuth(ReportsPrintPage, PagePermission.VIEW_SALES_REPORTS);
+

@@ -296,19 +296,23 @@ function ReportsPage() {
           </div>
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><CardTitle>Sales & Refund Transactions</CardTitle><CardDescription>Completed sales and recorded refunds, ordered by transaction date. Refund amounts are shown as negative values.</CardDescription></div>
-              <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={salesSearch} onChange={event => setSalesSearch(event.target.value)} placeholder="Search reference, staff or customer..." className="pl-9" /></div>
+              <div><CardTitle>Sales Performance</CardTitle><CardDescription>Completed sales and recorded refunds, with transaction-level details for {dateLabel}.</CardDescription></div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <Button variant="outline" onClick={() => router.push(`/reports/print?report=sales&from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}><Printer className="mr-2 h-4 w-4" />Print Sales Report</Button>
+                <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={salesSearch} onChange={event => setSalesSearch(event.target.value)} placeholder="Search reference, staff or customer..." className="pl-9" /></div>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading sales report…</div> :
                 visibleSales.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No sales or refunds found for this period.</div> :
-                <div className="w-full overflow-x-auto"><table className="w-full min-w-[1050px] text-sm">
-                  <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Date</th><th className="px-3 py-3">Reference</th><th className="px-3 py-3">Staff</th><th className="px-3 py-3">Customer</th><th className="px-3 py-3">Items</th><th className="px-3 py-3">Payment</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Amount</th></tr></thead>
+                <div className="w-full overflow-x-auto"><table className="w-full min-w-[1160px] text-sm">
+                  <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Date</th><th className="px-3 py-3">Reference</th><th className="px-3 py-3">Staff</th><th className="px-3 py-3">Customer</th><th className="px-3 py-3">Items</th><th className="px-3 py-3">Payment</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Amount</th><th className="px-3 py-3 text-right">Action</th></tr></thead>
                   <tbody>{visibleSales.map(row => <tr key={row.id} className="border-b hover:bg-muted/40">
                     <td className="whitespace-nowrap px-3 py-3">{row.date ? format(row.date, 'dd MMM yyyy, h:mm a') : '—'}</td><td className="px-3 py-3 font-medium">{row.reference}</td><td className="px-3 py-3">{row.staff}</td><td className="px-3 py-3">{row.customer}</td>
                     <td className="max-w-[260px] truncate px-3 py-3" title={row.items}>{row.items}</td><td className="px-3 py-3">{row.payment}</td>
                     <td className="px-3 py-3"><Badge variant={row.status === 'Paid' ? 'default' : row.status === 'Refunded' ? 'destructive' : 'outline'}>{row.status}</Badge></td>
                     <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold ${row.amount < 0 ? 'text-rose-600' : ''}`}>{money(row.amount)}</td>
+                    <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={() => router.push(`/reports/sales/${encodeURIComponent(row.id)}?from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}>View Report</Button></td>
                   </tr>)}</tbody>
                 </table></div>}
               {!loading && filteredSalesRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
