@@ -260,7 +260,7 @@ function StaffTransactionBreakdownPage() {
           </div>)}
 
         </div>}
-        {!isLoading && events.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        {!isLoading && filteredEvents.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{firstRecord.toLocaleString()}–{lastRecord.toLocaleString()}</span> of <span className="font-semibold text-foreground">{filteredEvents.length.toLocaleString()}</span> records</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>First</Button>
@@ -336,7 +336,7 @@ function StaffTransactionBreakdownPage() {
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
-          <Button type="button" onClick={printReport} disabled={isLoading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
+          <Button type="button" onClick={printReport} disabled={isLoading || filteredEvents.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
