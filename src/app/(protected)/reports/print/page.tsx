@@ -71,7 +71,7 @@ function ProductReportPrintPage() {
     const grossRevenue = (sales || []).filter(sale => {
       const date = toReportDate(sale.soldAt);
       return !!date && isWithinInterval(date, { start: startOfDay(rangeFrom), end: endOfDay(rangeTo) });
-    }).reduce((sum, sale) => sum + sale.items.filter(line => line.itemId === item.id && !line.isService).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) || 0) * Math.max(0, Number(line.sellingPrice) || 0), 0), 0);
+    }).reduce((sum, sale) => sum + (sale.items || []).filter(line => line.itemId === item.id && !line.isService).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) || 0) * Math.max(0, Number(line.sellingPrice) || 0), 0), 0);
     return { ...item, ...summary, grossRevenue };
   }).sort((a, b) => (a.category || 'Uncategorized').localeCompare(b.category || 'Uncategorized') || a.name.localeCompare(b.name)), [stock, sales, returns, restocks, productId, categoryFilter, dateRange]);
 
