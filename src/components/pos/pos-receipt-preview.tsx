@@ -27,6 +27,9 @@ interface POSReceiptPreviewProps {
   bankName?: string;
   accountName?: string;
   accountNumber?: string;
+  bankLogoUrl?: string;
+  showAccountOnDocket?: boolean;
+  showAccountOnPaid?: boolean;
   posTaxLabel?: string;
   posTaxRate?: number;
   businessName?: string;
@@ -54,6 +57,9 @@ export function POSReceiptPreview({
   bankName = '',
   accountName = '',
   accountNumber = '',
+  bankLogoUrl = '',
+  showAccountOnDocket = true,
+  showAccountOnPaid = true,
   posTaxLabel = 'Tax',
   posTaxRate = 0,
   businessName = 'Hotel Suite Pro',
@@ -208,7 +214,7 @@ export function POSReceiptPreview({
                 )}
 
 
-                {(bankName || accountName || accountNumber) && (
+                {showAccountOnPaid && (bankName || accountName || accountNumber) && (
                   <div className="mt-4 border-t border-dashed border-black pt-2 text-center text-[10px]">
                     <p className="font-bold uppercase">Bank Transfer Details</p>
                     {bankName && <p>Bank: {bankName}</p>}
@@ -339,7 +345,7 @@ export function POSReceiptPreview({
                 </div>
 
 
-                {(bankName || accountName || accountNumber) && (
+                {showAccountOnPaid && (bankName || accountName || accountNumber) && (
                   <div className="mt-6 rounded-md border border-slate-300 p-4 text-sm text-slate-800">
                     <h3 className="mb-2 font-bold uppercase">Bank Transfer Details</h3>
                     {bankName && <p><strong>Bank:</strong> {bankName}</p>}
