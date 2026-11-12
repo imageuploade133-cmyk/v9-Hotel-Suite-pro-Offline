@@ -52,6 +52,9 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
   // Get effective POS settings based on current context (Global vs Branch)
   const effectivePosSettings = getEffectivePosSettings();
   const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
+  const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
+  const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
+  const receiptPrintStyle = '.pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border,.pos-print-bold-lines [class*="border-"]{border-width:2px!important}.pos-print-bold-lines [data-orientation="horizontal"]{height:2px!important;min-height:2px!important}';
 
   // Use branch-specific information if available, otherwise fall back to global settings
   const branchLogoUrl = currentBranch?.logoUrl;
@@ -270,7 +273,8 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
             {unprintedItems.length > 0 ? (
               <>
                 <TabsContent value="terminal">
-                  <div ref={terminalRef} className="print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+                  <div ref={terminalRef} className={`print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <div className="text-center space-y-1 mb-4">
                       {posLogoUrl && (
                         <img
@@ -319,7 +323,8 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
-                  <div ref={invoiceRef} className="print-content p-8 bg-white text-black text-sm">
+                  <div ref={invoiceRef} className={`print-content p-8 bg-white text-black text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <header className="flex justify-between items-start mb-6">
                       <div>
                         {posLogoUrl ? (
