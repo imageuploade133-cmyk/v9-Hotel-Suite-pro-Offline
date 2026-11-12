@@ -56,8 +56,8 @@ const getServiceColumns = (
     onDelete: (item: UnifiedItem) => void,
     onViewSales: (item: UnifiedItem) => void,
     currency: string,
-    globalStockImageUrl?: string,
-    useGlobalStockImage?: boolean
+    globalServiceImageUrl?: string,
+    useGlobalServiceImage?: boolean
 ): ColumnDef<UnifiedItem>[] => [
     {
         accessorKey: "images",
@@ -65,7 +65,7 @@ const getServiceColumns = (
         cell: ({ row }) => {
             const item = row.original;
             const images = item.images;
-            const primaryImage = (images && images.length > 0) ? images[0] : (useGlobalStockImage ? globalStockImageUrl : undefined);
+            const primaryImage = (images && images.length > 0) ? images[0] : (useGlobalServiceImage ? globalServiceImageUrl : undefined);
             return (
                  <div className="w-12 h-12 rounded-md overflow-hidden relative group/image bg-muted">
                     {primaryImage ? (
@@ -74,6 +74,7 @@ const getServiceColumns = (
                             alt={item.name}
                             fill
                             className="object-cover"
+                            unoptimized
                         />
                     ) : (
                         <div className="flex items-center justify-center h-full w-full">
@@ -159,7 +160,7 @@ export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, re
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
-    const columns = React.useMemo(() => getServiceColumns(onEdit, onDelete, onViewSales, settings?.currency || 'USD', settings?.globalStockImageUrl, settings?.useGlobalStockImage), [onEdit, onDelete, onViewSales, settings]);
+    const columns = React.useMemo(() => getServiceColumns(onEdit, onDelete, onViewSales, settings?.currency || 'USD', settings?.globalServiceImageUrl, settings?.useGlobalServiceImage), [onEdit, onDelete, onViewSales, settings]);
 
     const table = useReactTable({
         data: unifiedItems,
