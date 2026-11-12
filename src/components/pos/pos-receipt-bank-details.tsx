@@ -49,6 +49,9 @@ export function normalizePosBankDetails(value: Partial<PosBankDetails> | null | 
     bankName: typeof value?.bankName === 'string' ? value.bankName.trim() : '',
     accountName: typeof value?.accountName === 'string' ? value.accountName.trim() : '',
     accountNumber: typeof value?.accountNumber === 'string' ? value.accountNumber.replace(/\s+/g, '') : '',
+    bankLogoUrl: typeof value?.bankLogoUrl === 'string' ? value.bankLogoUrl.trim() : '',
+    showAccountOnDocket: typeof value?.showAccountOnDocket === 'boolean' ? value.showAccountOnDocket : undefined,
+    showAccountOnPaid: typeof value?.showAccountOnPaid === 'boolean' ? value.showAccountOnPaid : undefined,
   };
 }
 
