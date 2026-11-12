@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 export interface PosBankDetails {
   bankName: string;
@@ -68,22 +69,30 @@ export function usePosReceiptBankDetails(
         const ref = doc(firestore, 'posStaffAccountSettings', staffUid);
         const snapshot = await getDoc(ref);
         if (!active) return;
-        if (snapshot.exists()) {
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(staffUid)) === '1'; }
+          catch { return false; }
+        })();
+        if (pending && typeof navigator !== 'undefined' && navigator.onLine) {
+          // Locally saved changes (including an intentional clear) take precedence until synced.
+          await setDoc(ref, { ...cached, uid: staffUid, updatedAt: new Date().toISOString() }, { merge: true });
+          try { localStorage.removeItem(posStaffBankPendingKey(staffUid)); } catch {}
+          if (active) setPersonal(cached);
+        } else if (snapshot.exists()) {
           const remote = normalizePosBankDetails(snapshot.data() as Partial<PosBankDetails>);
           setPersonal(remote);
-          try {
-            localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote));
-            localStorage.removeItem(posStaffBankPendingKey(staffUid));
-          } catch {}
-        } else if (typeof navigator !== 'undefined' && navigator.onLine) {
-          // Retry a locally saved profile that could not reach Firestore earlier.
-          const pending = (() => {
-            try { return localStorage.getItem(posStaffBankPendingKey(staffUid)) === '1'; }
-            catch { return false; }
-          })();
-          if (pending) {
-            await setDoc(ref, { ...cached, uid: staffUid, updatedAt: new Date().toISOString() }, { merge: true });
-            try { localStorage.removeItem(posStaffBankPendingKey(staffUid)); } catch {}
+          try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote)); } catch {}
+        } else if (isLocalMasterHost()) {
+          // The Local Master stores offline staff settings in its local sync database.
+          const response = await fetch('/api/lan-sync?collection=posStaffAccountSettings');
+          if (response.ok) {
+            const payload = await response.json();
+            const localRecord = payload?.data?.[staffUid];
+            if (localRecord && active) {
+              const localDetails = normalizePosBankDetails(localRecord);
+              setPersonal(localDetails);
+              try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(localDetails)); } catch {}
+            }
           }
         }
       } catch (error) {
