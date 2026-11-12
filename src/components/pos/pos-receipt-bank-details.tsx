@@ -60,8 +60,26 @@ export function usePosReceiptBankDetails(
     setPersonal(cached);
     setIsLoading(true);
 
+    const loadLocalMaster = async () => {
+      if (!isLocalMasterHost()) return;
+      try {
+        const response = await fetch('/api/lan-sync?collection=posStaffAccountSettings');
+        if (!response.ok) return;
+        const payload = await response.json();
+        const localRecord = payload?.data?.[staffUid];
+        if (localRecord && active) {
+          const localDetails = normalizePosBankDetails(localRecord);
+          setPersonal(localDetails);
+          try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(localDetails)); } catch {}
+        }
+      } catch (error) {
+        console.warn('[POS bank details] Local Master lookup failed:', error);
+      }
+    };
+
     const syncAndLoad = async () => {
       if (!firestore) {
+        await loadLocalMaster();
         if (active) setIsLoading(false);
         return;
       }
@@ -82,22 +100,11 @@ export function usePosReceiptBankDetails(
           const remote = normalizePosBankDetails(snapshot.data() as Partial<PosBankDetails>);
           setPersonal(remote);
           try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote)); } catch {}
-        } else if (isLocalMasterHost()) {
-          // The Local Master stores offline staff settings in its local sync database.
-          const response = await fetch('/api/lan-sync?collection=posStaffAccountSettings');
-          if (response.ok) {
-            const payload = await response.json();
-            const localRecord = payload?.data?.[staffUid];
-            if (localRecord && active) {
-              const localDetails = normalizePosBankDetails(localRecord);
-              setPersonal(localDetails);
-              try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(localDetails)); } catch {}
-            }
-          }
         }
       } catch (error) {
         // The local per-user cache remains available for offline printing.
         console.warn('[POS bank details] Could not refresh staff account details:', error);
+        await loadLocalMaster();
       } finally {
         if (active) setIsLoading(false);
       }
