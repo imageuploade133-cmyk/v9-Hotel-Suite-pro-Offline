@@ -191,7 +191,7 @@ export function POSSettingsForm() {
   const { user, userProfile } = useUser();
   const firestore = useFirestore();
   const { currentBranchId, currentBranch, getCollectionPath, isBranchMode, isGlobalMode } = useBranch();
-  const { settings, isLoading: isSettingsLoading, getEffectivePosSettings, branchPosSettings } = useSettings();
+  const { settings, isLoading: isSettingsLoading, getEffectivePosSettings, branchPosSettings, globalPosSettings } = useSettings();
   const [isSaving, setIsSaving] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('logo');
 
@@ -262,9 +262,9 @@ export function POSSettingsForm() {
       posTaxLabel: posSettings.posTaxLabel || 'Tax',
       posTaxRate: posSettings.posTaxRate || 0,
       posTaxNumber: posSettings.posTaxNumber || '',
-      bankName: posSettings.bankName || '',
-      accountName: posSettings.accountName || '',
-      accountNumber: posSettings.accountNumber || '',
+      bankName: posSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
+      accountName: posSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
+      accountNumber: posSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
       posAutoPrint: posSettings.posAutoPrint ?? false,
       posAutoPrintTableUpdates: posSettings.posAutoPrintTableUpdates ?? true,
       posAutoGenerateReceiptOnRunningTable: posSettings.posAutoGenerateReceiptOnRunningTable ?? true,
@@ -287,7 +287,7 @@ export function POSSettingsForm() {
       hotelPosBusinessAddress: posSettings.hotelPosBusinessAddress || '',
       hotelPosBusinessPhone: posSettings.hotelPosBusinessPhone || '',
     });
-  }, [settings, reset, getEffectivePosSettings, isGlobalMode, isBranchMode, currentBranchId, currentBranch]);
+  }, [settings, reset, getEffectivePosSettings, isGlobalMode, isBranchMode, currentBranchId, currentBranch, globalPosSettings]);
 
   const watchedValues = watch();
   const logoFile = watchedValues.posReceiptLogoFile;
@@ -399,7 +399,7 @@ export function POSSettingsForm() {
         posTaxNumber: data.posTaxNumber,
         bankName: data.bankName?.trim() || '',
         accountName: data.accountName?.trim() || '',
-        accountNumber: data.accountNumber?.replace(/\\s+/g, '') || '',
+        accountNumber: data.accountNumber?.replace(/\s+/g, '') || '',
         posAutoPrint: data.posAutoPrint,
         posAutoPrintTableUpdates: data.posAutoPrintTableUpdates,
         posAutoGenerateReceiptOnRunningTable: data.posAutoGenerateReceiptOnRunningTable,
