@@ -274,13 +274,14 @@ function StaffTransactionBreakdownPage() {
     </Card>
 
     <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
-      <DialogContent className="w-full sm:max-w-5xl sm:max-h-[92vh]">
-        <DialogHeader>
+      <DialogContent className="!fixed !inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 !h-screen !h-[100dvh] !w-screen !max-w-none !max-h-none !rounded-none !border-0 !p-3 sm:!p-5 flex flex-col gap-3 overflow-hidden">
+        <DialogHeader className="shrink-0 border-b pb-3">
+
           <DialogTitle>Print Staff Transactions</DialogTitle>
           <DialogDescription>Choose a print layout, decide what to include, and review the report before printing.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-4 rounded-xl border p-4">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto rounded-xl border p-3 sm:p-4 lg:h-full">
             <div className="space-y-2">
               <p className="text-sm font-semibold">Print format</p>
               <div className="grid grid-cols-2 gap-2">
@@ -297,9 +298,9 @@ function StaffTransactionBreakdownPage() {
               The print report uses the complete selected date range, not only the records visible on the current pagination page. The three totals include all matching records.
             </div>
           </div>
-          <div className="min-w-0 rounded-xl bg-muted/40 p-2 sm:p-4">
-            <div className="mb-2 flex items-center justify-between gap-2"><p className="text-sm font-semibold">Print preview</p><Badge variant="outline">{printFormat === 'invoice' ? 'A4 invoice' : '80mm terminal'}</Badge></div>
-            <div className="max-h-[58vh] overflow-auto rounded-md border bg-white p-3 text-black shadow-sm sm:p-5">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl bg-muted/40 p-2 sm:p-4">
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-2"><p className="text-sm font-semibold">Print preview</p><Badge variant="outline">{printFormat === 'invoice' ? 'A4 invoice' : '80mm terminal'}</Badge></div>
+            <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-white p-3 text-black shadow-sm sm:p-5">
               <div id="staff-print-sheet" className={printFormat === 'terminal' ? 'staff-print-terminal mx-auto' : 'staff-print-invoice mx-auto'}>
                 <div className="border-b-2 border-black pb-3 text-center">
                   <h1 className="text-xl font-extrabold tracking-wide">{settings?.businessName || 'POS TRANSACTION REPORT'}</h1>
@@ -334,7 +335,7 @@ function StaffTransactionBreakdownPage() {
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t pt-3">
           <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
           <Button type="button" onClick={printReport} disabled={isLoading || filteredEvents.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
         </DialogFooter>
