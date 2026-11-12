@@ -36,6 +36,24 @@ type ProductEvent = {
   note?: string;
 };
 
+function getProductImageUrl(item: any): string | undefined {
+  const candidates = [
+    item?.imageUrl, item?.imageURL, item?.image, item?.photoURL,
+    item?.productImage, item?.thumbnailUrl, item?.thumbnail,
+    ...(Array.isArray(item?.images) ? item.images : []),
+    ...(Array.isArray(item?.imageUrls) ? item.imageUrls : []),
+  ];
+  for (const candidate of candidates) {
+    const value = typeof candidate === 'string'
+      ? candidate
+      : candidate && typeof candidate === 'object'
+        ? candidate.url || candidate.src || candidate.downloadURL
+        : undefined;
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
 function ProductReportDetailPage() {
   const params = useParams<{ productId: string }>();
   const productId = decodeURIComponent(String(params.productId || ''));
@@ -69,6 +87,7 @@ function ProductReportDetailPage() {
     : branchStock.isLoading || branchSales.isLoading || branchReturns.isLoading;
 
   const product = React.useMemo(() => (stock || []).find(item => item.id === productId), [stock, productId]);
+  const productImageUrl = React.useMemo(() => product ? getProductImageUrl(product) : undefined, [product]);
   const currency = settings?.currency || 'USD';
   const money = React.useCallback((amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number.isFinite(amount) ? amount : 0), [currency]);
   const inRange = React.useCallback((value: unknown) => {
@@ -168,7 +187,7 @@ function ProductReportDetailPage() {
           <CardContent className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
             <div className="flex items-start justify-center lg:justify-start">
               <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-2xl border bg-muted shadow-sm">
-                {(product?.imageUrl || product?.images?.[0]) ? <img src={product.imageUrl || product.images?.[0]} alt={product.name || 'Product image'} loading="lazy" className="h-full w-full object-contain" /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><Package className="h-12 w-12" /><span className="text-xs">No product image</span></div>}
+                {productImageUrl ? <img src={productImageUrl} alt={product?.name || 'Product image'} loading="eager" className="h-full w-full object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><Package className="h-12 w-12" /><span className="text-xs">No product image</span></div>}
               </div>
             </div>
             <div className="grid content-start gap-4 sm:grid-cols-2">
