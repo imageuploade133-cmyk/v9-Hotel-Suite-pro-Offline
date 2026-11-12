@@ -458,7 +458,6 @@ export function DraftDocketReceiptDialog({
                 <div className="text-center text-xs mt-6 text-red-600 font-semibold">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
                   <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" />
-                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
                 </div>
               </div>
@@ -519,6 +518,7 @@ export function DraftDocketReceiptDialog({
                 </div>
                 <div className="mt-6 text-center text-red-600 font-semibold text-sm">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
+                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
                 </div>
               </div>
