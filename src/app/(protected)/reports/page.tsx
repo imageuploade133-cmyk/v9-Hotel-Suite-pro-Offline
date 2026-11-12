@@ -26,6 +26,7 @@ import { Banknote, BarChart3, Package, RotateCcw, Search, ShoppingBag, TrendingU
 type ProductRow = {
   id: string;
   name: string;
+  imageUrl?: string;
   category: string;
   stock: number;
   unitsSold: number;
@@ -59,6 +60,10 @@ function ReportsPage() {
   }));
   const [productSearch, setProductSearch] = React.useState('');
   const [salesSearch, setSalesSearch] = React.useState('');
+  const [productPage, setProductPage] = React.useState(1);
+  const [salesPage, setSalesPage] = React.useState(1);
+  const [productPageSize, setProductPageSize] = React.useState(10);
+  const [salesPageSize, setSalesPageSize] = React.useState(10);
 
   const stockQuery = React.useMemo(() => !isGlobalMode && firestore
     ? query(collection(firestore, getCollectionPath('stock'))) : null,
@@ -122,6 +127,7 @@ function ReportsPage() {
     (stock || []).forEach(item => rows.set(item.id, {
       id: item.id,
       name: item.name || 'Unnamed product',
+      imageUrl: item.imageUrl || item.images?.[0] || undefined,
       category: item.category || 'Uncategorized',
       stock: Number(item.quantity || 0),
       unitsSold: 0,
@@ -202,11 +208,19 @@ function ReportsPage() {
     transactions: filteredSales.length,
   }), [filteredSales, filteredReturns, filteredHeldTables]);
 
-  const visibleProducts = productRows.filter(row =>
-    [row.name, row.category].some(value => value.toLowerCase().includes(productSearch.trim().toLowerCase())));
-  const visibleSales = saleRows.filter(row =>
+  const filteredProducts = React.useMemo(() => productRows.filter(row =>
+    [row.name, row.category].some(value => value.toLowerCase().includes(productSearch.trim().toLowerCase()))), [productRows, productSearch]);
+  const filteredSalesRows = React.useMemo(() => saleRows.filter(row =>
     [row.reference, row.staff, row.customer, row.payment, row.status, row.items]
-      .some(value => value.toLowerCase().includes(salesSearch.trim().toLowerCase())));
+      .some(value => value.toLowerCase().includes(salesSearch.trim().toLowerCase()))), [saleRows, salesSearch]);
+  const productTotalPages = Math.max(1, Math.ceil(filteredProducts.length / productPageSize));
+  const salesTotalPages = Math.max(1, Math.ceil(filteredSalesRows.length / salesPageSize));
+  const visibleProducts = React.useMemo(() => filteredProducts.slice((productPage - 1) * productPageSize, productPage * productPageSize), [filteredProducts, productPage, productPageSize]);
+  const visibleSales = React.useMemo(() => filteredSalesRows.slice((salesPage - 1) * salesPageSize, salesPage * salesPageSize), [filteredSalesRows, salesPage, salesPageSize]);
+  React.useEffect(() => { setProductPage(1); }, [productSearch, dateRange]);
+  React.useEffect(() => { setSalesPage(1); }, [salesSearch, dateRange]);
+  React.useEffect(() => { if (productPage > productTotalPages) setProductPage(productTotalPages); }, [productPage, productTotalPages]);
+  React.useEffect(() => { if (salesPage > salesTotalPages) setSalesPage(salesTotalPages); }, [salesPage, salesTotalPages]);
 
   const dateLabel = dateRange?.from
     ? `${format(dateRange.from, 'dd MMM yyyy')} – ${format(dateRange.to || dateRange.from, 'dd MMM yyyy')}`
@@ -246,13 +260,43 @@ function ReportsPage() {
                 <div className="w-full overflow-x-auto"><table className="w-full min-w-[900px] text-sm">
                   <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Product</th><th className="px-3 py-3">Category</th><th className="px-3 py-3 text-right">Current Stock</th><th className="px-3 py-3 text-right">Net Units Sold</th><th className="px-3 py-3 text-right">Gross Revenue</th><th className="px-3 py-3 text-right">Refunds</th><th className="px-3 py-3 text-right">Net Profit</th><th className="px-3 py-3 text-right">Action</th></tr></thead>
                   <tbody>{visibleProducts.map(row => <tr key={row.id} className="border-b hover:bg-muted/40">
-                    <td className="px-3 py-3 font-medium">{row.name}</td><td className="px-3 py-3 text-muted-foreground">{row.category}</td>
+                    <td className="px-3 py-3"><div className="flex min-w-[190px] items-center gap-3"><div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border bg-muted">{row.imageUrl ? <img src={row.imageUrl} alt={row.name} loading="lazy" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Package className="h-5 w-5" /></div>}</div><span className="font-medium">{row.name}</span></div></td><td className="px-3 py-3 text-muted-foreground">{row.category}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{row.stock.toLocaleString()}</td><td className="px-3 py-3 text-right tabular-nums">{row.unitsSold.toLocaleString()}</td>
                     <td className="px-3 py-3 text-right font-medium">{money(row.grossRevenue)}</td><td className="px-3 py-3 text-right text-rose-600">{money(row.refunds)}</td>
                     <td className={`px-3 py-3 text-right font-semibold ${row.netProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}`}>{money(row.netProfit)}</td>
                     <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={() => router.push(`/reports/products/${encodeURIComponent(row.id)}?from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}>View Report</Button></td>
                   </tr>)}</tbody>
                 </table></div>}
+              {!loading && filteredSalesRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span>Showing <strong className="text-foreground">{((salesPage - 1) * salesPageSize + 1).toLocaleString()}–{Math.min(salesPage * salesPageSize, filteredSalesRows.length).toLocaleString()}</strong> of <strong className="text-foreground">{filteredSalesRows.length.toLocaleString()}</strong> transactions</span>
+                  <label className="flex items-center gap-2">Rows
+                    <select aria-label="Sales rows per page" value={salesPageSize} onChange={event => { setSalesPageSize(Number(event.target.value)); setSalesPage(1); }} className="h-9 rounded-md border bg-background px-2 text-sm">
+                      <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.max(1, page - 1))} disabled={salesPage <= 1}>Previous</Button>
+                  <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {salesPage} of {salesTotalPages}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.min(salesTotalPages, page + 1))} disabled={salesPage >= salesTotalPages}>Next</Button>
+                </div>
+              </div>}
+              {!loading && filteredProducts.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span>Showing <strong className="text-foreground">{((productPage - 1) * productPageSize + 1).toLocaleString()}–{Math.min(productPage * productPageSize, filteredProducts.length).toLocaleString()}</strong> of <strong className="text-foreground">{filteredProducts.length.toLocaleString()}</strong> products</span>
+                  <label className="flex items-center gap-2">Rows
+                    <select aria-label="Products per page" value={productPageSize} onChange={event => { setProductPageSize(Number(event.target.value)); setProductPage(1); }} className="h-9 rounded-md border bg-background px-2 text-sm">
+                      <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setProductPage(page => Math.max(1, page - 1))} disabled={productPage <= 1}>Previous</Button>
+                  <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {productPage} of {productTotalPages}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setProductPage(page => Math.min(productTotalPages, page + 1))} disabled={productPage >= productTotalPages}>Next</Button>
+                </div>
+              </div>}
             </CardContent>
           </Card>
         </TabsContent>
