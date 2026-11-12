@@ -7,7 +7,7 @@ import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
-import type { StockSale, StockReturn, HeldSale } from '@/lib/types';
+import type { StockSale, StockReturn, HeldSale, UserProfile, Role } from '@/lib/types';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import { TopHeader } from '@/components/top-header';
@@ -49,6 +49,12 @@ function POSReportsPage() {
   const [selectedEvent, setSelectedEvent] = React.useState<ReportEvent | null>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 10;
+
+  // Canonical staff identity and role data, matching Staff Management.
+  const staffProfilesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]);
+  const staffRolesQuery = React.useMemo(() => firestore ? query(collection(firestore, 'roles')) : null, [firestore]);
+  const { data: staffProfiles, isLoading: staffProfilesLoading } = useCollection<UserProfile>(staffProfilesQuery);
+  const { data: staffRoles } = useCollection<Role>(staffRolesQuery);
 
   const branchSalesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, isGlobalMode, getCollectionPath]);
   const branchReturnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, isGlobalMode, getCollectionPath]);
@@ -121,16 +127,53 @@ function POSReportsPage() {
   }, [sales, returns, heldTables, inRange]);
 
   const staffRows = React.useMemo(() => {
-    const groups = new Map<string, { uid: string; name: string; income: number; soldUnits: number; runningCount: number; latest: Date | null }>();
+    const profiles = staffProfiles || [];
+    const roles = staffRoles || [];
+    const groups = new Map<string, { uid: string; name: string; email: string; phone: string; role: string; income: number; soldUnits: number; runningCount: number; latest: Date | null }>();
+    const resolveProfile = (uid: string | undefined, name: string) => {
+      if (uid) {
+        const byUid = profiles.find(profile => profile.uid === uid || profile.id === uid);
+        if (byUid) return byUid;
+      }
+      // Legacy transactions without a UID may only use an unambiguous name match.
+      if (!uid && name) {
+        const matches = profiles.filter(profile => profile.name?.trim().toLowerCase() === name.trim().toLowerCase());
+        if (matches.length === 1) return matches[0];
+      }
+      return undefined;
+    };
+    const resolveRole = (profile?: UserProfile) => {
+      if (!profile?.role) return 'Not assigned';
+      const role = roles.find(item => item.id === profile.role || item.name === profile.role);
+      return role?.name || profile.role;
+    };
     const getGroup = (uid: string | undefined, name: string, date: Date | null) => {
+      const profile = resolveProfile(uid, name);
       const key = uid || 'legacy-name:' + (name || 'Unknown staff').trim().toLowerCase();
       let group = groups.get(key);
       if (!group) {
-        group = { uid: key, name: name || 'Unknown staff', income: 0, soldUnits: 0, runningCount: 0, latest: date };
+        group = {
+          uid: key,
+          name: profile?.name || name || 'Unknown staff',
+          email: profile?.email?.trim() || '',
+          phone: profile?.phoneNumber?.trim() || '',
+          role: resolveRole(profile),
+          income: 0,
+          soldUnits: 0,
+          runningCount: 0,
+          latest: date,
+        };
         groups.set(key, group);
       }
       if (date && (!group.latest || date > group.latest)) group.latest = date;
-      if (name && group.name === 'Unknown staff') group.name = name;
+      if (profile) {
+        group.name = profile.name || group.name;
+        group.email = profile.email?.trim() || group.email;
+        group.phone = profile.phoneNumber?.trim() || group.phone;
+        group.role = resolveRole(profile);
+      } else if (name && group.name === 'Unknown staff') {
+        group.name = name;
+      }
       return group;
     };
     (sales || []).filter(sale => inRange(getSafeDate(sale.soldAt))).forEach(sale => {
@@ -145,7 +188,7 @@ function POSReportsPage() {
       getGroup(table.heldByUid, table.heldByName, getSafeDate(table.heldAt)).runningCount += 1;
     });
     return Array.from(groups.values()).sort((a, b) => b.income - a.income || (b.latest?.getTime() || 0) - (a.latest?.getTime() || 0));
-  }, [sales, returns, heldTables, inRange]);
+  }, [sales, returns, heldTables, inRange, staffProfiles, staffRoles]);
 
   const staffDateQuery = React.useMemo(() => {
     const params = new URLSearchParams();
