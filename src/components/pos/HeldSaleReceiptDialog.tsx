@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,11 @@ export function HeldSaleReceiptDialog({
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+  };
 
   const allItemsPrinted = React.useMemo(() => {
     if (!heldSale) return false;
@@ -155,6 +161,7 @@ export function HeldSaleReceiptDialog({
                   <span>{formatCurrency(total)}</span>
                 </div>
                 <div className="text-center text-xs mt-6">
+                  <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="terminal" />
                   <p>THIS IS NOT A FINAL RECEIPT</p>
                 </div>
               </div>
@@ -194,6 +201,7 @@ export function HeldSaleReceiptDialog({
                     </div>
                   </div>
                 </div>
+                <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="invoice" />
               </div>
             </TabsContent>
           </div>
