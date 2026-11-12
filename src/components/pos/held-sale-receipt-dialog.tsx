@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -45,7 +46,7 @@ export function HeldSaleReceiptDialog({
   onMarkPrinted,
 }: HeldSaleReceiptDialogProps) {
   const [activeTab, setActiveTab] = React.useState('terminal');
-  const { settings, getEffectivePosSettings } = useSettings();
+  const { settings, getEffectivePosSettings, globalPosSettings } = useSettings();
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isPrinted, setIsPrinted] = React.useState(false);
@@ -100,6 +101,11 @@ export function HeldSaleReceiptDialog({
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+  };
 
   // Set up real-time listener for the held sale document
   React.useEffect(() => {
@@ -440,6 +446,7 @@ export function HeldSaleReceiptDialog({
                         <span>{formatCurrency(total)}</span>
                       </div>
                     )}
+                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" />
                     <div className="text-center text-xs mt-6 whitespace-pre-line">
                       <p>{posFooter}</p>
                     </div>
@@ -491,6 +498,7 @@ export function HeldSaleReceiptDialog({
                         )}
                       </div>
                     </div>
+                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
                   </div>
                 </TabsContent>
               </>

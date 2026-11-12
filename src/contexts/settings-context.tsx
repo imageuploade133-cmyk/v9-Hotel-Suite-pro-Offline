@@ -149,6 +149,22 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
           console.warn('[Settings Context] LAN settings query error:', lanErr);
         }
 
+        // POS configuration is stored separately from general application settings.
+        // Read it from the Local Master cache as well so the POS defaults remain available offline.
+        if (isLocalMasterHost()) try {
+          const posRes = await fetchWithTimeout(fetch('/api/lan-sync?collection=posSettings'), 1000);
+          if (posRes && posRes.ok) {
+            const posResult = await posRes.json();
+            if (posResult.data) {
+              Object.values(posResult.data).forEach((docData: any) => {
+                if (docData && typeof docData === 'object') Object.assign(mergedSettings, docData);
+              });
+            }
+          }
+        } catch (posLanErr) {
+          console.warn('[Settings Context] LAN POS settings query error:', posLanErr);
+        }
+
         // Priority 3: Fetch directly from 'settings/global' document in Firestore
         try {
           const globalDocRef = doc(db, 'settings', 'global');
@@ -169,6 +185,15 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
           }
         } catch {}
 
+        // Load the dedicated root POS settings document. POSSettingsForm persists
+        // global configuration in posSettings/settings rather than settings/global.
+        try {
+          const globalPosSnapshot = await fetchWithTimeout(getDoc(doc(db, 'posSettings', 'settings')), 1200);
+          if (globalPosSnapshot?.exists()) {
+            Object.assign(mergedSettings, globalPosSnapshot.data());
+          }
+        } catch {}
+
         // Store global POS settings separately (for reference when in branch mode)
         const extractedGlobalPosSettings: Partial<Settings> = {};
         const posSettingFields = [
@@ -181,6 +206,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             'posTaxNumber', 'posAutoPrint', 'posAutoPrintTableUpdates',
             'posAutoGenerateReceiptOnRunningTable', 'posPrintCopies', 'posPaperWidth',
             'posPrintBoldText', 'posPrintBoldLines',
+            'bankName', 'accountName', 'accountNumber',
             'posThankYouMessage', 'posRefundPolicy', 'posTermsAndConditions',
             'posAllowPopups', 'posApplyToAll',
             // Dedicated Hotel Booking POS settings
@@ -284,6 +310,12 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
       fetchSettings();
     }, () => {});
 
+    let skipFirstGlobalPosSettings = true;
+    const unsubscribeGlobalPosSettings = onSnapshot(doc(db, 'posSettings', 'settings'), () => {
+      if (skipFirstGlobalPosSettings) { skipFirstGlobalPosSettings = false; return; }
+      fetchSettings();
+    }, () => {});
+
     let unsubscribeBranchSettings: () => void = () => {};
     if (currentBranchId && currentBranchId !== 'global') {
         const branchSettingsPath = `branches/${currentBranchId}/posSettings`;
@@ -301,6 +333,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     return () => {
       mountedRef.current = false;
       unsubscribeSettings();
+      unsubscribeGlobalPosSettings();
       unsubscribeBranchSettings();
       unsubscribePaymentMethods();
     };

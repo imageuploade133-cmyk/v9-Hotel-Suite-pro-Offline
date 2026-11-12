@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -39,67 +40,6 @@ interface StockSaleReceiptDialogProps {
   dataReady?: boolean;
 }
 
-const PaymentDetailsCreditSale = ({ saleId, isTerminal = false }: { saleId: string; isTerminal?: boolean }) => {
-  const { settings, getEffectivePosSettings } = useSettings();
-  const { currentBranch, isGlobalMode } = useBranch();
-
-  // Get effective POS settings for bank details
-  const effectivePosSettings = getEffectivePosSettings();
-
-  // Use effective POS settings bank details if available, otherwise fallback to global settings
-  const bankName = effectivePosSettings.bankName || settings?.bankName;
-  const accountName = effectivePosSettings.accountName || settings?.accountName;
-  const accountNumber = effectivePosSettings.accountNumber || settings?.accountNumber;
-  const bankLogoUrl = effectivePosSettings.bankLogoUrl || settings?.bankLogoUrl;
-
-  if (!bankName && !accountName && !accountNumber) {
-    return null;
-  }
-
-  if (isTerminal) {
-    return (
-      <div className="text-center text-xs mt-4 border-t border-dashed border-black pt-2">
-        <p className="font-bold uppercase">Payment Details for Credit</p>
-        <p>Bank: {bankName}</p>
-        <p>Acct Name: {accountName}</p>
-        <p>Acct No: {accountNumber}</p>
-        <p className="font-bold mt-1">Ref: {saleId}</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Separator className="my-6" />
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-        <h3 className="font-bold text-slate-800 mb-2">Payment Details for Credit Sale</h3>
-        <p className="text-slate-600 text-xs mb-4">
-          Please use the Sale ID <span className="font-bold">{saleId}</span> as a payment reference/memo for your bank transfer.
-        </p>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p><strong>Bank:</strong></p>
-            <p>{bankName || 'N/A'}</p>
-          </div>
-          <div>
-            <p><strong>Account Name:</strong></p>
-            <p>{accountName || 'N/A'}</p>
-          </div>
-          <div className="col-span-2">
-            <p><strong>Account Number:</strong></p>
-            <p className="text-lg font-mono tracking-widest">{accountNumber || 'N/A'}</p>
-          </div>
-        </div>
-        {bankLogoUrl && (
-          <div className="mt-4">
-            <img src={bankLogoUrl} alt="Bank Logo" style={{ height: '40px', width: 'auto' }} className="object-contain" />
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
 export function StockSaleReceiptDialog({
   isOpen,
   onClose,
@@ -112,7 +52,7 @@ export function StockSaleReceiptDialog({
   const terminalRef = React.useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = React.useState('invoice');
   const [printCopies, setPrintCopies] = React.useState(1);
-  const { settings, getEffectivePosSettings } = useSettings();
+  const { settings, getEffectivePosSettings, globalPosSettings } = useSettings();
   const { userProfile } = useUser();
   const { currentBranch, getCollectionPath, isGlobalMode } = useBranch();
 
@@ -222,6 +162,11 @@ export function StockSaleReceiptDialog({
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+  };
 
   // Business name and address - use effective POS settings business name (separate for each context)
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -388,7 +333,7 @@ export function StockSaleReceiptDialog({
                   </div>
                 </div>
 
-                {sale.paymentMethod === 'Credit' && <PaymentDetailsCreditSale saleId={sale.saleId} />}
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="invoice" />
 
                 <div className="mt-8 text-sm">
                   <div className="flex items-center gap-3">
@@ -490,9 +435,10 @@ export function StockSaleReceiptDialog({
                         NEW CUSTOMER OUTSTANDING: {formatCurrency(finalCustomerBalance || 0)}
                       </div>
                     )}
-                    <PaymentDetailsCreditSale saleId={sale.saleId} isTerminal />
+
                   </>
                 )}
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="terminal" />
                 <div className="text-center text-xs mt-6 whitespace-pre-line">
                   <p>{posFooter}</p>
                 </div>
