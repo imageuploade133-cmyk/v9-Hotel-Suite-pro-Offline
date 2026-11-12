@@ -165,7 +165,8 @@ function StaffTransactionBreakdownPage() {
     if (dateRange?.to) params.set('to', format(dateRange.to, 'yyyy-MM-dd'));
     return params.toString();
   }, [dateRange]);
-  const backUrl = '/pos-reports' + (dateQuery ? '?' + dateQuery : '');
+  const requestedReturnTo = searchParams.get('returnTo') || '/pos-reports';
+  const backUrl = (requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//') ? requestedReturnTo : '/pos-reports') + (dateQuery ? '?' + dateQuery : '');
 
   const staffName = staffSales[0]?.soldByName || staffReturns[0]?.returnedByName || staffTables[0]?.heldByName || 'Staff member';
   const tableUnits = (table: HeldSale) => (table.cart || []).reduce((sum, item) => sum + Number(item.sellQuantity || 0), 0);
