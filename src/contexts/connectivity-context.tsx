@@ -37,16 +37,21 @@ export const ConnectivityProvider = ({ children }: { children: React.ReactNode }
     const timeoutId = window.setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
 
     try {
-      // This endpoint is deliberately lightweight and does not read the LAN
-      // database, query Firebase, or perform any other application work.
-      // Any HTTP response proves that this app's server can be reached.
-      await fetch('/api/health', {
+      // Probe independent public connectivity-check hosts. This verifies actual
+      // internet access (not merely access to a Local Master on the same Wi-Fi).
+      // no-cors is intentional: an opaque response still proves the host was reached.
+      const probes = [
+        'https://www.gstatic.com/generate_204',
+        'https://connectivitycheck.gstatic.com/generate_204',
+        'https://www.google.com/generate_204',
+      ];
+      await Promise.any(probes.map((url) => fetch(url, {
         method: 'GET',
+        mode: 'no-cors',
         cache: 'no-store',
-        credentials: 'same-origin',
+        credentials: 'omit',
         signal: controller.signal,
-        headers: { 'Cache-Control': 'no-cache' },
-      });
+      })));
 
       if (!navigator.onLine) {
         failedChecksRef.current = FAILED_CHECKS_BEFORE_OFFLINE;
