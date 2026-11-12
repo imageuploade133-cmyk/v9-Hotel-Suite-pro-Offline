@@ -53,6 +53,13 @@ function MyPOSAccountSettingsPage() {
   }, [uid]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [onlineSyncVersion, setOnlineSyncVersion] = React.useState(0);
+
+  React.useEffect(() => {
+    const handleOnline = () => setOnlineSyncVersion(version => version + 1);
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -134,7 +141,7 @@ function MyPOSAccountSettingsPage() {
     };
     void load();
     return () => { active = false; };
-  }, [uid, firestore]);
+  }, [uid, firestore, onlineSyncVersion]);
 
   const update = <K extends keyof PosBankDetails>(field: K, value: PosBankDetails[K]) => {
     setValues(current => ({ ...current, [field]: value }));
