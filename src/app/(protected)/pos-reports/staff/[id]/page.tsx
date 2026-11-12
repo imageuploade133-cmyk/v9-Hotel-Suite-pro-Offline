@@ -177,7 +177,7 @@ function StaffTransactionBreakdownPage() {
     <Card>
 
       <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><CardTitle>Transaction History</CardTitle><CardDescription>Every sale, refund and active running table attributed to this staff account in the selected date range.</CardDescription></div>
+        <div><CardTitle>Transaction History</CardTitle><CardDescription>Staff sales, refunds and active tables.</CardDescription></div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <label htmlFor="staff-breakdown-page-size" className="text-xs font-medium text-muted-foreground">Rows per page</label>
