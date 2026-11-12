@@ -25,9 +25,9 @@ import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import { Banknote, ClipboardList, Package, RotateCcw, Search, ShoppingBag, Table2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 type ReportEvent =
-  | { id: string; kind: 'sale'; date: Date | null; staff: string; items: string; amount: number; reference: string; sale: StockSale }
-  | { id: string; kind: 'refund'; date: Date | null; staff: string; items: string; amount: number; reference: string; refund: StockReturn }
-  | { id: string; kind: 'running'; date: Date | null; staff: string; items: string; amount: number; reference: string; table: HeldSale };
+  | { id: string; kind: 'sale'; status: 'Paid' | 'Unpaid' | 'Partially Paid' | 'Partially Refunded' | 'Refunded'; date: Date | null; staff: string; items: string; amount: number; reference: string; sale: StockSale }
+  | { id: string; kind: 'refund'; status: 'Full Refund' | 'Partial Refund'; date: Date | null; staff: string; items: string; amount: number; reference: string; refund: StockReturn }
+  | { id: string; kind: 'running'; status: 'Running Table'; date: Date | null; staff: string; items: string; amount: number; reference: string; table: HeldSale };
 
 function POSReportsPage() {
   const router = useRouter();
@@ -81,25 +81,54 @@ function POSReportsPage() {
   }, [dateRange]);
 
   const events = React.useMemo<ReportEvent[]>(() => {
+    const refundTotalsBySale = new Map<string, number>();
+    (returns || []).forEach(refund => {
+      refundTotalsBySale.set(refund.originalSaleId, (refundTotalsBySale.get(refund.originalSaleId) || 0) + Number(refund.totalRefundAmount || 0));
+    });
+    const saleById = new Map<string, StockSale>();
+    (sales || []).forEach(sale => {
+      saleById.set(sale.id, sale);
+      if (sale.saleId) saleById.set(sale.saleId, sale);
+    });
+
     const saleEvents: ReportEvent[] = (sales || []).map(sale => {
       const paid = typeof sale.initialPaymentAmount === 'number'
         ? sale.initialPaymentAmount
         : sale.paymentStatus === 'Paid' ? sale.totalAmount : 0;
+      const refundedTotal = refundTotalsBySale.get(sale.id) || refundTotalsBySale.get(sale.saleId) || 0;
+      const refundStatus = refundedTotal >= Number(sale.totalAmount || 0) && refundedTotal > 0
+        ? 'Refunded'
+        : refundedTotal > 0 || sale.paymentStatus === 'Partially Refunded' ? 'Partially Refunded' : null;
+      const paymentStatus = refundStatus || (sale.paymentStatus === 'Paid'
+        ? 'Paid'
+        : paid > 0 ? 'Partially Paid' : 'Unpaid');
       return {
-        id: `sale-${sale.id}`, kind: 'sale', date: getSafeDate(sale.soldAt),
+        id: `sale-${sale.id}`, kind: 'sale', status: paymentStatus,
+        date: getSafeDate(sale.soldAt),
         staff: sale.soldByName || 'Unknown staff',
         items: (sale.items || []).map(item => `${item.itemName} × ${item.quantity}`).join(', '),
         amount: paid, reference: sale.saleId || sale.id, sale,
       };
     });
-    const refundEvents: ReportEvent[] = (returns || []).map(refund => ({
-      id: `refund-${refund.id}`, kind: 'refund', date: getSafeDate(refund.returnedAt),
-      staff: refund.returnedByName || 'Unknown staff',
-      items: (refund.items || []).map(item => `${item.itemName} × ${item.quantity}`).join(', '),
-      amount: Number(refund.totalRefundAmount || 0), reference: refund.refundId || refund.id, refund,
-    }));
+    const refundEvents: ReportEvent[] = (returns || []).map(refund => {
+      const originalSale = saleById.get(refund.originalSaleId);
+      const originalTotal = Number(refund.originalTotal ?? originalSale?.totalAmount ?? 0);
+      const isFullRefund = originalTotal > 0 && (
+        Number(refund.totalRefundAmount || 0) >= originalTotal ||
+        (typeof refund.remainingAmount === 'number' && refund.remainingAmount <= 0)
+      );
+      return {
+        id: `refund-${refund.id}`, kind: 'refund',
+        status: isFullRefund ? 'Full Refund' : 'Partial Refund',
+        date: getSafeDate(refund.returnedAt),
+        staff: refund.returnedByName || 'Unknown staff',
+        items: (refund.items || []).map(item => `${item.itemName} × ${item.quantity}`).join(', '),
+        amount: Number(refund.totalRefundAmount || 0), reference: refund.refundId || refund.id, refund,
+      };
+    });
     const runningEvents: ReportEvent[] = (heldTables || []).map(table => ({
-      id: `running-${table.id}`, kind: 'running', date: getSafeDate(table.heldAt),
+      id: `running-${table.id}`, kind: 'running', status: 'Running Table',
+      date: getSafeDate(table.heldAt),
       staff: table.heldByName || 'Unknown staff',
       items: (table.cart || []).map(item => `${item.name} × ${item.sellQuantity || 0}`).join(', '),
       amount: (table.cart || []).reduce((sum, item) => sum + Number(item.price ?? item.sellingPrice ?? 0) * Number(item.sellQuantity || 0), 0),
@@ -257,6 +286,15 @@ function POSReportsPage() {
       {selectedEvent && <TransactionBreakdownDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} money={money} />}
     </div>
   );
+}
+
+function StatusBadge({status}: {status: ReportEvent['status']}) {
+  if (status === 'Paid') return <Badge className="border-emerald-200 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Paid</Badge>;
+  if (status === 'Running Table') return <Badge className="border-violet-200 bg-violet-100 text-violet-800 hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">Running Table</Badge>;
+  if (status === 'Full Refund' || status === 'Refunded') return <Badge variant="destructive">{status}</Badge>;
+  if (status === 'Partial Refund' || status === 'Partially Refunded') return <Badge className="border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">{status}</Badge>;
+  if (status === 'Partially Paid') return <Badge className="border-sky-200 bg-sky-100 text-sky-800 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-200">Partially Paid</Badge>;
+  return <Badge variant="outline">Unpaid</Badge>;
 }
 
 function TransactionBreakdownDialog({event: selectedEvent, onClose, money}: {event: Exclude<ReportEvent, {kind:'running'}>; onClose: () => void; money: (amount:number)=>string}) {
