@@ -26,9 +26,78 @@ export const EMPTY_POS_BANK_DETAILS: PosBankDetails = {
 export const posStaffBankStorageKey = (uid: string) => `pos_staff_bank_details_${uid}`;
 export const posStaffBankPendingKey = (uid: string) => `pos_staff_bank_details_pending_${uid}`;
 
+export const OFFLINE_POS_BANK_LOGO_PREFIX = 'offline-pos-bank-logo:';
+
+function openPosBankLogoDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('v9-pos-bank-logos', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('logos')) db.createObjectStore('logos', { keyPath: 'key' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Could not open local logo storage.'));
+  });
+}
+
+export async function saveOfflinePosBankLogo(key: string, file: File): Promise<string> {
+  if (typeof indexedDB === 'undefined') throw new Error('This browser does not support offline logo storage.');
+  const db = await openPosBankLogoDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('logos', 'readwrite');
+      tx.objectStore('logos').put({ key, blob: file, name: file.name, type: file.type, lastModified: file.lastModified });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Could not save the logo for offline use.'));
+      tx.onabort = () => reject(tx.error || new Error('Offline logo save was cancelled.'));
+    });
+  } finally { db.close(); }
+  return OFFLINE_POS_BANK_LOGO_PREFIX + encodeURIComponent(key);
+}
+
+export async function getOfflinePosBankLogo(key: string): Promise<File | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await openPosBankLogoDb();
+  try {
+    return await new Promise<File | null>((resolve, reject) => {
+      const request = db.transaction('logos', 'readonly').objectStore('logos').get(key);
+      request.onsuccess = () => {
+        const record = request.result;
+        resolve(record?.blob ? new File([record.blob], record.name || 'bank-logo', {
+          type: record.type || record.blob.type || 'image/png',
+          lastModified: record.lastModified || Date.now(),
+        }) : null);
+      };
+      request.onerror = () => reject(request.error || new Error('Could not read the saved offline logo.'));
+    });
+  } finally { db.close(); }
+}
+
+export async function removeOfflinePosBankLogo(key: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openPosBankLogoDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('logos', 'readwrite');
+      tx.objectStore('logos').delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Could not remove the offline logo.'));
+    });
+  } finally { db.close(); }
+}
+
+export function getOfflinePosBankLogoKey(url: string | undefined): string | null {
+  if (!url?.startsWith(OFFLINE_POS_BANK_LOGO_PREFIX)) return null;
+  try { return decodeURIComponent(url.slice(OFFLINE_POS_BANK_LOGO_PREFIX.length)); }
+  catch { return null; }
+}
+
 export async function uploadPosBankLogo(file: File, apiKey: string): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the bank logo.');
   if (file.size > 5 * 1024 * 1024) throw new Error('Bank logo must be 5 MB or smaller.');
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('ImgBB upload needs an internet connection. Save the logo offline first; it will upload automatically when you reconnect.');
+  }
   const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result.split(',')[1] || '') : reject(new Error('Could not read the selected image.'));
@@ -186,12 +255,34 @@ export function POSReceiptBankDetails({
 }) {
   const { details, hasDetails } = usePosReceiptBankDetails(staffUid, fallback);
   const shouldShow = receiptType === 'docket' ? details.showAccountOnDocket !== false : details.showAccountOnPaid !== false;
+  const [displayBankLogoUrl, setDisplayBankLogoUrl] = React.useState(details.bankLogoUrl || '');
+
+  React.useEffect(() => {
+    let active = true;
+    let objectUrl = '';
+    const offlineKey = getOfflinePosBankLogoKey(details.bankLogoUrl);
+    if (!offlineKey) {
+      setDisplayBankLogoUrl(details.bankLogoUrl || '');
+      return;
+    }
+    setDisplayBankLogoUrl('');
+    void getOfflinePosBankLogo(offlineKey).then(file => {
+      if (!active || !file) return;
+      objectUrl = URL.createObjectURL(file);
+      setDisplayBankLogoUrl(objectUrl);
+    }).catch(error => console.warn('[POS bank logo] Offline image unavailable:', error));
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [details.bankLogoUrl]);
+
   if (!hasDetails || !shouldShow) return null;
 
   if (variant === 'terminal') {
     return (
       <div className="mt-4 border-t border-dashed border-black pt-2 text-center text-xs leading-relaxed">
-        {details.bankLogoUrl && <img src={details.bankLogoUrl} alt="Bank logo" className="mx-auto mb-2 max-h-12 max-w-[120px] object-contain" />}
+        {displayBankLogoUrl && <img src={displayBankLogoUrl} alt="Bank logo" className="mx-auto mb-2 max-h-12 max-w-[120px] object-contain" />}
         <p className="mb-1 font-bold uppercase">Bank Transfer Details</p>
         {details.bankName && <p>Bank: {details.bankName}</p>}
         {details.accountName && <p>Account Name: {details.accountName}</p>}
@@ -202,7 +293,7 @@ export function POSReceiptBankDetails({
 
   return (
     <div className="mt-6 rounded-md border border-slate-300 p-4 text-sm text-slate-800">
-      {details.bankLogoUrl && <img src={details.bankLogoUrl} alt="Bank logo" className="mb-3 max-h-14 max-w-[150px] object-contain" />}
+      {displayBankLogoUrl && <img src={displayBankLogoUrl} alt="Bank logo" className="mb-3 max-h-14 max-w-[150px] object-contain" />}
       <h3 className="mb-2 font-bold uppercase tracking-wide">Bank Transfer Details</h3>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
         {details.bankName && <p><strong>Bank:</strong> {details.bankName}</p>}
