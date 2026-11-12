@@ -274,7 +274,10 @@ function StaffTransactionBreakdownPage() {
     </Card>
 
     <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
-      <DialogContent className="!fixed !inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 !h-screen !h-[100dvh] !w-screen !max-w-none !max-h-none !rounded-none !border-0 !p-3 sm:!p-5 flex flex-col gap-3 overflow-hidden">
+      <DialogContent
+        style={{ position: 'fixed', inset: 0, left: 0, top: 0, right: 0, bottom: 0, width: '100vw', height: '100dvh', maxWidth: 'none', maxHeight: 'none', margin: 0, transform: 'none', borderRadius: 0 }}
+        className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-none border-0 p-3 sm:p-5"
+      >
         <DialogHeader className="shrink-0 border-b pb-3">
 
           <DialogTitle>Print Staff Transactions</DialogTitle>
