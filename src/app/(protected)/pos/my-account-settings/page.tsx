@@ -127,7 +127,7 @@ function MyPOSAccountSettingsPage() {
     return () => { active = false; };
   }, [uid, firestore]);
 
-  const update = (field: keyof PosBankDetails, value: string) => {
+  const update = <K extends keyof PosBankDetails>(field: K, value: PosBankDetails[K]) => {
     setValues(current => ({ ...current, [field]: value }));
   };
 
