@@ -40,67 +40,6 @@ interface StockSaleReceiptDialogProps {
   dataReady?: boolean;
 }
 
-const PaymentDetailsCreditSale = ({ saleId, isTerminal = false }: { saleId: string; isTerminal?: boolean }) => {
-  const { settings, getEffectivePosSettings } = useSettings();
-  const { currentBranch, isGlobalMode } = useBranch();
-
-  // Get effective POS settings for bank details
-  const effectivePosSettings = getEffectivePosSettings();
-
-  // Use effective POS settings bank details if available, otherwise fallback to global settings
-  const bankName = effectivePosSettings.bankName || settings?.bankName;
-  const accountName = effectivePosSettings.accountName || settings?.accountName;
-  const accountNumber = effectivePosSettings.accountNumber || settings?.accountNumber;
-  const bankLogoUrl = effectivePosSettings.bankLogoUrl || settings?.bankLogoUrl;
-
-  if (!bankName && !accountName && !accountNumber) {
-    return null;
-  }
-
-  if (isTerminal) {
-    return (
-      <div className="text-center text-xs mt-4 border-t border-dashed border-black pt-2">
-        <p className="font-bold uppercase">Payment Details for Credit</p>
-        <p>Bank: {bankName}</p>
-        <p>Acct Name: {accountName}</p>
-        <p>Acct No: {accountNumber}</p>
-        <p className="font-bold mt-1">Ref: {saleId}</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Separator className="my-6" />
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-        <h3 className="font-bold text-slate-800 mb-2">Payment Details for Credit Sale</h3>
-        <p className="text-slate-600 text-xs mb-4">
-          Please use the Sale ID <span className="font-bold">{saleId}</span> as a payment reference/memo for your bank transfer.
-        </p>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p><strong>Bank:</strong></p>
-            <p>{bankName || 'N/A'}</p>
-          </div>
-          <div>
-            <p><strong>Account Name:</strong></p>
-            <p>{accountName || 'N/A'}</p>
-          </div>
-          <div className="col-span-2">
-            <p><strong>Account Number:</strong></p>
-            <p className="text-lg font-mono tracking-widest">{accountNumber || 'N/A'}</p>
-          </div>
-        </div>
-        {bankLogoUrl && (
-          <div className="mt-4">
-            <img src={bankLogoUrl} alt="Bank Logo" style={{ height: '40px', width: 'auto' }} className="object-contain" />
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
 export function StockSaleReceiptDialog({
   isOpen,
   onClose,
