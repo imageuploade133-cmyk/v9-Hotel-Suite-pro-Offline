@@ -34,9 +34,6 @@ const imageSettingsSchema = z.object({
   expirationSeconds: z.number(),
   customExpirationDays: z.number().min(0).max(180).optional(),
   imgbbApiKey: z.string().optional(),
-  useGlobalStockImage: z.boolean().default(false),
-  globalStockImageUrl: z.string().url().optional().or(z.literal('')),
-  globalStockImageFile: z.instanceof(File).optional(),
   useGlobalServiceImage: z.boolean().default(false),
   globalServiceImageUrl: z.string().url().optional().or(z.literal('')),
   globalServiceImageFile: z.instanceof(File).optional(),
@@ -104,9 +101,7 @@ export function ImageUploadSettings() {
     const [isSaving, setIsSaving] = React.useState(false);
     const [showApiKey, setShowApiKey] = React.useState(false);
 
-    const stockImageFileInputRef = React.useRef<HTMLInputElement>(null);
     const serviceImageFileInputRef = React.useRef<HTMLInputElement>(null);
-    const [isStockImageDragging, setIsStockImageDragging] = React.useState(false);
 
     const form = useForm<ImageSettingsFormValues>({
         resolver: zodResolver(imageSettingsSchema),
@@ -115,8 +110,6 @@ export function ImageUploadSettings() {
             expirationSeconds: 0,
             customExpirationDays: 0,
             imgbbApiKey: '',
-            useGlobalStockImage: false,
-            globalStockImageUrl: '',
             useGlobalServiceImage: false,
             globalServiceImageUrl: '',
         },
@@ -131,9 +124,6 @@ export function ImageUploadSettings() {
                 expirationSeconds: isCustom ? -1 : (settings.expirationSeconds ?? 0),
                 customExpirationDays: isCustom ? (settings.expirationSeconds ?? 0) / 86400 : 0,
                 imgbbApiKey: settings.imgbbApiKey ?? '',
-                useGlobalStockImage: settings.useGlobalStockImage ?? false,
-                globalStockImageUrl: settings.globalStockImageUrl ?? '',
-                globalStockImageFile: undefined,
                 useGlobalServiceImage: settings.useGlobalServiceImage ?? false,
                 globalServiceImageUrl: settings.globalServiceImageUrl ?? '',
                 globalServiceImageFile: undefined,
@@ -143,47 +133,10 @@ export function ImageUploadSettings() {
 
     const maxFileSizeMb = form.watch('maxFileSizeMb');
     const selectedExpiration = form.watch('expirationSeconds');
-    const useGlobalImage = form.watch('useGlobalStockImage');
-    const globalStockImageFile = form.watch('globalStockImageFile');
-    const globalStockImageUrl = form.watch('globalStockImageUrl');
-    const globalStockImagePreview = globalStockImageFile ? URL.createObjectURL(globalStockImageFile) : globalStockImageUrl;
     const useGlobalServiceImage = form.watch('useGlobalServiceImage');
     const globalServiceImageFile = form.watch('globalServiceImageFile');
     const globalServiceImageUrl = form.watch('globalServiceImageUrl');
     const globalServiceImagePreview = globalServiceImageFile ? URL.createObjectURL(globalServiceImageFile) : globalServiceImageUrl;
-
-
-    const handleFileSelect = (files: FileList | null) => {
-        if (files && files.length > 0) {
-            const file = files[0];
-            if (file.size > maxFileSizeMb * 1024 * 1024) {
-                toast({
-                    variant: 'destructive',
-                    title: 'File Too Large',
-                    description: `${file.name} is larger than the allowed ${maxFileSizeMb}MB.`
-                });
-                return;
-            }
-            form.setValue('globalStockImageFile', file, { shouldDirty: true });
-        }
-    };
-
-    const handleRemoveImage = () => {
-        form.setValue('globalStockImageFile', undefined, { shouldDirty: true });
-        form.setValue('globalStockImageUrl', '', { shouldDirty: true });
-        if (stockImageFileInputRef.current) stockImageFileInputRef.current.value = '';
-    };
-
-    const handleDragEvents = {
-        onDragEnter: (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsStockImageDragging(true); },
-        onDragOver: (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsStockImageDragging(true); },
-        onDragLeave: (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsStockImageDragging(false); },
-        onDrop: (e: React.DragEvent<HTMLDivElement>) => {
-           e.preventDefault();
-           setIsStockImageDragging(false);
-           if (e.dataTransfer.files) handleFileSelect(e.dataTransfer.files);
-        },
-     };
 
 
     async function onSubmit(data: ImageSettingsFormValues) {
@@ -199,13 +152,7 @@ export function ImageUploadSettings() {
         setIsSaving(true);
         try {
             const expiration = data.expirationSeconds === -1 ? (data.customExpirationDays || 0) * 86400 : data.expirationSeconds;
-            let finalGlobalStockImageUrl = data.globalStockImageUrl;
             let finalGlobalServiceImageUrl = data.globalServiceImageUrl;
-            if (data.globalStockImageFile) {
-                toast({ title: 'Uploading Global Default Product Image...', description: 'Please wait.' });
-                const imageName = `global-product-default_${Date.now()}`;
-                finalGlobalStockImageUrl = await uploadImage(data.globalStockImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, 0);
-            }
             if (data.globalServiceImageFile) {
                 toast({ title: 'Uploading Global Default Service Image...', description: 'Please wait.' });
                 const imageName = `global-service-default_${Date.now()}`;
@@ -216,8 +163,6 @@ export function ImageUploadSettings() {
                 maxFileSizeMb: data.maxFileSizeMb,
                 expirationSeconds: expiration,
                 imgbbApiKey: data.imgbbApiKey,
-                useGlobalStockImage: data.useGlobalStockImage,
-                globalStockImageUrl: finalGlobalStockImageUrl,
                 useGlobalServiceImage: data.useGlobalServiceImage,
                 globalServiceImageUrl: finalGlobalServiceImageUrl,
             };
@@ -238,8 +183,6 @@ export function ImageUploadSettings() {
             });
             form.reset({
                 ...data,
-                globalStockImageUrl: finalGlobalStockImageUrl,
-                globalStockImageFile: undefined,
                 globalServiceImageUrl: finalGlobalServiceImageUrl,
                 globalServiceImageFile: undefined,
             }, { keepDirty: false });
@@ -363,53 +306,6 @@ export function ImageUploadSettings() {
                                             )}
                                         />
                                     )}
-                                    <Separator />
-                                    <div className="space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="useGlobalStockImage"
-                                            render={({ field }) => (
-                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel className="text-base">Use Global Default Product Image</FormLabel>
-                                                    <FormDescription>
-                                                        Use a shared default image for products that do not have their own image. A product's own image always takes priority.
-                                                    </FormDescription>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                </FormItem>
-                                            )}
-                                        />
-                                        {useGlobalImage && (
-                                            <FormItem className="pl-4 border-l-2 ml-4">
-                                                <FormLabel>Global Default Product Image</FormLabel>
-                                                <FormDescription>This image is the global fallback for products without an individual image. It does not replace or modify product images.</FormDescription>
-                                                {globalStockImagePreview ? (
-                                                    <div className="relative group w-40 h-40">
-                                                        <Image src={globalStockImagePreview} alt="Global stock image preview" fill style={{ objectFit: 'cover' }} className="rounded-md border p-2" />
-                                                        <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <Button type="button" variant="destructive" size="icon" onClick={handleRemoveImage}><X className="h-5 w-5" /></Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div
-                                                        className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer transition-colors ${isStockImageDragging ? 'border-primary bg-primary/10' : 'border-input hover:border-primary/50'}`}
-                                                        {...handleDragEvents}
-                                                        onClick={() => stockImageFileInputRef.current?.click()}>
-                                                        <Upload className="w-8 h-8 text-muted-foreground" />
-                                                        <p className="mt-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Click to upload</span> or drag and drop</p>
-                                                        <p className="text-xs text-muted-foreground">PNG, JPG up to {maxFileSizeMb}MB</p>
-                                                    </div>
-                                                )}
-                                                <FormControl><Input ref={stockImageFileInputRef} type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => handleFileSelect(e.target.files)}/></FormControl>
-                                            </FormItem>
-                                        )}
-                                    </div>
                                     <Separator />
                                     <div className="space-y-4">
                                         <FormField
