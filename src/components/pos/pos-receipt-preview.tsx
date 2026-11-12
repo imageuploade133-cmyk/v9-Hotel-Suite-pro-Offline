@@ -98,7 +98,7 @@ export function POSReceiptPreview({
           <div className="mt-2 h-[600px] overflow-y-auto rounded-lg border bg-white shadow-inner">
             <TabsContent value="terminal">
               <div className={`p-4 bg-white text-black receipt max-w-sm mx-auto text-xs font-mono${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
-                <style>{".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}"</style>
+                <style>{".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}"}</style>
                 {/* Logo Section */}
                 <div className="text-center space-y-2 mb-4">
                   {displayLogoUrl ? (
