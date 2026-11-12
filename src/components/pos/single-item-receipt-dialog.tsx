@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -95,6 +96,11 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+  };
 
   // Display name - use effective POS settings business name
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -315,6 +321,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
                     <p className="font-bold uppercase text-center mb-2 text-3xl">QTY: {qtyToPrint}</p>
                     <div className="text-center text-xs mt-6">
                       <p>This is a draft for a single item from a running table.</p>
+                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="terminal" />
                       <p>No payment has been processed.</p>
                     </div>
                   </div>
@@ -364,6 +371,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
                       <h3 className="text-6xl font-bold text-slate-800">{qtyToPrint}</h3>
                     </div>
                     <div className="mt-12 text-center text-xs text-slate-500">
+                      <POSReceiptBankDetails staffUid={sale.heldByUid} fallback={posBankFallback} variant="invoice" />
                       <p>This is a docket for preparation and is not a final bill.</p>
                     </div>
                   </div>
