@@ -155,11 +155,12 @@ function MyPOSAccountSettingsPage() {
     setValues(cleared);
     try {
       localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cleared));
-      localStorage.removeItem(posStaffBankPendingKey(uid));
+      localStorage.setItem(posStaffBankPendingKey(uid), '1');
       if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
         await setDoc(doc(firestore, 'posStaffAccountSettings', uid), {
           ...cleared, uid, updatedAt: new Date().toISOString(),
         }, { merge: true });
+        localStorage.removeItem(posStaffBankPendingKey(uid));
       }
       toast({ title: 'Personal account details cleared', description: 'Your POS printouts will now use the default account details from POS Settings.' });
     } catch (error: any) {
