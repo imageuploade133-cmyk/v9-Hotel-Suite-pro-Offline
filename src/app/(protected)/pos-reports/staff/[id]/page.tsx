@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type DetailEvent =
   | { id: string; kind: 'sale'; date: Date | null; reference: string; amount: number; sale: StockSale }
@@ -82,33 +81,6 @@ function StaffTransactionBreakdownPage() {
   ].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)), [staffSales, staffReturns, staffTables]);
 
 
-  const [printPreviewOpen, setPrintPreviewOpen] = React.useState(false);
-  // Track the *visual* viewport, not only the layout viewport. Browser zoom and
-  // mobile pinch-zoom can change its size and offset while the page layout remains
-  // larger. Keeping the preview tied to these values makes its edges follow the
-  // actually visible screen on desktop and mobile.
-  const [previewViewport, setPreviewViewport] = React.useState({ top: 0, left: 0, width: 0, height: 0 });
-  React.useEffect(() => {
-    if (!printPreviewOpen) return;
-    const updateViewport = () => {
-      const viewport = window.visualViewport;
-      setPreviewViewport({
-        top: viewport?.offsetTop ?? 0,
-        left: viewport?.offsetLeft ?? 0,
-        width: viewport?.width ?? window.innerWidth,
-        height: viewport?.height ?? window.innerHeight,
-      });
-    };
-    updateViewport();
-    window.addEventListener('resize', updateViewport);
-    window.visualViewport?.addEventListener('resize', updateViewport);
-    window.visualViewport?.addEventListener('scroll', updateViewport);
-    return () => {
-      window.removeEventListener('resize', updateViewport);
-      window.visualViewport?.removeEventListener('resize', updateViewport);
-      window.visualViewport?.removeEventListener('scroll', updateViewport);
-    };
-  }, [printPreviewOpen]);
   const [printFormat, setPrintFormat] = React.useState<'invoice' | 'terminal'>('invoice');
   const [includeTransactionList, setIncludeTransactionList] = React.useState(true);
   const [includeItemDetails, setIncludeItemDetails] = React.useState(true);
@@ -123,7 +95,13 @@ function StaffTransactionBreakdownPage() {
     : event.kind === 'refund'
       ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)) }))
       : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0) }));
-  const openPrintPreview = () => setPrintPreviewOpen(true);
+  const openPrintPreview = () => {
+    const search = new URLSearchParams();
+    if (dateRange?.from) search.set('from', format(dateRange.from, 'yyyy-MM-dd'));
+    if (dateRange?.to) search.set('to', format(dateRange.to, 'yyyy-MM-dd'));
+    if (searchTerm.trim()) search.set('search', searchTerm.trim());
+    router.push(`/pos-reports/staff/${encodeURIComponent(staffUid)}/print${search.size ? `?${search.toString()}` : ''}`);
+  };
   const printReport = () => {
     if (isLoading) return;
     window.print();
@@ -299,95 +277,7 @@ function StaffTransactionBreakdownPage() {
       </CardContent>
     </Card>
 
-    <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
-      <DialogContent
-        // Use the live visual viewport so browser zoom and mobile pinch-zoom cannot
-        // leave this surface centered in, or clipped by, the larger layout viewport.
-        style={{
-          position: 'fixed',
-          top: previewViewport.top,
-          left: previewViewport.left,
-          right: 'auto',
-          bottom: 'auto',
-          width: previewViewport.width || '100%',
-          height: previewViewport.height || '100%',
-          minWidth: 0,
-          minHeight: 0,
-          maxWidth: 'none',
-          maxHeight: 'none',
-          margin: 0,
-          transform: 'none',
-          borderRadius: 0,
-          boxSizing: 'border-box',
-        }}
-        className="!fixed !m-0 !min-h-0 !min-w-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0 !transform-none !rounded-none !border-0 !p-3 !overflow-hidden sm:!p-5"
-      >
-        <DialogHeader className="shrink-0 border-b pb-3">
 
-          <DialogTitle>Print Staff Transactions</DialogTitle>
-          <DialogDescription>Choose a print layout, decide what to include, and review the report before printing.</DialogDescription>
-        </DialogHeader>
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-4">
-          <div className="min-h-0 space-y-4 overflow-y-auto rounded-xl border p-3 sm:p-4 lg:h-full">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Print format</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant={printFormat === 'invoice' ? 'default' : 'outline'} className="h-auto flex-col gap-1 py-3" onClick={() => setPrintFormat('invoice')}><ClipboardList className="h-5 w-5" />Invoice <span className="text-[11px] font-normal opacity-75">A4 / Letter</span></Button>
-                <Button type="button" variant={printFormat === 'terminal' ? 'default' : 'outline'} className="h-auto flex-col gap-1 py-3" onClick={() => setPrintFormat('terminal')}><Printer className="h-5 w-5" />Terminal <span className="text-[11px] font-normal opacity-75">80mm receipt</span></Button>
-              </div>
-            </div>
-            <div className="space-y-3 border-t pt-3">
-              <p className="text-sm font-semibold">Print options</p>
-              <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeTransactionList} onChange={event => setIncludeTransactionList(event.target.checked)} /><span><span className="font-medium">Include transaction list</span><span className="block text-xs text-muted-foreground">Print each sale, refund and active running table.</span></span></label>
-              <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeItemDetails} onChange={event => setIncludeItemDetails(event.target.checked)} disabled={!includeTransactionList} /><span><span className="font-medium">Include item details</span><span className="block text-xs text-muted-foreground">Include item names, quantities and values under each transaction.</span></span></label>
-            </div>
-            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              The print report uses the complete selected date range, not only the records visible on the current pagination page. The three totals include all matching records.
-            </div>
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl bg-muted/40 p-2 sm:p-4">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2"><p className="text-sm font-semibold">Print preview</p><Badge variant="outline">{printFormat === 'invoice' ? 'A4 invoice' : '80mm terminal'}</Badge></div>
-            <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-white p-3 text-black shadow-sm sm:p-5">
-              <div id="staff-print-sheet" className={printFormat === 'terminal' ? 'staff-print-terminal mx-auto' : 'staff-print-invoice mx-auto'}>
-                <div className="border-b-2 border-black pb-3 text-center">
-                  <h1 className="text-xl font-extrabold tracking-wide">{settings?.businessName || 'POS TRANSACTION REPORT'}</h1>
-                  <p className="mt-1 text-sm font-bold">{printFormat === 'invoice' ? 'STAFF TRANSACTION STATEMENT' : 'STAFF POS REPORT'}</p>
-                  <p className="mt-1 text-xs">Generated: {printDate}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs">
-                  <p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p>
-                  <p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
-                </div>
-                {includeTransactionList && <div className="py-3">
-                  <h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>
-                  {filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current search filter.</p> : <div className="space-y-3">
-                    {filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
-                      <div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div>
-                      <div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>
-                      {includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item, index) => <div key={event.id + '-item-' + index} className="flex justify-between gap-2"><span>{item.name} × {item.qty}</span><span>{money(item.qty * item.unit)}</span></div>)}</div>}
-                    </div>)}
-                  </div>}
-                </div>}
-                <div className="mt-2 border-t-2 border-black pt-3">
-                  <h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(filteredIncome)}</strong></div>
-                    <div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(filteredRefunds)}</strong></div>
-                    <div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(filteredRunningTableTotal)}</strong></div>
-                  </div>
-                  <p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p>
-                </div>
-                <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">End of report · {staffName}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <DialogFooter className="shrink-0 border-t pt-3">
-          <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
-          <Button type="button" onClick={printReport} disabled={isLoading || filteredEvents.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>;
 }
 
