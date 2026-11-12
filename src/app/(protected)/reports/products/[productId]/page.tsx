@@ -74,7 +74,9 @@ function ProductReportDetailPage() {
   const inRange = React.useCallback((value: unknown) => {
     const date = toReportDate(value);
     if (!date || !dateRange?.from) return false;
-    return isWithinInterval(date, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to || dateRange.from) });
+    const from = dateRange.to && dateRange.from > dateRange.to ? dateRange.to : dateRange.from;
+    const to = dateRange.to && dateRange.from > dateRange.to ? dateRange.from : (dateRange.to || dateRange.from);
+    return isWithinInterval(date, { start: startOfDay(from), end: endOfDay(to) });
   }, [dateRange]);
 
   const events = React.useMemo<ProductEvent[]>(() => {
