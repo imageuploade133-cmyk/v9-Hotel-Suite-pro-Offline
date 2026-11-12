@@ -29,10 +29,22 @@ function MyPOSAccountSettingsPage() {
   const { user, userProfile } = useUser();
   const { currentBranch } = useBranch();
   const { toast } = useToast();
-  const [values, setValues] = React.useState<PosBankDetails>(EMPTY_POS_BANK_DETAILS);
+  const uid = user?.uid;
+  const [valuesState, setValuesState] = React.useState<{ uid?: string; values: PosBankDetails }>({
+    uid,
+    values: EMPTY_POS_BANK_DETAILS,
+  });
+  const values = valuesState.uid === uid ? valuesState.values : EMPTY_POS_BANK_DETAILS;
+  const setValues = React.useCallback<React.Dispatch<React.SetStateAction<PosBankDetails>>>((nextValues) => {
+    setValuesState(current => ({
+      uid,
+      values: typeof nextValues === 'function'
+        ? (nextValues as (current: PosBankDetails) => PosBankDetails)(current.uid === uid ? current.values : EMPTY_POS_BANK_DETAILS)
+        : nextValues,
+    }));
+  }, [uid]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
-  const uid = user?.uid;
 
   React.useEffect(() => {
     let active = true;
@@ -40,6 +52,7 @@ function MyPOSAccountSettingsPage() {
       setIsLoading(false);
       return;
     }
+    setIsLoading(true);
 
     try {
       const cached = localStorage.getItem(posStaffBankStorageKey(uid));
