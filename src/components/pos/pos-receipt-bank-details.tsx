@@ -111,9 +111,13 @@ export function usePosReceiptBankDetails(
           try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote)); } catch {}
         }
       } catch (error) {
-        // The local per-user cache remains available for offline printing.
+        // The local per-user cache remains authoritative while a save/clear is pending.
         console.warn('[POS bank details] Could not refresh staff account details:', error);
-        await loadLocalMaster();
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(staffUid)) === '1'; }
+          catch { return false; }
+        })();
+        if (!pending) await loadLocalMaster();
       } finally {
         if (active) setIsLoading(false);
       }
