@@ -225,20 +225,23 @@ function POSReportsPage() {
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><CardTitle>POS Staff Transactions</CardTitle><CardDescription>One consolidated row per staff account. Totals follow the selected reporting period.</CardDescription></div>
-          <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search staff..." className="pl-9" /></div>
+          <div><CardTitle>POS Staff Transactions</CardTitle><CardDescription>One consolidated row per staff account. Contact details and role are sourced from Staff Management.</CardDescription></div>
+          <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search name, email, phone or role..." className="pl-9" /></div>
         </CardHeader>
         <CardContent>
-          {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff POS report...</div> :
-          staffRows.filter(row => !searchTerm.trim() || row.name.toLowerCase().includes(searchTerm.trim().toLowerCase()) || row.uid.toLowerCase().includes(searchTerm.trim().toLowerCase())).length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No staff transactions found for this period.</div> :
+          {isLoading || staffProfilesLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff POS report...</div> :
+          staffRows.filter(row => !searchTerm.trim() || [row.name, row.email, row.phone, row.role].some(value => value.toLowerCase().includes(searchTerm.trim().toLowerCase()))).length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No staff transactions found for this period.</div> :
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead><tr className="border-b text-left text-muted-foreground">
-                <th className="px-3 py-3 font-medium">Staff</th><th className="px-3 py-3 text-right font-medium">Total Income</th><th className="px-3 py-3 text-right font-medium">Sold Item Units</th><th className="px-3 py-3 text-right font-medium">Running Tables</th><th className="px-3 py-3 font-medium">Latest Activity</th><th className="px-3 py-3 text-right font-medium">Action</th>
+                <th className="px-3 py-3 font-medium">Staff Name</th><th className="px-3 py-3 font-medium">Email</th><th className="px-3 py-3 font-medium">Phone Number</th><th className="px-3 py-3 font-medium">Staff Role</th><th className="px-3 py-3 text-right font-medium">Total Income</th><th className="px-3 py-3 text-right font-medium">Sold Item Units</th><th className="px-3 py-3 text-right font-medium">Running Tables</th><th className="px-3 py-3 font-medium">Latest Activity</th><th className="px-3 py-3 text-right font-medium">Action</th>
               </tr></thead>
               <tbody>
-                {staffRows.filter(row => !searchTerm.trim() || row.name.toLowerCase().includes(searchTerm.trim().toLowerCase()) || row.uid.toLowerCase().includes(searchTerm.trim().toLowerCase())).map(row => <tr key={row.uid} className="border-b transition-colors hover:bg-muted/50">
-                  <td className="px-3 py-4"><div className="font-semibold">{row.name}</div><div className="max-w-[220px] truncate text-xs text-muted-foreground" title={row.uid}>{row.uid.startsWith('legacy-name:') ? 'Legacy record · name matched' : 'Staff ID: ' + row.uid}</div></td>
+                {staffRows.filter(row => !searchTerm.trim() || [row.name, row.email, row.phone, row.role].some(value => value.toLowerCase().includes(searchTerm.trim().toLowerCase()))).map(row => <tr key={row.uid} className="border-b transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-4 font-semibold">{row.name}</td>
+                  <td className="px-3 py-4">{row.email || <span className="text-muted-foreground">Not provided</span>}</td>
+                  <td className="px-3 py-4">{row.phone || <span className="text-muted-foreground">Not provided</span>}</td>
+                  <td className="px-3 py-4"><Badge variant="outline">{row.role}</Badge></td>
                   <td className="whitespace-nowrap px-3 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-400">{money(row.income)}</td>
                   <td className="px-3 py-4 text-right tabular-nums">{row.soldUnits.toLocaleString()}</td>
                   <td className="px-3 py-4 text-right"><Badge variant={row.runningCount ? 'secondary' : 'outline'}>{row.runningCount}</Badge></td>
