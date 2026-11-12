@@ -37,6 +37,9 @@ const imageSettingsSchema = z.object({
   useGlobalStockImage: z.boolean().default(false),
   globalStockImageUrl: z.string().url().optional().or(z.literal('')),
   globalStockImageFile: z.instanceof(File).optional(),
+  useGlobalServiceImage: z.boolean().default(false),
+  globalServiceImageUrl: z.string().url().optional().or(z.literal('')),
+  globalServiceImageFile: z.instanceof(File).optional(),
 });
 
 type ImageSettingsFormValues = z.infer<typeof imageSettingsSchema>;
@@ -102,6 +105,7 @@ export function ImageUploadSettings() {
     const [showApiKey, setShowApiKey] = React.useState(false);
 
     const stockImageFileInputRef = React.useRef<HTMLInputElement>(null);
+    const serviceImageFileInputRef = React.useRef<HTMLInputElement>(null);
     const [isStockImageDragging, setIsStockImageDragging] = React.useState(false);
 
     const form = useForm<ImageSettingsFormValues>({
@@ -113,6 +117,8 @@ export function ImageUploadSettings() {
             imgbbApiKey: '',
             useGlobalStockImage: false,
             globalStockImageUrl: '',
+            useGlobalServiceImage: false,
+            globalServiceImageUrl: '',
         },
     });
 
@@ -128,6 +134,9 @@ export function ImageUploadSettings() {
                 useGlobalStockImage: settings.useGlobalStockImage ?? false,
                 globalStockImageUrl: settings.globalStockImageUrl ?? '',
                 globalStockImageFile: undefined,
+                useGlobalServiceImage: settings.useGlobalServiceImage ?? false,
+                globalServiceImageUrl: settings.globalServiceImageUrl ?? '',
+                globalServiceImageFile: undefined,
             });
         }
     }, [settings, form]);
@@ -138,6 +147,10 @@ export function ImageUploadSettings() {
     const globalStockImageFile = form.watch('globalStockImageFile');
     const globalStockImageUrl = form.watch('globalStockImageUrl');
     const globalStockImagePreview = globalStockImageFile ? URL.createObjectURL(globalStockImageFile) : globalStockImageUrl;
+    const useGlobalServiceImage = form.watch('useGlobalServiceImage');
+    const globalServiceImageFile = form.watch('globalServiceImageFile');
+    const globalServiceImageUrl = form.watch('globalServiceImageUrl');
+    const globalServiceImagePreview = globalServiceImageFile ? URL.createObjectURL(globalServiceImageFile) : globalServiceImageUrl;
 
 
     const handleFileSelect = (files: FileList | null) => {
@@ -187,10 +200,16 @@ export function ImageUploadSettings() {
         try {
             const expiration = data.expirationSeconds === -1 ? (data.customExpirationDays || 0) * 86400 : data.expirationSeconds;
             let finalGlobalStockImageUrl = data.globalStockImageUrl;
+            let finalGlobalServiceImageUrl = data.globalServiceImageUrl;
             if (data.globalStockImageFile) {
-                toast({ title: 'Uploading Global Stock Image...', description: 'Please wait.' });
-                const imageName = `global-stock-image_${Date.now()}`;
+                toast({ title: 'Uploading Global Default Product Image...', description: 'Please wait.' });
+                const imageName = `global-product-default_${Date.now()}`;
                 finalGlobalStockImageUrl = await uploadImage(data.globalStockImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, expiration);
+            }
+            if (data.globalServiceImageFile) {
+                toast({ title: 'Uploading Global Default Service Image...', description: 'Please wait.' });
+                const imageName = `global-service-default_${Date.now()}`;
+                finalGlobalServiceImageUrl = await uploadImage(data.globalServiceImageFile, data.imgbbApiKey || DEFAULT_IMGBB_API_KEY, imageName, expiration);
             }
 
             const settingsToSave = {
@@ -199,10 +218,18 @@ export function ImageUploadSettings() {
                 imgbbApiKey: data.imgbbApiKey,
                 useGlobalStockImage: data.useGlobalStockImage,
                 globalStockImageUrl: finalGlobalStockImageUrl,
+                useGlobalServiceImage: data.useGlobalServiceImage,
+                globalServiceImageUrl: finalGlobalServiceImageUrl,
             };
 
             const settingsDocRef = doc(firestore, 'settings', 'global');
             await setDoc(settingsDocRef, settingsToSave, { merge: true });
+            try {
+                const cached = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
+                localStorage.setItem('app_saved_settings', JSON.stringify({ ...cached, ...settingsToSave }));
+            } catch (cacheError) {
+                console.warn('[Image Settings] Settings saved remotely but local cache update failed:', cacheError);
+            }
 
             toast({
                 title: 'Image Settings Updated',
@@ -213,6 +240,8 @@ export function ImageUploadSettings() {
                 ...data,
                 globalStockImageUrl: finalGlobalStockImageUrl,
                 globalStockImageFile: undefined,
+                globalServiceImageUrl: finalGlobalServiceImageUrl,
+                globalServiceImageFile: undefined,
             }, { keepDirty: false });
         } catch (error: any) {
             toast({
@@ -378,6 +407,48 @@ export function ImageUploadSettings() {
                                                     </div>
                                                 )}
                                                 <FormControl><Input ref={stockImageFileInputRef} type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => handleFileSelect(e.target.files)}/></FormControl>
+                                            </FormItem>
+                                        )}
+                                    </div>
+                                    <Separator />
+                                    <div className="space-y-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="useGlobalServiceImage"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel className="text-base">Use Global Default Service Image</FormLabel>
+                                                        <FormDescription>Use this image for services that do not have their own image. Individual service images always take priority.</FormDescription>
+                                                    </div>
+                                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        {useGlobalServiceImage && (
+                                            <FormItem className="pl-4 border-l-2 ml-4">
+                                                <FormLabel>Global Default Service Image</FormLabel>
+                                                <FormDescription>This image is used as the default for services and foods without an uploaded image.</FormDescription>
+                                                {globalServiceImagePreview ? (
+                                                    <div className="relative group w-40 h-40">
+                                                        <Image src={globalServiceImagePreview} alt="Global default service image preview" fill style={{ objectFit: 'cover' }} className="rounded-md border p-2" />
+                                                        <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Button type="button" variant="destructive" size="icon" onClick={() => { form.setValue('globalServiceImageFile', undefined, { shouldDirty: true }); form.setValue('globalServiceImageUrl', '', { shouldDirty: true }); if (serviceImageFileInputRef.current) serviceImageFileInputRef.current.value = ''; }}><X className="h-5 w-5" /></Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer hover:border-primary/50" onClick={() => serviceImageFileInputRef.current?.click()}>
+                                                        <Upload className="w-8 h-8 text-muted-foreground" />
+                                                        <p className="mt-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Click to upload</span></p>
+                                                        <p className="text-xs text-muted-foreground">PNG, JPG up to {maxFileSizeMb}MB</p>
+                                                    </div>
+                                                )}
+                                                <Input ref={serviceImageFileInputRef} type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    if (file.size > maxFileSizeMb * 1024 * 1024) { toast({ variant: 'destructive', title: 'File Too Large', description: `${file.name} is larger than the allowed ${maxFileSizeMb}MB.` }); return; }
+                                                    form.setValue('globalServiceImageFile', file, { shouldDirty: true });
+                                                }} />
                                             </FormItem>
                                         )}
                                     </div>
