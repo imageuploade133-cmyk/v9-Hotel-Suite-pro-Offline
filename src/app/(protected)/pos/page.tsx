@@ -22,13 +22,19 @@ function PointOfSalePage() {
     setReloadHistory(prev => prev + 1);
   };
 
-  const headerName = currentBranch ? `${currentBranch.name} - Point of Sale` : 'Point of Sale';
+  const branchName = currentBranch?.name?.trim();
+  const headerName = branchName ? `${branchName} - Point of Sale` : 'Point of Sale';
+  // Keep the full branch name on desktop; use a compact label on mobile only.
+  const compactBranchName = branchName?.toLowerCase() === 'global branch'
+    ? 'GB'
+    : branchName?.replace(/\s+branch$/i, '').trim();
+  const mobileHeaderName = compactBranchName ? `${compactBranchName} - POS` : 'POS';
 
   return (
     <>
       <div className="flex flex-col gap-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
-          <TopHeader name={headerName} icon={<ShoppingCart />} />
+          <TopHeader name={headerName} mobileName={mobileHeaderName} icon={<ShoppingCart />} />
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => setReloadProducts(c => c + 1)} title="Refresh Products">
               <RefreshCw className="h-4 w-4" />
