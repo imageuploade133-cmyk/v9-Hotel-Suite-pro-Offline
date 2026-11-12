@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -222,6 +223,11 @@ export function StockSaleReceiptDialog({
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+  };
 
   // Business name and address - use effective POS settings business name (separate for each context)
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -388,7 +394,7 @@ export function StockSaleReceiptDialog({
                   </div>
                 </div>
 
-                {sale.paymentMethod === 'Credit' && <PaymentDetailsCreditSale saleId={sale.saleId} />}
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="invoice" />
 
                 <div className="mt-8 text-sm">
                   <div className="flex items-center gap-3">
@@ -490,9 +496,10 @@ export function StockSaleReceiptDialog({
                         NEW CUSTOMER OUTSTANDING: {formatCurrency(finalCustomerBalance || 0)}
                       </div>
                     )}
-                    <PaymentDetailsCreditSale saleId={sale.saleId} isTerminal />
+
                   </>
                 )}
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="terminal" />
                 <div className="text-center text-xs mt-6 whitespace-pre-line">
                   <p>{posFooter}</p>
                 </div>
