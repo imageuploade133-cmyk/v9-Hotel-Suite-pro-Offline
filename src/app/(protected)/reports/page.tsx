@@ -267,21 +267,6 @@ function ReportsPage() {
                     <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={() => router.push(`/reports/products/${encodeURIComponent(row.id)}?from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}>View Report</Button></td>
                   </tr>)}</tbody>
                 </table></div>}
-              {!loading && filteredSalesRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span>Showing <strong className="text-foreground">{((salesPage - 1) * salesPageSize + 1).toLocaleString()}–{Math.min(salesPage * salesPageSize, filteredSalesRows.length).toLocaleString()}</strong> of <strong className="text-foreground">{filteredSalesRows.length.toLocaleString()}</strong> transactions</span>
-                  <label className="flex items-center gap-2">Rows
-                    <select aria-label="Sales rows per page" value={salesPageSize} onChange={event => { setSalesPageSize(Number(event.target.value)); setSalesPage(1); }} className="h-9 rounded-md border bg-background px-2 text-sm">
-                      <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.max(1, page - 1))} disabled={salesPage <= 1}>Previous</Button>
-                  <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {salesPage} of {salesTotalPages}</span>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.min(salesTotalPages, page + 1))} disabled={salesPage >= salesTotalPages}>Next</Button>
-                </div>
-              </div>}
               {!loading && filteredProducts.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <span>Showing <strong className="text-foreground">{((productPage - 1) * productPageSize + 1).toLocaleString()}–{Math.min(productPage * productPageSize, filteredProducts.length).toLocaleString()}</strong> of <strong className="text-foreground">{filteredProducts.length.toLocaleString()}</strong> products</span>
@@ -326,6 +311,21 @@ function ReportsPage() {
                     <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold ${row.amount < 0 ? 'text-rose-600' : ''}`}>{money(row.amount)}</td>
                   </tr>)}</tbody>
                 </table></div>}
+              {!loading && filteredSalesRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span>Showing <strong className="text-foreground">{((salesPage - 1) * salesPageSize + 1).toLocaleString()}–{Math.min(salesPage * salesPageSize, filteredSalesRows.length).toLocaleString()}</strong> of <strong className="text-foreground">{filteredSalesRows.length.toLocaleString()}</strong> transactions</span>
+                  <label className="flex items-center gap-2">Rows
+                    <select aria-label="Sales rows per page" value={salesPageSize} onChange={event => { setSalesPageSize(Number(event.target.value)); setSalesPage(1); }} className="h-9 rounded-md border bg-background px-2 text-sm">
+                      <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.max(1, page - 1))} disabled={salesPage <= 1}>Previous</Button>
+                  <span className="min-w-24 text-center text-sm font-medium tabular-nums">Page {salesPage} of {salesTotalPages}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSalesPage(page => Math.min(salesTotalPages, page + 1))} disabled={salesPage >= salesTotalPages}>Next</Button>
+                </div>
+              </div>}
             </CardContent>
           </Card>
         </TabsContent>
