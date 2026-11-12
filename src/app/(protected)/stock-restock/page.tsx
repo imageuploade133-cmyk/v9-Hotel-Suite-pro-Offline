@@ -304,21 +304,14 @@ function RestockInventoryPage() {
 
         return (
           <div className="flex items-center gap-3">
-            {settings?.useGlobalStockImage && settings.globalStockImageUrl ? (
+            {(item.imageUrl || item.images?.[0] || (settings?.useGlobalStockImage ? settings.globalStockImageUrl : '')) ? (
               <Image
-                src={settings.globalStockImageUrl}
+                src={(item.imageUrl || item.images?.[0] || settings?.globalStockImageUrl) as string}
                 alt={item.name}
                 width={40}
                 height={40}
-                className="rounded-md object-cover"
-              />
-            ) : item.imageUrl ? (
-              <Image
-                src={item.imageUrl}
-                alt={item.name}
-                width={40}
-                height={40}
-                className="rounded-md object-cover"
+                className="h-10 w-10 rounded-md object-cover"
+                unoptimized
               />
             ) : (
               <div className="w-10 h-10 bg-muted rounded-md flex items-center justify-center">
@@ -690,8 +683,10 @@ function RestockInventoryPage() {
           {selectedItem && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                <div className="w-12 h-12 bg-background rounded-md flex items-center justify-center">
-                  <Package className="h-6 w-6 text-muted-foreground" />
+                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-background flex items-center justify-center">
+                  {(selectedItem.imageUrl || selectedItem.images?.[0] || (settings?.useGlobalStockImage ? settings.globalStockImageUrl : '')) ? (
+                    <Image src={(selectedItem.imageUrl || selectedItem.images?.[0] || settings?.globalStockImageUrl) as string} alt={selectedItem.name} fill className="object-cover" unoptimized />
+                  ) : <Package className="h-6 w-6 text-muted-foreground" />}
                 </div>
                 <div>
                   <p className="font-semibold">{selectedItem.name}</p>
