@@ -22,6 +22,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Receipt, Upload, X, RotateCcw, Printer, Settings2, Palette, FileText, Building2, Globe } from 'lucide-react';
 import { POSReceiptPreview } from './pos-receipt-preview';
+import { uploadPosBankLogo } from './pos-receipt-bank-details';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -64,6 +65,10 @@ const posSettingsSchema = z.object({
   bankName: z.string().max(100).optional(),
   accountName: z.string().max(120).optional(),
   accountNumber: z.string().max(34).optional(),
+  bankLogoUrl: z.string().url().optional().or(z.literal('')),
+  bankLogoFile: z.instanceof(File).optional(),
+  showAccountOnDocket: z.boolean().default(true),
+  showAccountOnPaid: z.boolean().default(true),
 
   // Print Settings
   posDefaultPrinter: z.string().optional(),
@@ -165,6 +170,10 @@ const defaultValues: Partial<POSSettingsFormValues> = {
   bankName: '',
   accountName: '',
   accountNumber: '',
+  bankLogoUrl: '',
+  bankLogoFile: undefined,
+  showAccountOnDocket: true,
+  showAccountOnPaid: true,
   posAutoPrint: false,
   posAutoPrintTableUpdates: true,
   posAutoGenerateReceiptOnRunningTable: true,
@@ -265,6 +274,10 @@ export function POSSettingsForm() {
       bankName: posSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
       accountName: posSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
       accountNumber: posSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+      bankLogoUrl: posSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+      bankLogoFile: undefined,
+      showAccountOnDocket: posSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+      showAccountOnPaid: posSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
       posAutoPrint: posSettings.posAutoPrint ?? false,
       posAutoPrintTableUpdates: posSettings.posAutoPrintTableUpdates ?? true,
       posAutoGenerateReceiptOnRunningTable: posSettings.posAutoGenerateReceiptOnRunningTable ?? true,
@@ -359,6 +372,12 @@ export function POSSettingsForm() {
       const collectionPath = getCollectionPath('posSettings');
       const settingsDocRef = doc(firestore, collectionPath, 'settings');
 
+      let finalBankLogoUrl = data.bankLogoUrl || '';
+      if (data.bankLogoFile) {
+        toast({ title: 'Uploading Bank Logo...', description: 'Please wait.' });
+        finalBankLogoUrl = await uploadPosBankLogo(data.bankLogoFile, imgbbApiKey);
+      }
+
       let finalLogoUrl = data.posReceiptLogoUrl;
       if (data.posReceiptLogoFile) {
         toast({ title: 'Uploading Receipt Logo...', description: 'Please wait.' });
@@ -400,6 +419,9 @@ export function POSSettingsForm() {
         bankName: data.bankName?.trim() || '',
         accountName: data.accountName?.trim() || '',
         accountNumber: data.accountNumber?.replace(/\s+/g, '') || '',
+        bankLogoUrl: finalBankLogoUrl,
+        showAccountOnDocket: data.showAccountOnDocket,
+        showAccountOnPaid: data.showAccountOnPaid,
         posAutoPrint: data.posAutoPrint,
         posAutoPrintTableUpdates: data.posAutoPrintTableUpdates,
         posAutoGenerateReceiptOnRunningTable: data.posAutoGenerateReceiptOnRunningTable,
@@ -436,7 +458,7 @@ export function POSSettingsForm() {
         }
       });
 
-      if (changes.length > 0 || data.posReceiptLogoFile) {
+      if (changes.length > 0 || data.posReceiptLogoFile || data.bankLogoFile) {
         batch.set(settingsDocRef, settingsToSave, { merge: true });
 
         const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
@@ -465,6 +487,8 @@ export function POSSettingsForm() {
           ...data,
           posReceiptLogoUrl: finalLogoUrl,
           posReceiptLogoFile: undefined,
+          bankLogoUrl: finalBankLogoUrl,
+          bankLogoFile: undefined,
           hotelPosReceiptLogoUrl: finalHotelLogoUrl,
           hotelPosReceiptLogoFile: undefined,
         },
@@ -1284,6 +1308,48 @@ export function POSSettingsForm() {
                           </FormItem>
                         )} />
                       </div>
+                      <div className="space-y-4 border-t pt-4">
+                        <FormField control={form.control} name="bankLogoUrl" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bank Logo</FormLabel>
+                            <FormControl>
+                              <div className="space-y-3">
+                                <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={event => {
+                                  const file = event.target.files?.[0];
+                                  if (!file) return;
+                                  if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+                                    toast({ variant: 'destructive', title: 'Invalid bank logo', description: 'Choose an image file no larger than 5 MB.' });
+                                    event.target.value = '';
+                                    return;
+                                  }
+                                  form.setValue('bankLogoFile', file, { shouldDirty: true });
+                                }} />
+                                {(watchedValues.bankLogoFile || field.value) && (
+                                  <div className="flex items-center gap-3 rounded-md border p-3">
+                                    {watchedValues.bankLogoFile ? <span className="text-sm">{watchedValues.bankLogoFile.name}</span> : <img src={field.value} alt="Bank logo preview" className="max-h-12 max-w-32 object-contain" />}
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => { form.setValue('bankLogoUrl', '', { shouldDirty: true }); form.setValue('bankLogoFile', undefined, { shouldDirty: true }); }}>Remove</Button>
+                                  </div>
+                                )}
+                              </div>
+                            </FormControl>
+                            <FormDescription>Shown with the bank details on Terminal and Invoice printouts. Maximum 5 MB.</FormDescription>
+                          </FormItem>
+                        )} />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField control={form.control} name="showAccountOnDocket" render={({ field }) => (
+                            <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                              <div className="space-y-1"><FormLabel>Show account details on Docket</FormLabel><FormDescription>Draft and running-table dockets.</FormDescription></div>
+                              <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                          )} />
+                          <FormField control={form.control} name="showAccountOnPaid" render={({ field }) => (
+                            <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                              <div className="space-y-1"><FormLabel>Show account details on Paid</FormLabel><FormDescription>Completed sales and paid invoices.</FormDescription></div>
+                              <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                          )} />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
@@ -1537,6 +1603,9 @@ export function POSSettingsForm() {
           bankName={watchedValues.bankName}
           accountName={watchedValues.accountName}
           accountNumber={watchedValues.accountNumber}
+          bankLogoUrl={watchedValues.bankLogoUrl}
+          showAccountOnDocket={watchedValues.showAccountOnDocket}
+          showAccountOnPaid={watchedValues.showAccountOnPaid}
           posTaxLabel={watchedValues.posTaxLabel}
           posTaxRate={watchedValues.posEnableTax ? watchedValues.posTaxRate : 0}
           businessName={watchedValues.businessName || settings?.businessName}

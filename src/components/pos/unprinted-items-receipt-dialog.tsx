@@ -60,6 +60,9 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   // Use branch-specific information if available, otherwise fall back to global settings
@@ -326,7 +329,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                         <span>{formatCurrency(total)}</span>
                       </div>
                     )}
-                    <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="terminal" />
+                    <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="terminal" receiptType="docket" />
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
@@ -411,7 +414,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                       </div>
                     </div>
                     <div className="mt-8 text-center text-xs text-slate-500">
-                      <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="invoice" />
+                      <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="invoice" receiptType="docket" />
                       <p>This is a docket for preparation and is not a final bill.</p>
                     </div>
                   </div>

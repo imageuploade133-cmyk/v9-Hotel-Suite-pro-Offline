@@ -90,6 +90,9 @@ export function DraftDocketReceiptDialog({
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   // Display name - use effective POS settings business name
@@ -457,7 +460,7 @@ export function DraftDocketReceiptDialog({
                 )}
                 <div className="text-center text-xs mt-6 text-red-600 font-semibold">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
-                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" />
+                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" receiptType="docket" />
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
                 </div>
               </div>
@@ -518,7 +521,7 @@ export function DraftDocketReceiptDialog({
                 </div>
                 <div className="mt-6 text-center text-red-600 font-semibold text-sm">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
-                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
+                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" receiptType="docket" />
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
                 </div>
               </div>

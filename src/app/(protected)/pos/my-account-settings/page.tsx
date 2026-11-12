@@ -23,12 +23,17 @@ import {
   type PosBankDetails,
 } from '@/components/pos/pos-receipt-bank-details';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { uploadPosBankLogo } from '@/components/pos/pos-receipt-bank-details';
+import { useSettings } from '@/contexts/settings-context';
+import { Switch } from '@/components/ui/switch';
 
 function MyPOSAccountSettingsPage() {
   const firestore = useFirestore();
   const { user, userProfile } = useUser();
   const { currentBranch } = useBranch();
   const { toast } = useToast();
+  const { settings } = useSettings();
+  const [bankLogoFile, setBankLogoFile] = React.useState<File | null>(null);
   const uid = user?.uid;
   const [valuesState, setValuesState] = React.useState<{ uid?: string; values: PosBankDetails }>({
     uid,
@@ -122,7 +127,7 @@ function MyPOSAccountSettingsPage() {
     return () => { active = false; };
   }, [uid, firestore]);
 
-  const update = (field: keyof PosBankDetails, value: string) => {
+  const update = <K extends keyof PosBankDetails>(field: K, value: PosBankDetails[K]) => {
     setValues(current => ({ ...current, [field]: value }));
   };
 
@@ -146,6 +151,11 @@ function MyPOSAccountSettingsPage() {
 
     setIsSaving(true);
     try {
+      if (bankLogoFile) {
+        const apiKey = settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4';
+        cleaned.bankLogoUrl = await uploadPosBankLogo(bankLogoFile, apiKey);
+      }
+      setBankLogoFile(null);
       // Save locally first so the details are immediately available for offline printing.
       localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cleaned));
       localStorage.setItem(posStaffBankPendingKey(uid), '1');
@@ -201,6 +211,7 @@ function MyPOSAccountSettingsPage() {
   const handleClear = async () => {
     if (!uid || isSaving) return;
     const cleared = { ...EMPTY_POS_BANK_DETAILS };
+    setBankLogoFile(null);
     setIsSaving(true);
     setValues(cleared);
     try {
@@ -277,6 +288,34 @@ function MyPOSAccountSettingsPage() {
                 <Label htmlFor="staff-account-number">Account Number</Label>
                 <Input id="staff-account-number" value={values.accountNumber} onChange={e => update('accountNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 34))} placeholder="Enter account number" inputMode="numeric" maxLength={34} autoComplete="off" />
                 <p className="text-xs text-muted-foreground">Digits only. Keep this blank to use the administrator’s default account number.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="staff-bank-logo">Bank Logo</Label>
+                <Input id="staff-bank-logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={event => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+                    toast({ variant: 'destructive', title: 'Invalid bank logo', description: 'Choose an image file no larger than 5 MB.' });
+                    event.target.value = '';
+                    return;
+                  }
+                  setBankLogoFile(file);
+                }} />
+                {(bankLogoFile || values.bankLogoUrl) && <div className="flex items-center gap-3 rounded-lg border p-3">
+                  {bankLogoFile ? <span className="text-sm">{bankLogoFile.name}</span> : <img src={values.bankLogoUrl} alt="Bank logo" className="max-h-12 max-w-32 object-contain" />}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setBankLogoFile(null); update('bankLogoUrl', ''); }}>Remove</Button>
+                </div>}
+                <p className="text-xs text-muted-foreground">This logo appears beside your bank details on terminal and invoice printouts. Maximum 5 MB.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+                  <div><Label>Show account details on Docket</Label><p className="text-xs text-muted-foreground">Draft and running-table dockets.</p></div>
+                  <Switch checked={values.showAccountOnDocket !== false} onCheckedChange={checked => setValues(current => ({ ...current, showAccountOnDocket: checked }))} />
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+                  <div><Label>Show account details on Paid</Label><p className="text-xs text-muted-foreground">Paid terminal receipts and invoices.</p></div>
+                  <Switch checked={values.showAccountOnPaid !== false} onCheckedChange={checked => setValues(current => ({ ...current, showAccountOnPaid: checked }))} />
+                </div>
               </div>
               <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-between">
                 <Button type="button" variant="outline" onClick={handleClear} disabled={isSaving}>Use POS default account</Button>
