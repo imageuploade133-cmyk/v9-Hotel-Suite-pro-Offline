@@ -61,6 +61,9 @@ const posSettingsSchema = z.object({
   posTaxLabel: z.string().max(50).optional(),
   posTaxRate: z.number().min(0).max(100),
   posTaxNumber: z.string().optional(),
+  bankName: z.string().max(100).optional(),
+  accountName: z.string().max(120).optional(),
+  accountNumber: z.string().max(34).optional(),
 
   // Print Settings
   posDefaultPrinter: z.string().optional(),
@@ -159,6 +162,9 @@ const defaultValues: Partial<POSSettingsFormValues> = {
   posTaxLabel: 'Tax',
   posTaxRate: 0,
   posTaxNumber: '',
+  bankName: '',
+  accountName: '',
+  accountNumber: '',
   posAutoPrint: false,
   posAutoPrintTableUpdates: true,
   posAutoGenerateReceiptOnRunningTable: true,
@@ -256,6 +262,9 @@ export function POSSettingsForm() {
       posTaxLabel: posSettings.posTaxLabel || 'Tax',
       posTaxRate: posSettings.posTaxRate || 0,
       posTaxNumber: posSettings.posTaxNumber || '',
+      bankName: posSettings.bankName || '',
+      accountName: posSettings.accountName || '',
+      accountNumber: posSettings.accountNumber || '',
       posAutoPrint: posSettings.posAutoPrint ?? false,
       posAutoPrintTableUpdates: posSettings.posAutoPrintTableUpdates ?? true,
       posAutoGenerateReceiptOnRunningTable: posSettings.posAutoGenerateReceiptOnRunningTable ?? true,
@@ -388,6 +397,9 @@ export function POSSettingsForm() {
         posTaxLabel: data.posTaxLabel,
         posTaxRate: data.posTaxRate,
         posTaxNumber: data.posTaxNumber,
+        bankName: data.bankName?.trim() || '',
+        accountName: data.accountName?.trim() || '',
+        accountNumber: data.accountNumber?.replace(/\\s+/g, '') || '',
         posAutoPrint: data.posAutoPrint,
         posAutoPrintTableUpdates: data.posAutoPrintTableUpdates,
         posAutoGenerateReceiptOnRunningTable: data.posAutoGenerateReceiptOnRunningTable,
@@ -1242,6 +1254,38 @@ export function POSSettingsForm() {
 
                   {/* Tax & Print Tab */}
                   <TabsContent value="tax" className="space-y-6 mt-4">
+
+                    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <div>
+                        <h4 className="font-semibold">Default Bank Account for POS Printouts</h4>
+                        <p className="text-xs text-muted-foreground">These business account details are used on all POS receipts, invoices, drafts and dockets whenever the individual staff member has not configured their own account details.</p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField control={form.control} name="bankName" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bank Name</FormLabel>
+                            <FormControl><Input {...field} value={field.value || ''} placeholder="e.g. Access Bank" maxLength={100} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="accountName" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Account Name</FormLabel>
+                            <FormControl><Input {...field} value={field.value || ''} placeholder="Business account holder name" maxLength={120} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="accountNumber" render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel>Account Number</FormLabel>
+                            <FormControl><Input {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value.replace(/[^0-9]/g, '').slice(0, 34))} placeholder="Enter business account number" inputMode="numeric" maxLength={34} /></FormControl>
+                            <FormDescription>Digits only. Leave blank to omit the business default account number.</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
+
                     <div className="space-y-4">
                       <FormField
                         control={form.control}
@@ -1490,6 +1534,9 @@ export function POSSettingsForm() {
           posShowBarcode={watchedValues.posShowBarcode}
           posPrintBoldText={watchedValues.posPrintBoldText}
           posPrintBoldLines={watchedValues.posPrintBoldLines}
+          bankName={watchedValues.bankName}
+          accountName={watchedValues.accountName}
+          accountNumber={watchedValues.accountNumber}
           posTaxLabel={watchedValues.posTaxLabel}
           posTaxRate={watchedValues.posEnableTax ? watchedValues.posTaxRate : 0}
           businessName={watchedValues.businessName || settings?.businessName}
