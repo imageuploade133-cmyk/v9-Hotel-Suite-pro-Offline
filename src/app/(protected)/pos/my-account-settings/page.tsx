@@ -21,9 +21,12 @@ import {
   posStaffBankPendingKey,
   posStaffBankStorageKey,
   type PosBankDetails,
+  getOfflinePosBankLogoKey,
+  getOfflinePosBankLogo,
+  saveOfflinePosBankLogo,
+  uploadPosBankLogo,
 } from '@/components/pos/pos-receipt-bank-details';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
-import { uploadPosBankLogo } from '@/components/pos/pos-receipt-bank-details';
 import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '@/components/ui/switch';
 
@@ -50,6 +53,13 @@ function MyPOSAccountSettingsPage() {
   }, [uid]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [onlineSyncVersion, setOnlineSyncVersion] = React.useState(0);
+
+  React.useEffect(() => {
+    const handleOnline = () => setOnlineSyncVersion(version => version + 1);
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -83,7 +93,29 @@ function MyPOSAccountSettingsPage() {
 
     const load = async () => {
       if (!firestore) {
-        await loadFromLocalMaster();
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
+          catch { return false; }
+        })();
+        if (pending && typeof navigator !== 'undefined' && navigator.onLine && isLocalMasterHost()) {
+          let cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
+          if (offlineLogoKey) {
+            const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
+            if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+          }
+          const response = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionName: 'posStaffAccountSettings', docId: uid, action: 'set', data: { ...cached, uid, updatedAt: new Date().toISOString() } }),
+          });
+          if (!response.ok) throw new Error('Local Master staff settings sync failed.');
+          localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
+          localStorage.removeItem(posStaffBankPendingKey(uid));
+          setValues(cached);
+        } else if (!pending) {
+          await loadFromLocalMaster();
+        }
         if (active) setIsLoading(false);
         return;
       }
@@ -93,11 +125,19 @@ function MyPOSAccountSettingsPage() {
           try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
           catch { return false; }
         })();
-        if (pending && typeof navigator !== 'undefined' && navigator.onLine) {
-          const cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
-          await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
+        if (pending) {
+          let cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          if (typeof navigator !== 'undefined' && navigator.onLine) {
+            const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
+            if (offlineLogoKey) {
+              const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
+              if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+            }
+            await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
+            localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
+            localStorage.removeItem(posStaffBankPendingKey(uid));
+          }
           setValues(cached);
-          localStorage.removeItem(posStaffBankPendingKey(uid));
           return;
         }
         const snapshot = await getDoc(ref);
@@ -125,7 +165,7 @@ function MyPOSAccountSettingsPage() {
     };
     void load();
     return () => { active = false; };
-  }, [uid, firestore]);
+  }, [uid, firestore, onlineSyncVersion]);
 
   const update = <K extends keyof PosBankDetails>(field: K, value: PosBankDetails[K]) => {
     setValues(current => ({ ...current, [field]: value }));
@@ -153,7 +193,16 @@ function MyPOSAccountSettingsPage() {
     try {
       if (bankLogoFile) {
         const apiKey = settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4';
-        cleaned.bankLogoUrl = await uploadPosBankLogo(bankLogoFile, apiKey);
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          try {
+            cleaned.bankLogoUrl = await uploadPosBankLogo(bankLogoFile, apiKey);
+          } catch (uploadError) {
+            cleaned.bankLogoUrl = await saveOfflinePosBankLogo(`staff:${uid}`, bankLogoFile);
+            console.warn('[My POS Account Settings] ImgBB upload deferred:', uploadError);
+          }
+        } else {
+          cleaned.bankLogoUrl = await saveOfflinePosBankLogo(`staff:${uid}`, bankLogoFile);
+        }
       }
       setBankLogoFile(null);
       // Save locally first so the details are immediately available for offline printing.
