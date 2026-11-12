@@ -4,6 +4,8 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
+import { usePermissions } from '@/hooks/use-permissions';
+import { useUser } from '@/contexts/user-context';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
@@ -31,6 +33,10 @@ type ReportEvent =
 
 function POSReportsPage() {
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const { userProfile } = useUser();
+  const isAdminIdentity = userProfile?.isFirebaseOnlyAdmin === true || userProfile?.isSuperAdmin === true || userProfile?.role === 'Admin' || userProfile?.role === 'Super Admin';
+  const canViewStaffBreakdown = isAdminIdentity || hasPermission(PagePermission.VIEW_POS_STAFF_TRANSACTIONS);
   const searchParams = useSearchParams();
   const firestore = useFirestore();
   const { settings } = useSettings();
@@ -246,7 +252,7 @@ function POSReportsPage() {
                   <td className="px-3 py-4 text-right tabular-nums">{row.soldUnits.toLocaleString()}</td>
                   <td className="px-3 py-4 text-right"><Badge variant={row.runningCount ? 'secondary' : 'outline'}>{row.runningCount}</Badge></td>
                   <td className="whitespace-nowrap px-3 py-4">{row.latest ? format(row.latest, 'EEEE, MMMM do, yyyy h:mm a') : '—'}</td>
-                  <td className="px-3 py-4 text-right"><Button size="sm" variant="outline" onClick={() => router.push('/pos-reports/staff/' + encodeURIComponent(row.uid) + (staffDateQuery ? '?' + staffDateQuery : ''))}>View Breakdown</Button></td>
+                  <td className="px-3 py-4 text-right">{canViewStaffBreakdown ? <Button size="sm" variant="outline" onClick={() => router.push('/pos-reports/staff/' + encodeURIComponent(row.uid) + (staffDateQuery ? '?' + staffDateQuery : ''))}>View Breakdown</Button> : <span className="text-xs text-muted-foreground">Restricted</span>}</td>
                 </tr>)}
               </tbody>
             </table>
