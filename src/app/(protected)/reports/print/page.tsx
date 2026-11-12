@@ -10,7 +10,7 @@ import { useFirestore, useCollection } from '@/firebase';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
-import type { StockItem, StockSale, StockReturn } from '@/lib/types';
+import type { StockItem, StockSale, StockReturn, HeldSale } from '@/lib/types';
 import { getProductMovementSummary, toReportDate, type ProductRestockMovement } from '@/lib/product-report-utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -41,18 +41,22 @@ function ProductReportPrintPage() {
   const stockQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stock'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const salesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const heldQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const restockQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('restockHistory'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const branchStock = useCollection<StockItem>(stockQuery);
   const branchSales = useCollection<StockSale>(salesQuery);
   const branchReturns = useCollection<StockReturn>(returnsQuery);
+  const branchHeld = useCollection<HeldSale>(heldQuery);
   const branchRestocks = useCollection<ProductRestockMovement>(restockQuery);
   const globalStock = useGlobalCollectionData<StockItem>('stock', []);
   const globalSales = useGlobalCollectionData<StockSale>('stockSales', []);
   const globalReturns = useGlobalCollectionData<StockReturn>('stockReturns', []);
+  const globalHeld = useGlobalCollectionData<HeldSale>('heldSales', []);
   const globalRestocks = useGlobalCollectionData<ProductRestockMovement>('restockHistory', []);
   const stock = isGlobalMode ? globalStock.data : branchStock.data;
   const sales = isGlobalMode ? globalSales.data : branchSales.data;
   const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
+  const heldTables = isGlobalMode ? globalHeld.data : branchHeld.data;
   const restocks = isGlobalMode ? globalRestocks.data : branchRestocks.data;
   const loading = isGlobalMode
     ? globalStock.isLoading || globalSales.isLoading || globalReturns.isLoading || globalRestocks.isLoading
@@ -186,57 +190,54 @@ function SalesReportPrintPage() {
   const globalReturns = useGlobalCollectionData<StockReturn>('stockReturns', []);
   const sales = isGlobalMode ? globalSales.data : branchSales.data;
   const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
-  const loading = isGlobalMode ? globalSales.isLoading || globalReturns.isLoading : branchSales.isLoading || branchReturns.isLoading;
+  const loading = isGlobalMode ? globalSales.isLoading || globalReturns.isLoading || globalHeld.isLoading : branchSales.isLoading || branchReturns.isLoading || branchHeld.isLoading;
 
   const from = dateRange.from <= dateRange.to ? dateRange.from : dateRange.to;
   const to = dateRange.from <= dateRange.to ? dateRange.to : dateRange.from;
-  const events = React.useMemo(() => {
+  const staffRows = React.useMemo(() => {
+    const rows = new Map<string, { id: string; name: string; income: number; sold: number; refunds: number; tables: number }>();
+    const ensure = (uid?: string, name?: string) => {
+      const id = uid || 'legacy-name:' + (name || 'Unknown staff').trim().toLowerCase();
+      let row = rows.get(id);
+      if (!row) {
+        row = { id, name: name?.trim() || 'Unknown staff', income: 0, sold: 0, refunds: 0, tables: 0 };
+        rows.set(id, row);
+      }
+      return row;
+    };
     const within = (value: unknown) => {
       const date = toReportDate(value);
       return !!date && isWithinInterval(date, { start: startOfDay(from), end: endOfDay(to) });
     };
-    const rows = [
-      ...(sales || []).filter(item => (!transactionId || item.id === transactionId) && within(item.soldAt)).map(item => ({
-        id: item.id, type: 'Sale' as const, reference: item.saleId || item.id, date: toReportDate(item.soldAt),
-        staff: item.soldByName || 'Unknown staff', customer: item.customerName || 'Walk-in customer',
-        items: (item.items || []).map(line => `${line.itemName} × ${line.quantity}`), payment: item.paymentMethod || '—',
-        status: item.paymentStatus || 'Unknown', amount: Number(item.totalAmount || 0), collected: Number(item.initialPaymentAmount ?? (item.paymentStatus === 'Paid' ? item.totalAmount : 0)),
-      })),
-      ...(returns || []).filter(item => (!transactionId || `refund-${item.id}` === transactionId) && within(item.returnedAt)).map(item => ({
-        id: `refund-${item.id}`, type: 'Refund' as const, reference: item.refundId || item.id, date: toReportDate(item.returnedAt),
-        staff: item.returnedByName || 'Unknown staff', customer: item.customerName || '—',
-        items: (item.items || []).map(line => `${line.itemName} × ${line.quantity}`), payment: 'Refund',
-        status: 'Refunded', amount: -Math.abs(Number(item.totalRefundAmount || 0)), collected: 0,
-      })),
-    ];
-    return rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
-  }, [sales, returns, transactionId, from, to]);
+    (sales || []).filter(item => within(item.soldAt)).forEach(item => {
+      const row = ensure(item.soldByUid, item.soldByName);
+      row.income += Math.max(0, Number(item.initialPaymentAmount ?? (item.paymentStatus === 'Paid' ? item.totalAmount : 0)) || 0);
+      row.sold += (item.items || []).reduce((sum, line) => sum + (line.isService ? 0 : Math.max(0, Number(line.quantity) || 0)), 0);
+    });
+    (returns || []).filter(item => within(item.returnedAt)).forEach(item => {
+      ensure(item.returnedByUid, item.returnedByName).refunds += Math.max(0, Number(item.totalRefundAmount) || 0);
+    });
+    (heldTables || []).filter(item => within(item.heldAt)).forEach(item => {
+      ensure(item.heldByUid, item.heldByName).tables += 1;
+    });
+    return Array.from(rows.values()).sort((a, b) => b.income - a.income || a.name.localeCompare(b.name));
+  }, [sales, returns, heldTables, from, to]);
 
   const currency = settings?.currency || 'USD';
   const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number.isFinite(value) ? value : 0);
-  const totals = React.useMemo(() => events.reduce((sum, row) => ({
-    sales: sum.sales + (row.type === 'Sale' ? row.amount : 0),
-    collected: sum.collected + row.collected,
-    refunds: sum.refunds + (row.type === 'Refund' ? Math.abs(row.amount) : 0),
-    transactions: sum.transactions + (row.type === 'Sale' ? 1 : 0),
-    refundsCount: sum.refundsCount + (row.type === 'Refund' ? 1 : 0),
-  }), { sales: 0, collected: 0, refunds: 0, transactions: 0, refundsCount: 0 }), [events]);
-  const groups = React.useMemo(() => {
-    if (arrangement === 'transaction') return [{ name: '', events }];
-    const map = new Map<string, typeof events>();
-    events.forEach(row => {
-      const key = row.date ? format(row.date, 'dd MMM yyyy') : 'Date not recorded';
-      map.set(key, [...(map.get(key) || []), row]);
-    });
-    return Array.from(map.entries()).map(([name, rows]) => ({ name, events: rows }));
-  }, [events, arrangement]);
+  const totals = React.useMemo(() => staffRows.reduce((sum, row) => ({
+    income: sum.income + row.income,
+    sold: sum.sold + row.sold,
+    refunds: sum.refunds + row.refunds,
+    tables: sum.tables + row.tables,
+  }), { income: 0, sold: 0, refunds: 0, tables: 0 }), [staffRows]);
   const dateLabel = `${format(from, 'dd MMM yyyy')} – ${format(to, 'dd MMM yyyy')}`;
-  const title = transactionId ? 'Sales Transaction Detail' : 'Sales Performance Report';
+  const title = 'Staff Sales & Refund Summary';
 
   return <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-3 sm:p-6">
     <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
       <div className="flex items-center gap-2"><Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button><div><h1 className="text-xl font-bold">Sales Report Printout</h1><p className="text-xs text-muted-foreground">Configure the sales report layout before printing.</p></div></div>
-      <Button onClick={() => window.print()} disabled={loading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print Report</Button>
+      <Button onClick={() => window.print()} disabled={loading || staffRows.length === 0}><Printer className="mr-2 h-4 w-4" />Print Report</Button>
     </div>
     <Card className="print:hidden"><CardContent className="grid gap-4 p-4 lg:grid-cols-4">
       <div className="space-y-2"><p className="text-sm font-semibold">Print format</p><div className="flex gap-2"><Button type="button" size="sm" variant={printFormat === 'terminal' ? 'default' : 'outline'} onClick={() => setPrintFormat('terminal')}>Terminal</Button><Button type="button" size="sm" variant={printFormat === 'invoice' ? 'default' : 'outline'} onClick={() => setPrintFormat('invoice')}>Invoice (A4)</Button></div></div>
@@ -251,7 +252,7 @@ function SalesReportPrintPage() {
       </div></div>
     </CardContent></Card>
 
-    {loading ? <div className="py-16 text-center text-muted-foreground print:hidden">Loading sales data…</div> : events.length === 0 ? <div className="py-16 text-center text-muted-foreground print:hidden">No sales transactions found for this selection.</div> : <main className={`sales-report-sheet mx-auto w-full bg-white text-black ${printFormat === 'terminal' ? 'max-w-[80mm] p-3' : 'max-w-[210mm] p-6 sm:p-10'}`}>
+    {loading ? <div className="py-16 text-center text-muted-foreground print:hidden">Loading staff report…</div> : staffRows.length === 0 ? <div className="py-16 text-center text-muted-foreground print:hidden">No staff activity found for this selection.</div> : <main className={`sales-report-sheet mx-auto w-full bg-white text-black ${printFormat === 'terminal' ? 'max-w-[80mm] p-3' : 'max-w-[210mm] p-6 sm:p-10'}`}>
       <header className="mb-5 text-center">
         {settings?.businessLogoUrl && <img src={settings.businessLogoUrl} alt="Business logo" className={`mx-auto mb-2 object-contain ${printFormat === 'terminal' ? 'max-h-14 max-w-24' : 'max-h-20 max-w-40'}`} />}
         <h2 className={`font-bold ${printFormat === 'terminal' ? 'text-base' : 'text-2xl'}`}>{settings?.businessName || 'Business Report'}</h2>
@@ -260,19 +261,18 @@ function SalesReportPrintPage() {
         <div className="my-3 border-y border-dashed border-black py-2"><h1 className={`font-bold uppercase ${printFormat === 'terminal' ? 'text-sm' : 'text-xl'}`}>{title}</h1><p className="mt-1 text-xs">Period: {dateLabel}</p><p className="text-xs">Generated: {format(new Date(), 'dd MMM yyyy, h:mm a')}</p></div>
       </header>
       <section className={`mb-4 grid gap-2 text-center ${printFormat === 'terminal' ? 'grid-cols-2 text-xs' : 'grid-cols-4 text-sm'}`}>
-        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Gross sales</p><b>{money(totals.sales)}</b></div>
-        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Collected</p><b>{money(totals.collected)}</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Total income</p><b>{money(totals.income)}</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Sold items</p><b>{totals.sold.toLocaleString()}</b></div>
         <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Refunds</p><b>{money(totals.refunds)}</b></div>
-        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Transactions</p><b>{totals.transactions.toLocaleString()} / {totals.refundsCount.toLocaleString()} refunds</b></div>
+        <div className="border border-black/30 p-2"><p className="text-[10px] uppercase">Running tables</p><b>{totals.tables.toLocaleString()}</b></div>
       </section>
-      {groups.map(group => <section key={group.name || 'all-transactions'} className="mb-4">
-        {group.name && <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold uppercase">{group.name}</h3>}
+      <section className="mb-4">
         <div className="overflow-x-auto"><table className={`w-full border-collapse ${printFormat === 'terminal' ? 'text-[9px]' : 'text-xs'}`}>
-          <thead><tr className="border-b border-black text-left"><th className="py-2 pr-1">Date / Ref</th>{showStaff && <th className="px-1 py-2">Staff</th>}{showCustomer && <th className="px-1 py-2">Customer</th>}{showItems && <th className="px-1 py-2">Items</th>}{showPayment && <th className="px-1 py-2">Payment</th>}{showStatus && <th className="px-1 py-2">Status</th>}<th className="pl-1 py-2 text-right">Amount</th></tr></thead>
-          <tbody>{group.events.map(row => <tr key={row.id} className="border-b border-black/20 align-top"><td className="py-2 pr-1"><b>{row.type}</b><div>{row.reference}</div><div className="text-[9px]">{row.date ? format(row.date, 'dd MMM, h:mm a') : '—'}</div></td>{showStaff && <td className="px-1 py-2">{row.staff}</td>}{showCustomer && <td className="px-1 py-2">{row.customer}</td>}{showItems && <td className="px-1 py-2">{row.items.join(', ') || '—'}</td>}{showPayment && <td className="px-1 py-2">{row.payment}</td>}{showStatus && <td className="px-1 py-2">{row.status}</td>}<td className={`pl-1 py-2 text-right tabular-nums ${row.amount < 0 ? 'text-rose-700' : ''}`}>{money(row.amount)}</td></tr>)}</tbody>
+          <thead><tr className="border-b border-black text-left"><th className="py-2 pr-1">Staff name</th><th className="px-1 py-2 text-right">Total income</th><th className="px-1 py-2 text-right">Sold items</th><th className="px-1 py-2 text-right">Refund</th><th className="pl-1 py-2 text-right">Running tables</th></tr></thead>
+          <tbody>{staffRows.map(row => <tr key={row.id} className="border-b border-black/20 align-top"><td className="py-2 pr-1">{row.name}</td><td className="px-1 py-2 text-right">{money(row.income)}</td><td className="px-1 py-2 text-right">{row.sold.toLocaleString()}</td><td className="px-1 py-2 text-right">{money(row.refunds)}</td><td className="pl-1 py-2 text-right">{row.tables.toLocaleString()}</td></tr>)}</tbody>
         </table></div>
-      </section>)}
-      <footer className="mt-6 border-t border-dashed border-black pt-3 text-center text-[10px]"><p>End of report</p><p className="mt-1">Sales and refund values are based on recorded transaction documents. Collected amounts reflect recorded initial payments.</p></footer>
+      </section>
+      <footer className="mt-6 border-t border-dashed border-black pt-3 text-center text-[10px]"><p>End of report</p><p className="mt-1">Staff income reflects recorded collected payments. Refunds and active running tables are shown separately; running tables are not completed sales income.</p></footer>
     </main>}
     <style jsx global>{`
       @media print {
