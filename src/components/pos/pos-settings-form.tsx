@@ -69,6 +69,8 @@ const posSettingsSchema = z.object({
   posAutoGenerateReceiptOnRunningTable: z.boolean().default(true),
   posPrintCopies: z.number().min(1).max(5),
   posPaperWidth: z.enum(['58mm', '80mm', 'a4']).default('80mm'),
+  posPrintBoldText: z.boolean().default(false),
+  posPrintBoldLines: z.boolean().default(false),
 
   // Messages
   posThankYouMessage: z.string().max(200).optional(),
@@ -162,6 +164,8 @@ const defaultValues: Partial<POSSettingsFormValues> = {
   posAutoGenerateReceiptOnRunningTable: true,
   posPrintCopies: 1,
   posPaperWidth: '80mm',
+  posPrintBoldText: false,
+  posPrintBoldLines: false,
   posThankYouMessage: 'Thank you for choosing us!',
   posRefundPolicy: '',
   posTermsAndConditions: '',
@@ -257,6 +261,8 @@ export function POSSettingsForm() {
       posAutoGenerateReceiptOnRunningTable: posSettings.posAutoGenerateReceiptOnRunningTable ?? true,
       posPrintCopies: posSettings.posPrintCopies || 1,
       posPaperWidth: posSettings.posPaperWidth || '80mm',
+      posPrintBoldText: posSettings.posPrintBoldText ?? false,
+      posPrintBoldLines: posSettings.posPrintBoldLines ?? false,
       posThankYouMessage: posSettings.posThankYouMessage || 'Thank you for choosing us!',
       posRefundPolicy: posSettings.posRefundPolicy || '',
       posTermsAndConditions: posSettings.posTermsAndConditions || '',
@@ -387,6 +393,8 @@ export function POSSettingsForm() {
         posAutoGenerateReceiptOnRunningTable: data.posAutoGenerateReceiptOnRunningTable,
         posPrintCopies: data.posPrintCopies,
         posPaperWidth: data.posPaperWidth,
+        posPrintBoldText: data.posPrintBoldText,
+        posPrintBoldLines: data.posPrintBoldLines,
         posThankYouMessage: data.posThankYouMessage,
         posRefundPolicy: data.posRefundPolicy,
         posTermsAndConditions: data.posTermsAndConditions,
@@ -1431,7 +1439,23 @@ export function POSSettingsForm() {
                         />
                       </div>
                     </div>
-                  </TabsContent>
+                                        <Separator />
+                      <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                        <div><h4 className="text-sm font-semibold">Receipt Print Appearance</h4><p className="mt-1 text-xs text-muted-foreground">Improve readability on 58/80mm terminal receipts and A4 invoices. These options also apply to the live preview.</p></div>
+                        <FormField control={form.control} name="posPrintBoldText" render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between gap-4 rounded-md border bg-background p-3">
+                            <div className="space-y-0.5"><FormLabel className="text-sm font-medium">Bold All Receipt Text</FormLabel><FormDescription className="text-xs">Make all receipt and invoice text darker and easier to read, including item details and totals.</FormDescription></div>
+                            <FormControl><Switch checked={field.value ?? false} onCheckedChange={field.onChange} /></FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="posPrintBoldLines" render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between gap-4 rounded-md border bg-background p-3">
+                            <div className="space-y-0.5"><FormLabel className="text-sm font-medium">Thicker Receipt Divider Lines</FormLabel><FormDescription className="text-xs">Make receipt separators, section borders and invoice table rules thicker for a cleaner printout.</FormDescription></div>
+                            <FormControl><Switch checked={field.value ?? false} onCheckedChange={field.onChange} /></FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+</TabsContent>
                 </Tabs>
               </CardContent>
               <CardFooter className="border-t px-6 py-4 flex justify-between">
@@ -1464,6 +1488,8 @@ export function POSSettingsForm() {
           posShowCashierName={watchedValues.posShowCashierName}
           posShowPaymentMethod={watchedValues.posShowPaymentMethod}
           posShowBarcode={watchedValues.posShowBarcode}
+          posPrintBoldText={watchedValues.posPrintBoldText}
+          posPrintBoldLines={watchedValues.posPrintBoldLines}
           posTaxLabel={watchedValues.posTaxLabel}
           posTaxRate={watchedValues.posEnableTax ? watchedValues.posTaxRate : 0}
           businessName={watchedValues.businessName || settings?.businessName}
