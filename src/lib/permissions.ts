@@ -36,6 +36,7 @@ export enum PagePermission {
   CREATE_CREDIT_SALES = 'create:credit_sales',
   VIEW_SALES_REPORTS = 'view:sales_reports',
   VIEW_POS_REPORTS = 'view:pos_reports',
+  VIEW_POS_STAFF_TRANSACTIONS = 'view:pos_staff_transactions',
   VIEW_POS_ACCOUNTING = 'view:pos_accounting',
   VIEW_MY_SALES_HISTORY = 'view:my_sales_history',
   MANAGE_POS_CUSTOMERS = 'manage:pos_customers',
@@ -205,7 +206,8 @@ export const PERMISSION_GROUPS = [
     id: 'pos_reports',
     name: 'POS Reports',
     permissions: [
-      { id: PagePermission.VIEW_POS_REPORTS, description: 'Access dedicated POS performance reports and staff transaction breakdowns' },
+      { id: PagePermission.VIEW_POS_REPORTS, description: 'Access the main POS performance reports and consolidated staff report' },
+      { id: PagePermission.VIEW_POS_STAFF_TRANSACTIONS, description: 'Open detailed staff transaction breakdowns, including sales, refunds, and running tables' },
     ],
   },
   {
