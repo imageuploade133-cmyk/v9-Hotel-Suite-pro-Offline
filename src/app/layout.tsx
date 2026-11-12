@@ -5,6 +5,7 @@ import { Providers } from './providers';
 import { DynamicStyles } from '@/components/theme/dynamic-styles';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppInstallProvider } from '@/contexts/app-install-context';
+import IframeRoutePersistence from '@/components/iframe-route-persistence';
 
 // Explicit responsive viewport configuration. Keep user scaling enabled for
 // pinch zoom and accessibility while preventing legacy mobile layout sizing.
@@ -39,6 +40,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#1A237E" />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
+        <IframeRoutePersistence />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
