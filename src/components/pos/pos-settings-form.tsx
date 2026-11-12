@@ -32,6 +32,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 const posSettingsSchema = z.object({
   // Business Info
