@@ -65,9 +65,13 @@ function StaffTransactionBreakdownPage() {
     if (!date || !dateRange?.from) return true;
     return isWithinInterval(date, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to || dateRange.from) });
   }, [dateRange]);
-  const staffSales = React.useMemo(() => (sales || []).filter(s => s.soldByUid === staffUid && inRange(getSafeDate(s.soldAt))), [sales, staffUid, inRange]);
-  const staffReturns = React.useMemo(() => (returns || []).filter(r => r.returnedByUid === staffUid && inRange(getSafeDate(r.returnedAt))), [returns, staffUid, inRange]);
-  const staffTables = React.useMemo(() => (heldTables || []).filter(t => t.heldByUid === staffUid && inRange(getSafeDate(t.heldAt))), [heldTables, staffUid, inRange]);
+  const matchesStaff = React.useCallback((uid: string | undefined, name: string | undefined) => {
+    if (staffUid.startsWith('legacy-name:')) return !uid && ('legacy-name:' + (name || 'Unknown staff').trim().toLowerCase()) === staffUid;
+    return uid === staffUid;
+  }, [staffUid]);
+  const staffSales = React.useMemo(() => (sales || []).filter(s => matchesStaff(s.soldByUid, s.soldByName) && inRange(getSafeDate(s.soldAt))), [sales, matchesStaff, inRange]);
+  const staffReturns = React.useMemo(() => (returns || []).filter(r => matchesStaff(r.returnedByUid, r.returnedByName) && inRange(getSafeDate(r.returnedAt))), [returns, matchesStaff, inRange]);
+  const staffTables = React.useMemo(() => (heldTables || []).filter(t => matchesStaff(t.heldByUid, t.heldByName) && inRange(getSafeDate(t.heldAt))), [heldTables, matchesStaff, inRange]);
 
   const events = React.useMemo<DetailEvent[]>(() => [
     ...staffSales.map(sale => ({ id: 'sale-' + sale.id, kind: 'sale' as const, date: getSafeDate(sale.soldAt), reference: sale.saleId || sale.id, amount: Number(sale.initialPaymentAmount ?? (sale.paymentStatus === 'Paid' ? sale.totalAmount : 0)), sale })),
