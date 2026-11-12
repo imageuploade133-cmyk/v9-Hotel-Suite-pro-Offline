@@ -21,9 +21,12 @@ import {
   posStaffBankPendingKey,
   posStaffBankStorageKey,
   type PosBankDetails,
+  getOfflinePosBankLogoKey,
+  getOfflinePosBankLogo,
+  saveOfflinePosBankLogo,
+  uploadPosBankLogo,
 } from '@/components/pos/pos-receipt-bank-details';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
-import { uploadPosBankLogo } from '@/components/pos/pos-receipt-bank-details';
 import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '@/components/ui/switch';
 
@@ -94,9 +97,15 @@ function MyPOSAccountSettingsPage() {
           catch { return false; }
         })();
         if (pending && typeof navigator !== 'undefined' && navigator.onLine) {
-          const cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          let cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          const offlineLogoKey = getOfflinePosBankLogoKey(cached.bankLogoUrl);
+          if (offlineLogoKey) {
+            const offlineLogo = await getOfflinePosBankLogo(offlineLogoKey);
+            if (offlineLogo) cached.bankLogoUrl = await uploadPosBankLogo(offlineLogo, settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4');
+          }
           await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
           setValues(cached);
+          localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cached));
           localStorage.removeItem(posStaffBankPendingKey(uid));
           return;
         }
@@ -153,7 +162,16 @@ function MyPOSAccountSettingsPage() {
     try {
       if (bankLogoFile) {
         const apiKey = settings?.imgbbApiKey || '162d7a9c40da4493e504e77f14e5efb4';
-        cleaned.bankLogoUrl = await uploadPosBankLogo(bankLogoFile, apiKey);
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          try {
+            cleaned.bankLogoUrl = await uploadPosBankLogo(bankLogoFile, apiKey);
+          } catch (uploadError) {
+            cleaned.bankLogoUrl = await saveOfflinePosBankLogo(`staff:${uid}`, bankLogoFile);
+            console.warn('[My POS Account Settings] ImgBB upload deferred:', uploadError);
+          }
+        } else {
+          cleaned.bankLogoUrl = await saveOfflinePosBankLogo(`staff:${uid}`, bankLogoFile);
+        }
       }
       setBankLogoFile(null);
       // Save locally first so the details are immediately available for offline printing.
