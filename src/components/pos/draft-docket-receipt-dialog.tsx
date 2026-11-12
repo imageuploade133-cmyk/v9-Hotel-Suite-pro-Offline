@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -85,6 +86,11 @@ export function DraftDocketReceiptDialog({
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+  };
 
   // Display name - use effective POS settings business name
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -451,6 +457,8 @@ export function DraftDocketReceiptDialog({
                 )}
                 <div className="text-center text-xs mt-6 text-red-600 font-semibold">
                   <p>{isUpdate ? 'UPDATE DOCKET' : 'NOT PAID DRAFT Bill'}</p>
+                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" />
+                  <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
                   <p className="mt-1 text-black font-normal">This is not a final receipt</p>
                 </div>
               </div>
