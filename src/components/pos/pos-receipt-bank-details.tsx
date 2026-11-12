@@ -19,8 +19,8 @@ export const EMPTY_POS_BANK_DETAILS: PosBankDetails = {
   accountName: '',
   accountNumber: '',
   bankLogoUrl: '',
-  showAccountOnDocket: true,
-  showAccountOnPaid: true,
+  showAccountOnDocket: undefined,
+  showAccountOnPaid: undefined,
 };
 
 export const posStaffBankStorageKey = (uid: string) => `pos_staff_bank_details_${uid}`;
