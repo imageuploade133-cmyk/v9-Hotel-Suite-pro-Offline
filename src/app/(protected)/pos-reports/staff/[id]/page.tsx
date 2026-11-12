@@ -278,7 +278,7 @@ function StaffTransactionBreakdownPage() {
             <div className="max-h-[58vh] overflow-auto rounded-md border bg-white p-3 text-black shadow-sm sm:p-5">
               <div id="staff-print-sheet" className={printFormat === 'terminal' ? 'staff-print-terminal mx-auto' : 'staff-print-invoice mx-auto'}>
                 <div className="border-b-2 border-black pb-3 text-center">
-                  <h1 className="text-xl font-extrabold tracking-wide">{settings?.hotelName || settings?.businessName || 'POS TRANSACTION REPORT'}</h1>
+                  <h1 className="text-xl font-extrabold tracking-wide">{settings?.businessName || 'POS TRANSACTION REPORT'}</h1>
                   <p className="mt-1 text-sm font-bold">{printFormat === 'invoice' ? 'STAFF TRANSACTION STATEMENT' : 'STAFF POS REPORT'}</p>
                   <p className="mt-1 text-xs">Generated: {printDate}</p>
                 </div>
