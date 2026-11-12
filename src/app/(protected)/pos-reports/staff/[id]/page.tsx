@@ -209,7 +209,7 @@ function StaffTransactionBreakdownPage() {
     <Card>
 
       <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><CardTitle>Transaction History</CardTitle><CardDescription>Every sale, refund and active running table attributed to this staff account in the selected date range.</CardDescription></div>
+        <div><CardTitle>Transaction History</CardTitle><CardDescription>Staff sales, refunds and active tables.</CardDescription></div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search staff transactions" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search reference, customer, item..." className="pl-9" /></div>
           <div className="space-y-1">
