@@ -46,8 +46,26 @@ function MyPOSAccountSettingsPage() {
       if (cached) setValues(normalizePosBankDetails(JSON.parse(cached)));
     } catch {}
 
+    const loadFromLocalMaster = async () => {
+      if (!isLocalMasterHost()) return;
+      try {
+        const response = await fetch('/api/lan-sync?collection=posStaffAccountSettings');
+        if (!response.ok) return;
+        const payload = await response.json();
+        const record = payload?.data?.[uid];
+        if (record && active) {
+          const data = normalizePosBankDetails(record);
+          setValues(data);
+          try { localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(data)); } catch {}
+        }
+      } catch (error) {
+        console.warn('[My POS Account Settings] Local Master lookup failed:', error);
+      }
+    };
+
     const load = async () => {
       if (!firestore) {
+        await loadFromLocalMaster();
         if (active) setIsLoading(false);
         return;
       }
@@ -62,9 +80,12 @@ function MyPOSAccountSettingsPage() {
             localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(data));
             localStorage.removeItem(posStaffBankPendingKey(uid));
           } catch {}
+        } else {
+          await loadFromLocalMaster();
         }
       } catch (error) {
         console.warn('[My POS Account Settings] Using local account details:', error);
+        await loadFromLocalMaster();
       } finally {
         if (active) setIsLoading(false);
       }
