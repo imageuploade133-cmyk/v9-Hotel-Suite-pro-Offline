@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
@@ -47,6 +48,7 @@ type SaleRow = {
 };
 
 function ReportsPage() {
+  const router = useRouter();
   const firestore = useFirestore();
   const { settings } = useSettings();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
@@ -238,12 +240,13 @@ function ReportsPage() {
               {loading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading product report…</div> :
                 visibleProducts.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No product performance found for this period.</div> :
                 <div className="w-full overflow-x-auto"><table className="w-full min-w-[900px] text-sm">
-                  <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Product</th><th className="px-3 py-3">Category</th><th className="px-3 py-3 text-right">Current Stock</th><th className="px-3 py-3 text-right">Net Units Sold</th><th className="px-3 py-3 text-right">Gross Revenue</th><th className="px-3 py-3 text-right">Refunds</th><th className="px-3 py-3 text-right">Net Profit</th></tr></thead>
+                  <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Product</th><th className="px-3 py-3">Category</th><th className="px-3 py-3 text-right">Current Stock</th><th className="px-3 py-3 text-right">Net Units Sold</th><th className="px-3 py-3 text-right">Gross Revenue</th><th className="px-3 py-3 text-right">Refunds</th><th className="px-3 py-3 text-right">Net Profit</th><th className="px-3 py-3 text-right">Action</th></tr></thead>
                   <tbody>{visibleProducts.map(row => <tr key={row.id} className="border-b hover:bg-muted/40">
                     <td className="px-3 py-3 font-medium">{row.name}</td><td className="px-3 py-3 text-muted-foreground">{row.category}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{row.stock.toLocaleString()}</td><td className="px-3 py-3 text-right tabular-nums">{row.unitsSold.toLocaleString()}</td>
                     <td className="px-3 py-3 text-right font-medium">{money(row.grossRevenue)}</td><td className="px-3 py-3 text-right text-rose-600">{money(row.refunds)}</td>
                     <td className={`px-3 py-3 text-right font-semibold ${row.netProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}`}>{money(row.netProfit)}</td>
+                    <td className="px-3 py-3 text-right"><Button size="sm" variant="outline" onClick={() => router.push(`/reports/products/${encodeURIComponent(row.id)}?from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}>View Report</Button></td>
                   </tr>)}</tbody>
                 </table></div>}
             </CardContent>
