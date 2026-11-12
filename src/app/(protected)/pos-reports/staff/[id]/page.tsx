@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { collection, query } from 'firebase/firestore';
-import { ArrowLeft, Banknote, ClipboardList, Package, RotateCcw, Table2 } from 'lucide-react';
+import { ArrowLeft, Banknote, ClipboardList, Package, Printer, RotateCcw, Table2 } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type DetailEvent =
   | { id: string; kind: 'sale'; date: Date | null; reference: string; amount: number; sale: StockSale }
@@ -81,6 +82,27 @@ function StaffTransactionBreakdownPage() {
   ].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)), [staffSales, staffReturns, staffTables]);
 
 
+  const [printPreviewOpen, setPrintPreviewOpen] = React.useState(false);
+  const [printFormat, setPrintFormat] = React.useState<'invoice' | 'terminal'>('invoice');
+  const [includeTransactionList, setIncludeTransactionList] = React.useState(true);
+  const [includeItemDetails, setIncludeItemDetails] = React.useState(true);
+  const runningTableTotal = staffTables.reduce((sum, table) => sum + (table.cart || []).reduce((sub, item) => sub + Math.max(0, Number(item.sellQuantity || 0)) * Math.max(0, Number(item.price ?? item.sellingPrice ?? 0)), 0), 0);
+  const printPeriod = dateRange?.from
+    ? format(dateRange.from, 'dd MMM yyyy') + (dateRange.to ? ' – ' + format(dateRange.to, 'dd MMM yyyy') : '')
+    : 'All available dates';
+  const printDate = format(new Date(), 'dd MMM yyyy, hh:mm a');
+  const printEventType = (event: DetailEvent) => event.kind === 'sale' ? 'SALE' : event.kind === 'refund' ? 'REFUND' : 'RUNNING TABLE';
+  const printEventItems = (event: DetailEvent) => event.kind === 'sale'
+    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0) }))
+    : event.kind === 'refund'
+      ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)) }))
+      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0) }));
+  const openPrintPreview = () => setPrintPreviewOpen(true);
+  const printReport = () => {
+    if (isLoading) return;
+    window.print();
+  };
+
   const [pageSize, setPageSize] = React.useState(10);
   const [customPageSize, setCustomPageSize] = React.useState('10');
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -116,11 +138,26 @@ function StaffTransactionBreakdownPage() {
   const staffName = staffSales[0]?.soldByName || staffReturns[0]?.returnedByName || staffTables[0]?.heldByName || 'Staff member';
   const tableUnits = (table: HeldSale) => (table.cart || []).reduce((sum, item) => sum + Number(item.sellQuantity || 0), 0);
 
-  return <div className="flex min-w-0 flex-col gap-5">
+  return <div className="flex min-w-0 flex-col gap-5">  <style jsx global>{`
+    #staff-print-sheet.staff-print-invoice { width: 100%; max-width: 190mm; font-family: Arial, Helvetica, sans-serif; color: #111; background: #fff; }
+    #staff-print-sheet.staff-print-terminal { width: 72mm; max-width: 72mm; font-family: "Courier New", monospace; font-size: 10px; color: #111; background: #fff; }
+    @page { size: ${printFormat === 'terminal' ? '80mm auto' : 'A4 portrait'}; margin: ${printFormat === 'terminal' ? '3mm' : '12mm'}; }
+    @media print {
+      html, body { background: #fff !important; }
+      body * { visibility: hidden !important; }
+      #staff-print-sheet, #staff-print-sheet * { visibility: visible !important; }
+      #staff-print-sheet { position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; width: ${printFormat === 'terminal' ? '72mm' : '100%'} !important; max-width: none !important; padding: 0 !important; box-shadow: none !important; }
+      #staff-print-sheet.staff-print-terminal { font-size: 9px !important; }
+      #staff-print-sheet .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+      #staff-print-sheet table { width: 100%; }
+    }
+  `}</style>
+
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <TopHeader name="Staff Transactions Breakdown" icon={<ClipboardList className="h-8 w-8" />} description={isBranchMode ? 'Complete POS activity · ' + (currentBranch?.name || 'Current branch') : 'Detailed sales, refunds and running-table activity for this staff member.'} />
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <DateRangePicker date={dateRange} onDateChange={setDateRange} className="w-full sm:w-auto" />
+        <Button variant="default" onClick={openPrintPreview} disabled={isLoading}><Printer className="mr-2 h-4 w-4" />Print Report</Button>
         <Button variant="outline" onClick={() => router.push(backUrl)}><ArrowLeft className="mr-2 h-4 w-4" />Back to POS Reports</Button>
       </div>
     </div>
@@ -211,6 +248,74 @@ function StaffTransactionBreakdownPage() {
         </div>}
       </CardContent>
     </Card>
+
+    <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
+      <DialogContent className="w-full sm:max-w-5xl sm:max-h-[92vh]">
+        <DialogHeader>
+          <DialogTitle>Print Staff Transactions</DialogTitle>
+          <DialogDescription>Choose a print layout, decide what to include, and review the report before printing.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] min-h-0 flex-1 overflow-y-auto">
+          <div className="space-y-4 rounded-xl border p-4">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Print format</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant={printFormat === 'invoice' ? 'default' : 'outline'} className="h-auto flex-col gap-1 py-3" onClick={() => setPrintFormat('invoice')}><ClipboardList className="h-5 w-5" />Invoice <span className="text-[11px] font-normal opacity-75">A4 / Letter</span></Button>
+                <Button type="button" variant={printFormat === 'terminal' ? 'default' : 'outline'} className="h-auto flex-col gap-1 py-3" onClick={() => setPrintFormat('terminal')}><Printer className="h-5 w-5" />Terminal <span className="text-[11px] font-normal opacity-75">80mm receipt</span></Button>
+              </div>
+            </div>
+            <div className="space-y-3 border-t pt-3">
+              <p className="text-sm font-semibold">Print options</p>
+              <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeTransactionList} onChange={event => setIncludeTransactionList(event.target.checked)} /><span><span className="font-medium">Include transaction list</span><span className="block text-xs text-muted-foreground">Print each sale, refund and active running table.</span></span></label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeItemDetails} onChange={event => setIncludeItemDetails(event.target.checked)} disabled={!includeTransactionList} /><span><span className="font-medium">Include item details</span><span className="block text-xs text-muted-foreground">Include item names, quantities and values under each transaction.</span></span></label>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              The print report uses the complete selected date range, not only the records visible on the current pagination page. The three totals include all matching records.
+            </div>
+          </div>
+          <div className="min-w-0 rounded-xl bg-muted/40 p-2 sm:p-4">
+            <div className="mb-2 flex items-center justify-between gap-2"><p className="text-sm font-semibold">Print preview</p><Badge variant="outline">{printFormat === 'invoice' ? 'A4 invoice' : '80mm terminal'}</Badge></div>
+            <div className="max-h-[58vh] overflow-auto rounded-md border bg-white p-3 text-black shadow-sm sm:p-5">
+              <div id="staff-print-sheet" className={printFormat === 'terminal' ? 'staff-print-terminal mx-auto' : 'staff-print-invoice mx-auto'}>
+                <div className="border-b-2 border-black pb-3 text-center">
+                  <h1 className="text-xl font-extrabold tracking-wide">{settings?.businessName || 'POS TRANSACTION REPORT'}</h1>
+                  <p className="mt-1 text-sm font-bold">{printFormat === 'invoice' ? 'STAFF TRANSACTION STATEMENT' : 'STAFF POS REPORT'}</p>
+                  <p className="mt-1 text-xs">Generated: {printDate}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs">
+                  <p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p>
+                  <p><strong>Transactions:</strong> {events.length}</p><p><strong>Currency:</strong> {currency}</p>
+                </div>
+                {includeTransactionList && <div className="py-3">
+                  <h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>
+                  {events.length === 0 ? <p className="py-4 text-center text-xs">No transactions for this period.</p> : <div className="space-y-3">
+                    {events.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
+                      <div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div>
+                      <div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>
+                      {includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item, index) => <div key={event.id + '-item-' + index} className="flex justify-between gap-2"><span>{item.name} × {item.qty}</span><span>{money(item.qty * item.unit)}</span></div>)}</div>}
+                    </div>)}
+                  </div>}
+                </div>}
+                <div className="mt-2 border-t-2 border-black pt-3">
+                  <h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(income)}</strong></div>
+                    <div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(refunds)}</strong></div>
+                    <div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(runningTableTotal)}</strong></div>
+                  </div>
+                  <p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p>
+                </div>
+                <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">End of report · {staffName}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
+          <Button type="button" onClick={printReport} disabled={isLoading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
