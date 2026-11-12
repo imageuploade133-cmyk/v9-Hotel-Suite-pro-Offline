@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { collection, query } from 'firebase/firestore';
-import { ArrowLeft, Banknote, ClipboardList, Package, Printer, RotateCcw, Table2 } from 'lucide-react';
+import { ArrowLeft, Banknote, ClipboardList, Package, Printer, RotateCcw, Search, Table2 } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useFirestore, useCollection } from '@/firebase';
@@ -103,17 +103,40 @@ function StaffTransactionBreakdownPage() {
     window.print();
   };
 
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const filteredEvents = React.useMemo(() => {
+    const term = searchTerm.trim().toLocaleLowerCase();
+    if (!term) return events;
+    return events.filter(event => {
+      const values: string[] = [event.kind, event.reference, event.date ? format(event.date, 'PPpp') : ''];
+      if (event.kind === 'sale') {
+        values.push(event.sale.customerName || '', event.sale.paymentMethod || '', event.sale.paymentStatus || '', event.sale.saleId || '');
+        (event.sale.items || []).forEach(item => values.push(item.itemName || '', String(item.quantity || ''), String(item.sellingPrice || '')));
+      } else if (event.kind === 'refund') {
+        values.push(event.refund.customerName || '', event.refund.reason || '', event.refund.refundId || '', event.refund.source || '');
+        (event.refund.items || []).forEach(item => values.push(item.itemName || '', String(item.quantity || '')));
+      } else {
+        values.push(event.table.customer?.name || '', event.table.name || '', event.table.notes || '', 'not settled', 'not completed', 'running table');
+        (event.table.cart || []).forEach(item => values.push(item.name || '', String(item.sellQuantity || '')));
+      }
+      return values.join(' ').toLocaleLowerCase().includes(term);
+    });
+  }, [events, searchTerm]);
+  const filteredIncome = filteredEvents.filter(event => event.kind === 'sale').reduce((sum, event) => sum + event.amount, 0);
+  const filteredRefunds = filteredEvents.filter(event => event.kind === 'refund').reduce((sum, event) => sum + event.amount, 0);
+  const filteredRunningTableTotal = filteredEvents.filter(event => event.kind === 'running').reduce((sum, event) => sum + event.amount, 0);
+
   const [pageSize, setPageSize] = React.useState(10);
   const [customPageSize, setCustomPageSize] = React.useState('10');
   const [currentPage, setCurrentPage] = React.useState(1);
-  const totalPages = Math.max(1, Math.ceil(events.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
   const paginatedEvents = React.useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return events.slice(start, start + pageSize);
-  }, [events, currentPage, pageSize]);
-  const firstRecord = events.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const lastRecord = Math.min(currentPage * pageSize, events.length);
-  React.useEffect(() => { setCurrentPage(1); }, [dateRange, pageSize, staffUid]);
+    return filteredEvents.slice(start, start + pageSize);
+  }, [filteredEvents, currentPage, pageSize]);
+  const firstRecord = filteredEvents.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastRecord = Math.min(currentPage * pageSize, filteredEvents.length);
+  React.useEffect(() => { setCurrentPage(1); }, [dateRange, pageSize, staffUid, searchTerm]);
   React.useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
   const updatePageSize = (value: string) => {
     const parsed = Number(value);
@@ -179,6 +202,7 @@ function StaffTransactionBreakdownPage() {
       <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><CardTitle>Transaction History</CardTitle><CardDescription>Every sale, refund and active running table attributed to this staff account in the selected date range.</CardDescription></div>
         <div className="flex flex-wrap items-end gap-2">
+          <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search staff transactions" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search reference, customer, item..." className="pl-9" /></div>
           <div className="space-y-1">
             <label htmlFor="staff-breakdown-page-size" className="text-xs font-medium text-muted-foreground">Rows per page</label>
             <select id="staff-breakdown-page-size" value={String(pageSize)} onChange={event => updatePageSize(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -193,7 +217,7 @@ function StaffTransactionBreakdownPage() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff transactions...</div> : events.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No transactions found for this staff member and date range.</div> :
+        {isLoading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading staff transactions...</div> : filteredEvents.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">{searchTerm.trim() ? 'No transactions match your search.' : 'No transactions found for this staff member and date range.'}</div> :
         <div className="space-y-4">
           {paginatedEvents.map(event => <div key={event.id} className="rounded-xl border p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -236,8 +260,8 @@ function StaffTransactionBreakdownPage() {
           </div>)}
 
         </div>}
-        {!isLoading && events.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{firstRecord.toLocaleString()}–{lastRecord.toLocaleString()}</span> of <span className="font-semibold text-foreground">{events.length.toLocaleString()}</span> records</p>
+        {!isLoading && filteredEvents.length > 0 && <div className="mt-5 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{firstRecord.toLocaleString()}–{lastRecord.toLocaleString()}</span> of <span className="font-semibold text-foreground">{filteredEvents.length.toLocaleString()}</span> records</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>First</Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.max(1, page - 1))} disabled={currentPage <= 1}>Previous</Button>
@@ -284,12 +308,12 @@ function StaffTransactionBreakdownPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs">
                   <p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p>
-                  <p><strong>Transactions:</strong> {events.length}</p><p><strong>Currency:</strong> {currency}</p>
+                  <p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
                 </div>
                 {includeTransactionList && <div className="py-3">
                   <h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>
-                  {events.length === 0 ? <p className="py-4 text-center text-xs">No transactions for this period.</p> : <div className="space-y-3">
-                    {events.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
+                  {filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current search filter.</p> : <div className="space-y-3">
+                    {filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
                       <div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div>
                       <div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>
                       {includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item, index) => <div key={event.id + '-item-' + index} className="flex justify-between gap-2"><span>{item.name} × {item.qty}</span><span>{money(item.qty * item.unit)}</span></div>)}</div>}
@@ -299,9 +323,9 @@ function StaffTransactionBreakdownPage() {
                 <div className="mt-2 border-t-2 border-black pt-3">
                   <h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(income)}</strong></div>
-                    <div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(refunds)}</strong></div>
-                    <div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(runningTableTotal)}</strong></div>
+                    <div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(filteredIncome)}</strong></div>
+                    <div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(filteredRefunds)}</strong></div>
+                    <div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(filteredRunningTableTotal)}</strong></div>
                   </div>
                   <p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p>
                 </div>
@@ -312,7 +336,7 @@ function StaffTransactionBreakdownPage() {
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setPrintPreviewOpen(false)}>Close Preview</Button>
-          <Button type="button" onClick={printReport} disabled={isLoading || events.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
+          <Button type="button" onClick={printReport} disabled={isLoading || filteredEvents.length === 0}><Printer className="mr-2 h-4 w-4" />Print {printFormat === 'invoice' ? 'Invoice' : 'Terminal'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
