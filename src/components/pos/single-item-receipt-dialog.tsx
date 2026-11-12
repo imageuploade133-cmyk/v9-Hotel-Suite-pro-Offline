@@ -46,7 +46,7 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
   const terminalRef = React.useRef<HTMLDivElement>(null);
   const invoiceRef = React.useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = React.useState('terminal');
-  const { settings, getEffectivePosSettings } = useSettings();
+  const { settings, getEffectivePosSettings, globalPosSettings } = useSettings();
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isPrinted, setIsPrinted] = React.useState(false);
@@ -97,9 +97,9 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
   const posBankFallback = {
-    bankName: effectivePosSettings.bankName || settings?.bankName || '',
-    accountName: effectivePosSettings.accountName || settings?.accountName || '',
-    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+    bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
   };
 
   // Display name - use effective POS settings business name
