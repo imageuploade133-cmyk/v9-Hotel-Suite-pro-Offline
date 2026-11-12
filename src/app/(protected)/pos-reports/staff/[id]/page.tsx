@@ -76,7 +76,7 @@ function StaffTransactionBreakdownPage() {
   const events = React.useMemo<DetailEvent[]>(() => [
     ...staffSales.map(sale => ({ id: 'sale-' + sale.id, kind: 'sale' as const, date: getSafeDate(sale.soldAt), reference: sale.saleId || sale.id, amount: Number(sale.initialPaymentAmount ?? (sale.paymentStatus === 'Paid' ? sale.totalAmount : 0)), sale })),
     ...staffReturns.map(refund => ({ id: 'refund-' + refund.id, kind: 'refund' as const, date: getSafeDate(refund.returnedAt), reference: refund.refundId || refund.id, amount: Number(refund.totalRefundAmount || 0), refund })),
-    ...staffTables.map(table => ({ id: 'running-' + table.id, kind: 'running' as const, date: getSafeDate(table.heldAt), reference: table.name || table.id, amount: (table.cart || []).reduce((sum, item) => sum + Number(item.price ?? item.sellingPrice ?? 0) * Number(item.sellQuantity || 0), 0), table })),
+    ...staffTables.map(table => ({ id: 'running-' + table.id, kind: 'running' as const, date: getSafeDate(table.heldAt), reference: table.name || table.id, amount: (table.cart || []).reduce((sum, item) => sum + Number(item.price || item.sellingPrice || 0) * Math.max(0, Number(item.sellQuantity || 0)), 0), table })),
   ].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)), [staffSales, staffReturns, staffTables]);
 
   const soldUnits = staffSales.reduce((sum, sale) => sum + (sale.items || []).reduce((s, item) => s + Number(item.quantity || 0), 0), 0);
@@ -126,11 +126,15 @@ function StaffTransactionBreakdownPage() {
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={event.kind === 'sale' ? 'success' : event.kind === 'refund' ? 'destructive' : 'secondary'}>{event.kind === 'sale' ? 'Sale' : event.kind === 'refund' ? 'Refund' : 'Running Table'}</Badge>
+                  {event.kind === 'running' && <Badge variant="destructive" className="font-extrabold tracking-wide">NOT SETTLED · NOT COMPLETED</Badge>}
                   <span className="font-semibold">{event.reference}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">{event.date ? format(event.date, 'EEEE, MMMM do, yyyy h:mm a') : 'Date unavailable'}</p>
               </div>
-              <p className={'text-lg font-bold tabular-nums ' + (event.kind === 'refund' ? 'text-rose-600' : '')}>{event.kind === 'refund' ? '−' : ''}{money(event.amount)}{event.kind === 'running' ? <span className="block text-xs font-normal text-muted-foreground">Current table value — not completed income</span> : null}</p>
+              <div className="text-right">
+                <p className={'text-lg font-extrabold tabular-nums ' + (event.kind === 'refund' || event.kind === 'running' ? 'text-rose-600 dark:text-rose-400' : '')}>{event.kind === 'refund' ? '−' : ''}{money(event.amount)}</p>
+                {event.kind === 'running' && <><p className="text-xs font-extrabold uppercase tracking-wide text-rose-600 dark:text-rose-400">Unsettled table value</p><p className="text-xs font-semibold text-rose-600 dark:text-rose-400">Not included in completed income</p></>}
+              </div>
             </div>
             {event.kind === 'sale' && <>
               <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -147,6 +151,11 @@ function StaffTransactionBreakdownPage() {
               <p className="mt-2 text-xs text-muted-foreground">{event.refund.remainingAmount !== undefined ? 'Remaining sale balance: ' + money(event.refund.remainingAmount) : 'Refund recorded separately; it does not reduce the collected-income figure above.'}</p>
             </>}
             {event.kind === 'running' && <>
+              <div className="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-950/30">
+                <p className="text-sm font-extrabold uppercase tracking-wide text-rose-700 dark:text-rose-300">Payment status: Not Settled — Not Completed</p>
+                <p className="mt-1 text-sm font-bold text-rose-700 dark:text-rose-300">Current running-table value: {money(event.amount)}</p>
+                <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">This is the current value of items on the active table. It is not counted as completed sales income.</p>
+              </div>
               <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Customer: </span>{event.table.customer?.name || 'Walk-in'}</p><p><span className="text-muted-foreground">Items: </span>{tableUnits(event.table)}</p><p><span className="text-muted-foreground">Stock reservation: </span>{event.table.stockReserved || event.table.stockReservationMode === 'reserved' ? 'Reserved' : 'Legacy / unknown'}</p></div>
               <div className="mt-3 overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm"><thead><tr className="bg-muted/40 text-left"><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit price</th><th className="px-3 py-2 text-right">Subtotal</th></tr></thead><tbody>{(event.table.cart || []).map((item, i) => { const qty = Number(item.sellQuantity || 0); const price = Number(item.price ?? item.sellingPrice ?? 0); return <tr key={item.id + '-' + i} className="border-t"><td className="px-3 py-2">{item.name}</td><td className="px-3 py-2 text-right">{qty}</td><td className="px-3 py-2 text-right">{money(price)}</td><td className="px-3 py-2 text-right font-medium">{money(qty * price)}</td></tr>; })}</tbody></table></div>
             </>}
