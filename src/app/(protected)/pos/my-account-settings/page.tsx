@@ -109,7 +109,11 @@ function MyPOSAccountSettingsPage() {
         }
       } catch (error) {
         console.warn('[My POS Account Settings] Using local account details:', error);
-        await loadFromLocalMaster();
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
+          catch { return false; }
+        })();
+        if (!pending) await loadFromLocalMaster();
       } finally {
         if (active) setIsLoading(false);
       }
