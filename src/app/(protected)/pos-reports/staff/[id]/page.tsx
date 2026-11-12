@@ -312,7 +312,7 @@ function StaffTransactionBreakdownPage() {
                 </div>
                 {includeTransactionList && <div className="py-3">
                   <h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>
-                  {events.length === 0 ? <p className="py-4 text-center text-xs">No transactions for this period.</p> : <div className="space-y-3">
+                  {filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current search filter.</p> : <div className="space-y-3">
                     {filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
                       <div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div>
                       <div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>
