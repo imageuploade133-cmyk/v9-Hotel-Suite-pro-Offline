@@ -177,9 +177,9 @@ function MyPOSReportPage() {
     </CardContent></Card>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Card className="border-0 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Income</CardDescription><CardTitle className="text-2xl text-white">{money(income)}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Payments collected from this staff member's sales</CardContent></Card>
+      <Card className="border-0 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Income</CardDescription><CardTitle className="text-2xl text-white">{money(income)}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Payments collected from your sales</CardContent></Card>
       <Card className="border-0 bg-gradient-to-br from-rose-600 to-red-700 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Refund</CardDescription><CardTitle className="text-2xl text-white">{money(refunds)}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Refunds processed; shown separately from income</CardContent></Card>
-      <Card className="border-0 bg-gradient-to-br from-violet-600 to-purple-800 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Running Table</CardDescription><CardTitle className="text-3xl text-white">{staffTables.length.toLocaleString()}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Active tables currently held by this staff member</CardContent></Card>
+      <Card className="border-0 bg-gradient-to-br from-violet-600 to-purple-800 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Running Table</CardDescription><CardTitle className="text-3xl text-white">{staffTables.length.toLocaleString()}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Active tables currently held by you</CardContent></Card>
       <Card className="border-0 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg"><CardHeader className="pb-2"><CardDescription className="text-white/75">Total Sold Item</CardDescription><CardTitle className="text-3xl text-white">{soldUnits.toLocaleString()}</CardTitle></CardHeader><CardContent className="text-sm text-white/75">Units in completed sale records</CardContent></Card>
     </div>
 
@@ -188,7 +188,7 @@ function MyPOSReportPage() {
       <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><CardTitle>Transaction History</CardTitle><CardDescription>Your sales, refunds and active running tables in the selected date range.</CardDescription></div>
         <div className="flex flex-wrap items-end gap-2">
-          <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search staff transactions" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search reference, customer, item..." className="pl-9" /></div>
+          <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search my POS transactions" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search reference, customer, item..." className="pl-9" /></div>
           <div className="space-y-1">
             <label htmlFor="staff-breakdown-page-size" className="text-xs font-medium text-muted-foreground">Rows per page</label>
             <select id="staff-breakdown-page-size" value={String(pageSize)} onChange={event => updatePageSize(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -298,7 +298,7 @@ function MyPOSReportPage() {
                 </div>
                 {includeTransactionList && <div className="py-3">
                   <h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>
-                  {events.length === 0 ? <p className="py-4 text-center text-xs">No transactions for this period.</p> : <div className="space-y-3">
+                  {filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current date and search filters.</p> : <div className="space-y-3">
                     {filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs">
                       <div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div>
                       <div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>
