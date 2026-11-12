@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay, subDays } from 'date-fns';
-import { Banknote, BarChart3, Package, RotateCcw, Search, ShoppingBag, TrendingUp, Table2 } from 'lucide-react';
+import { Banknote, BarChart3, Package, RotateCcw, Search, ShoppingBag, TrendingUp, Table2, Printer } from 'lucide-react';
 
 type ProductRow = {
   id: string;
@@ -234,7 +234,10 @@ function ReportsPage() {
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div><CardTitle>Product Performance</CardTitle><CardDescription>Sales, returns, current stock and estimated profit for {dateLabel}.</CardDescription></div>
-              <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={productSearch} onChange={event => setProductSearch(event.target.value)} placeholder="Search products or categories..." className="pl-9" /></div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <Button variant="outline" onClick={() => router.push(`/reports/print?from=${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}&to=${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : ''}`)}><Printer className="mr-2 h-4 w-4" />Print Product Report</Button>
+                <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={productSearch} onChange={event => setProductSearch(event.target.value)} placeholder="Search products or categories..." className="pl-9" /></div>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? <div className="py-12 text-center text-sm text-muted-foreground">Loading product report…</div> :
