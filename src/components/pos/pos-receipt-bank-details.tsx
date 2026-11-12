@@ -168,7 +168,7 @@ export function usePosReceiptBankDetails(
       showAccountOnDocket: own.showAccountOnDocket ?? global.showAccountOnDocket ?? true,
       showAccountOnPaid: own.showAccountOnPaid ?? global.showAccountOnPaid ?? true,
     };
-  }, [personal, fallback.bankName, fallback.accountName, fallback.accountNumber, fallback.bankLogoUrl]);
+  }, [personal, fallback.bankName, fallback.accountName, fallback.accountNumber, fallback.bankLogoUrl, fallback.showAccountOnDocket, fallback.showAccountOnPaid]);
 
   return { details: effective, isLoading, hasDetails: !!(effective.bankName || effective.accountName || effective.accountNumber) };
 }
