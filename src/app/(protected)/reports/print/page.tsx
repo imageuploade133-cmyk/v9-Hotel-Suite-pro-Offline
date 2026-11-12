@@ -95,7 +95,7 @@ function ProductReportPrintPage() {
 
   const title = productId ? (products[0]?.name || 'Product Stock & Sales Report') : categoryFilter ? `${categoryFilter} — Product Report` : 'Product Stock & Sales Report';
   const dateLabel = `${format(rangeFrom, 'dd MMM yyyy')} – ${format(rangeTo, 'dd MMM yyyy')}`;
-  const columnCount = 2 + Number(showOriginal) + Number(showAvailable) + Number(showSold) + Number(showReturned) + Number(showRevenue);
+  const columnCount = 1 + Number(showOriginal) + Number(showAvailable) + Number(showSold) + Number(showReturned) + Number(showRevenue);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-3 sm:p-6">
@@ -140,7 +140,7 @@ function ProductReportPrintPage() {
               {group.name && <tfoot><tr className="border-t border-black font-bold"><td colSpan={columnCount} className="py-1 text-right">{group.products.length} product(s)</td></tr></tfoot>}
             </table>
           </section>)}
-          <footer className="mt-6 border-t border-dashed border-black pt-3 text-center text-[10px]"><p>End of report</p><p className="mt-1">Stock figures are reconstructed from recorded stock, sales, returns and restock movements.</p><p>Unrecorded manual adjustments/transfers may affect historical balances.</p></footer>
+          <footer className="mt-6 border-t border-dashed border-black pt-3 text-center text-[10px]"><p>End of report</p><p className="mt-1">Stock figures are reconstructed from recorded stock, sales, returns and restock movements. For today, available stock excludes current running-table reservations.</p><p>Unrecorded manual adjustments/transfers may affect historical balances.</p></footer>
         </main>
       )}
       <style jsx global>{`
