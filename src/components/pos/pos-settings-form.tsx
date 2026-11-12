@@ -332,7 +332,7 @@ export function POSSettingsForm() {
       bankName: posSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
       accountName: posSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
       accountNumber: posSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
-      bankLogoUrl: posSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+      bankLogoUrl: posSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || settings?.bankLogoUrl || '',
       bankLogoFile: undefined,
       showAccountOnDocket: posSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
       showAccountOnPaid: posSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
