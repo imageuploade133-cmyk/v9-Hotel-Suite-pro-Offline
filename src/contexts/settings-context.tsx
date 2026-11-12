@@ -181,6 +181,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             'posTaxNumber', 'posAutoPrint', 'posAutoPrintTableUpdates',
             'posAutoGenerateReceiptOnRunningTable', 'posPrintCopies', 'posPaperWidth',
             'posPrintBoldText', 'posPrintBoldLines',
+            'bankName', 'accountName', 'accountNumber',
             'posThankYouMessage', 'posRefundPolicy', 'posTermsAndConditions',
             'posAllowPopups', 'posApplyToAll',
             // Dedicated Hotel Booking POS settings
