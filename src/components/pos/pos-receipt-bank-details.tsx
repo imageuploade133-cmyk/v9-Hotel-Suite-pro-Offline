@@ -79,7 +79,11 @@ export function usePosReceiptBankDetails(
 
     const syncAndLoad = async () => {
       if (!firestore) {
-        await loadLocalMaster();
+        const hasPendingLocalChange = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(staffUid)) === '1'; }
+          catch { return false; }
+        })();
+        if (!hasPendingLocalChange) await loadLocalMaster();
         if (active) setIsLoading(false);
         return;
       }
