@@ -43,21 +43,26 @@ export function usePosReceiptBankDetails(
   fallback: Partial<PosBankDetails>
 ) {
   const firestore = useFirestore();
-  const [personal, setPersonal] = React.useState<PosBankDetails>(() =>
-    staffUid ? readLocalDetails(staffUid) : EMPTY_POS_BANK_DETAILS
-  );
+  const [personalState, setPersonalState] = React.useState<{ uid?: string; details: PosBankDetails }>(() => ({
+    uid: staffUid,
+    details: staffUid ? readLocalDetails(staffUid) : EMPTY_POS_BANK_DETAILS,
+  }));
+  // Never render the previous cashier's cached details during a staff UID change.
+  const personal = personalState.uid === staffUid
+    ? personalState.details
+    : (staffUid ? readLocalDetails(staffUid) : EMPTY_POS_BANK_DETAILS);
   const [isLoading, setIsLoading] = React.useState(!!staffUid);
 
   React.useEffect(() => {
     let active = true;
     if (!staffUid) {
-      setPersonal(EMPTY_POS_BANK_DETAILS);
+      setPersonalState({ uid: staffUid, details: EMPTY_POS_BANK_DETAILS });
       setIsLoading(false);
       return;
     }
 
     const cached = readLocalDetails(staffUid);
-    setPersonal(cached);
+    setPersonalState({ uid: staffUid, details: cached });
     setIsLoading(true);
 
     const loadLocalMaster = async () => {
@@ -69,7 +74,7 @@ export function usePosReceiptBankDetails(
         const localRecord = payload?.data?.[staffUid];
         if (localRecord && active) {
           const localDetails = normalizePosBankDetails(localRecord);
-          setPersonal(localDetails);
+          setPersonalState({ uid: staffUid, details: localDetails });
           try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(localDetails)); } catch {}
         }
       } catch (error) {
@@ -99,10 +104,10 @@ export function usePosReceiptBankDetails(
           // Locally saved changes (including an intentional clear) take precedence until synced.
           await setDoc(ref, { ...cached, uid: staffUid, updatedAt: new Date().toISOString() }, { merge: true });
           try { localStorage.removeItem(posStaffBankPendingKey(staffUid)); } catch {}
-          if (active) setPersonal(cached);
+          if (active) setPersonalState({ uid: staffUid, details: cached });
         } else if (snapshot.exists()) {
           const remote = normalizePosBankDetails(snapshot.data() as Partial<PosBankDetails>);
-          setPersonal(remote);
+          setPersonalState({ uid: staffUid, details: remote });
           try { localStorage.setItem(posStaffBankStorageKey(staffUid), JSON.stringify(remote)); } catch {}
         }
       } catch (error) {
