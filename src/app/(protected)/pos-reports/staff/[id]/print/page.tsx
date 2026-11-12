@@ -33,7 +33,15 @@ function StaffTransactionBreakdownPage() {
   const staffUid = decodeURIComponent(params.id || '');
   const firestore = useFirestore();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
-  const { settings } = useSettings();
+  const { settings, getEffectivePosSettings } = useSettings();
+  const posSettings = React.useMemo(() => getEffectivePosSettings('pos'), [getEffectivePosSettings]);
+  const receiptLogoUrl = posSettings.posUseBusinessLogo !== false
+    ? (currentBranch?.logoUrl || settings?.businessLogoUrl || '')
+    : (posSettings.posReceiptLogoUrl || currentBranch?.logoUrl || settings?.businessLogoUrl || '');
+  const showBusinessName = posSettings.posShowBusinessName ?? true;
+  const showAddress = posSettings.posShowAddress ?? true;
+  const showPhone = posSettings.posShowPhone ?? true;
+  const showEmail = posSettings.posShowEmail ?? false;
 
   const initialRange = React.useMemo<DateRange | undefined>(() => {
     const from = searchParams.get('from');
@@ -185,11 +193,23 @@ function StaffTransactionBreakdownPage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 print:hidden"><div><h2 className="font-semibold">Live print preview</h2><p className="text-xs text-muted-foreground">Preview updates as you change the report settings.</p></div><Badge variant="outline">{printFormat === 'invoice' ? 'A4 invoice' : '80mm terminal'}</Badge></div>
         <div className="mx-auto min-h-[60vh] max-w-full overflow-x-auto rounded-lg bg-white p-3 text-black shadow-sm sm:p-6">
           <div id="staff-print-sheet" className={printFormat === 'terminal' ? 'staff-print-terminal mx-auto' : 'staff-print-invoice mx-auto'}>
-            <div className="border-b-2 border-black pb-3 text-center"><h1 className="text-xl font-extrabold tracking-wide">{settings?.businessName || 'POS TRANSACTION REPORT'}</h1><p className="mt-1 text-sm font-bold">{printFormat === 'invoice' ? 'STAFF TRANSACTION STATEMENT' : 'STAFF POS REPORT'}</p><p className="mt-1 text-xs">Generated: {printDate}</p></div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs"><p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p><p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p></div>
+            <div className="border-b-2 border-black pb-3 text-center">
+              {receiptLogoUrl && <img src={receiptLogoUrl} alt="POS business logo" className="mx-auto mb-2 object-contain" style={{ width: Math.min(200, Math.max(32, Number(posSettings.posReceiptLogoSize) || 96)), height: Math.min(200, Math.max(32, Number(posSettings.posReceiptLogoSize) || 96)) }} />}
+              {showBusinessName && <h1 className="text-xl font-extrabold tracking-wide">{posSettings.businessName || settings?.businessName || currentBranch?.name || 'POS TRANSACTION REPORT'}</h1>}
+              {showAddress && (posSettings.businessAddress || settings?.businessAddress) && <p className="mt-1 whitespace-pre-line text-xs">{posSettings.businessAddress || settings?.businessAddress}</p>}
+              <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs">{showPhone && (posSettings.businessPhone || settings?.businessPhone) && <span>{posSettings.businessPhone || settings?.businessPhone}</span>}{showEmail && (posSettings.businessEmail || settings?.businessEmail) && <span>{posSettings.businessEmail || settings?.businessEmail}</span>}</div>
+              {posSettings.posReceiptHeader && <p className="mt-2 text-sm font-bold">{posSettings.posReceiptHeader}</p>}
+              <p className="mt-1 text-sm font-bold">{posSettings.posReceiptTitle || (printFormat === 'invoice' ? 'STAFF TRANSACTION STATEMENT' : 'STAFF POS REPORT')}</p>
+              {posSettings.posShowDate !== false && <p className="mt-1 text-xs">Generated: {printDate}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs">
+              <p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p>
+              <p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
+              {posSettings.posShowCashierName !== false && <p><strong>Cashier:</strong> {staffName}</p>}
+            </div>
             {includeTransactionList && <div className="py-3"><h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>{filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current report filters.</p> : <div className="space-y-3">{filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs"><div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div><div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>{includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item,index) => <div key={event.id + '-item-' + index} className="flex justify-between gap-2"><span>{item.name} × {item.qty}</span><span>{money(item.qty * item.unit)}</span></div>)}</div>}</div>)}</div>}</div>}
             <div className="mt-2 border-t-2 border-black pt-3"><h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2><div className="space-y-1 text-xs"><div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(filteredIncome)}</strong></div><div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(filteredRefunds)}</strong></div><div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(filteredRunningTableTotal)}</strong></div></div><p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p></div>
-            <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">End of report · {staffName}</div>
+            <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">{posSettings.posReceiptFooter || posSettings.posThankYouMessage || "Thank you."}<p className="mt-1">End of report · {staffName}</p></div>
           </div>
         </div>
         {isLoading && <p className="mt-3 text-center text-sm text-muted-foreground print:hidden">Refreshing report data…</p>}
