@@ -216,6 +216,7 @@ export function POSReceiptPreview({
 
                 {showAccountOnPaid && (bankName || accountName || accountNumber) && (
                   <div className="mt-4 border-t border-dashed border-black pt-2 text-center text-[10px]">
+                    {bankLogoUrl && <img src={bankLogoUrl} alt="Bank logo" className="mx-auto mb-1 max-h-10 max-w-24 object-contain" />}
                     <p className="font-bold uppercase">Bank Transfer Details</p>
                     {bankName && <p>Bank: {bankName}</p>}
                     {accountName && <p>Account Name: {accountName}</p>}
@@ -347,6 +348,7 @@ export function POSReceiptPreview({
 
                 {showAccountOnPaid && (bankName || accountName || accountNumber) && (
                   <div className="mt-6 rounded-md border border-slate-300 p-4 text-sm text-slate-800">
+                    {bankLogoUrl && <img src={bankLogoUrl} alt="Bank logo" className="mb-2 max-h-12 max-w-28 object-contain" />}
                     <h3 className="mb-2 font-bold uppercase">Bank Transfer Details</h3>
                     {bankName && <p><strong>Bank:</strong> {bankName}</p>}
                     {accountName && <p><strong>Account Name:</strong> {accountName}</p>}
