@@ -221,7 +221,7 @@ export function StockSaleReceiptDialog({
   const posFooter = effectivePosSettings.posReceiptFooter || 'Thank you for your patronage!';
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
-  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border,.pos-print-bold-lines [class*=\\\"border-\\\"]{border-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";min-height:2px!important}";
 
   // Business name and address - use effective POS settings business name (separate for each context)
   const effectiveBusinessName = effectivePosSettings.businessName;
