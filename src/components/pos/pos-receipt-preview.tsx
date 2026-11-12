@@ -24,6 +24,9 @@ interface POSReceiptPreviewProps {
   posShowBarcode?: boolean;
   posPrintBoldText?: boolean;
   posPrintBoldLines?: boolean;
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
   posTaxLabel?: string;
   posTaxRate?: number;
   businessName?: string;
@@ -48,6 +51,9 @@ export function POSReceiptPreview({
   posShowBarcode = false,
   posPrintBoldText = false,
   posPrintBoldLines = false,
+  bankName = '',
+  accountName = '',
+  accountNumber = '',
   posTaxLabel = 'Tax',
   posTaxRate = 0,
   businessName = 'Hotel Suite Pro',
@@ -201,6 +207,16 @@ export function POSReceiptPreview({
                   </div>
                 )}
 
+
+                {(bankName || accountName || accountNumber) && (
+                  <div className="mt-4 border-t border-dashed border-black pt-2 text-center text-[10px]">
+                    <p className="font-bold uppercase">Bank Transfer Details</p>
+                    {bankName && <p>Bank: {bankName}</p>}
+                    {accountName && <p>Account Name: {accountName}</p>}
+                    {accountNumber && <p className="font-bold">Account No: {accountNumber}</p>}
+                  </div>
+                )}
+
                 {/* Footer */}
                 {posReceiptFooter && (
                   <div className="text-center text-[10px] mt-6 pt-4 border-t border-dashed border-black">
@@ -321,6 +337,16 @@ export function POSReceiptPreview({
                     )}
                   </div>
                 </div>
+
+
+                {(bankName || accountName || accountNumber) && (
+                  <div className="mt-6 rounded-md border border-slate-300 p-4 text-sm text-slate-800">
+                    <h3 className="mb-2 font-bold uppercase">Bank Transfer Details</h3>
+                    {bankName && <p><strong>Bank:</strong> {bankName}</p>}
+                    {accountName && <p><strong>Account Name:</strong> {accountName}</p>}
+                    {accountNumber && <p><strong>Account Number:</strong> {accountNumber}</p>}
+                  </div>
+                )}
 
                 {/* Footer */}
                 {posReceiptFooter && (
