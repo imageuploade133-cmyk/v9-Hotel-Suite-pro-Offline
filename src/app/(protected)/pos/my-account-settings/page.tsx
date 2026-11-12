@@ -177,6 +177,22 @@ function MyPOSAccountSettingsPage() {
     try {
       localStorage.setItem(posStaffBankStorageKey(uid), JSON.stringify(cleared));
       localStorage.setItem(posStaffBankPendingKey(uid), '1');
+      if (isLocalMasterHost()) {
+        try {
+          await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName: 'posStaffAccountSettings',
+              docId: uid,
+              action: 'set',
+              data: { ...cleared, uid, updatedAt: new Date().toISOString() },
+            }),
+          });
+        } catch (error) {
+          console.warn('[My POS Account Settings] Local Master clear deferred:', error);
+        }
+      }
       if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
         await setDoc(doc(firestore, 'posStaffAccountSettings', uid), {
           ...cleared, uid, updatedAt: new Date().toISOString(),
