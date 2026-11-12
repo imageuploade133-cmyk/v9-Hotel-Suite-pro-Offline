@@ -158,11 +158,20 @@ function ProductReportDetailPage() {
       ) : <>
         <Card>
           <CardHeader><CardTitle>Product information</CardTitle><CardDescription>{product?.category || 'Category not available'} · {dateLabel}</CardDescription></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CardContent className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="flex items-start justify-center lg:justify-start">
+              <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-2xl border bg-muted shadow-sm">
+                {(product?.imageUrl || product?.images?.[0]) ? <img src={product.imageUrl || product.images?.[0]} alt={product.name || 'Product image'} loading="lazy" className="h-full w-full object-contain" /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><Package className="h-12 w-12" /><span className="text-xs">No product image</span></div>}
+              </div>
+            </div>
+            <div className="grid content-start gap-4 sm:grid-cols-2">
+              <div><p className="text-xs text-muted-foreground">Product name</p><p className="font-semibold">{product?.name || productName}</p></div>
+              <div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{product?.category || 'Category not available'}</p></div>
             <div><p className="text-xs text-muted-foreground">SKU / Barcode</p><p className="font-medium">{product?.sku || product?.barcode || 'Not provided'}</p></div>
             <div><p className="text-xs text-muted-foreground">Current on-hand stock</p><p className="font-semibold">{Number(product?.quantity || 0).toLocaleString()}</p></div>
             <div><p className="text-xs text-muted-foreground">Reserved on running tables</p><p className="font-semibold">{Number(product?.reservedQuantity || 0).toLocaleString()}</p></div>
-            <div><p className="text-xs text-muted-foreground">Currently available to sell</p><p className="font-semibold">{(Number(product?.quantity || 0) - Number(product?.reservedQuantity || 0)).toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">Currently available to sell</p><p className="font-semibold">{(Number(product?.quantity || 0) - Number(product?.reservedQuantity || 0)).toLocaleString()}</p></div>
+            </div>
           </CardContent>
         </Card>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
