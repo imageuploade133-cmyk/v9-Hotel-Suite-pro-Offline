@@ -105,7 +105,7 @@ function StaffTransactionBreakdownPage() {
     </div>
 
     <Card><CardContent className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Staff member</p><h2 className="text-xl font-bold">{staffName}</h2><p className="text-xs text-muted-foreground">Staff account ID: {staffUid}</p></div>
+      <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Staff member</p><h2 className="text-xl font-bold">{staffName}</h2></div>
       <Badge variant="outline">{events.length} activity records</Badge>
     </CardContent></Card>
 
@@ -166,4 +166,4 @@ function StaffTransactionBreakdownPage() {
   </div>;
 }
 
-export default withAuth(StaffTransactionBreakdownPage, PagePermission.VIEW_POS_REPORTS);
+export default withAuth(StaffTransactionBreakdownPage, PagePermission.VIEW_POS_STAFF_TRANSACTIONS);
