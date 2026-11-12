@@ -86,7 +86,7 @@ function ProductReportDetailPage() {
     safeSales.forEach(sale => {
       const date = toReportDate(sale.soldAt);
       if (!date || !inRange(date)) return;
-      sale.items.filter(item => item.itemId === productId && !item.isService).forEach((item, index) => rows.push({
+      (sale.items || []).filter(item => item.itemId === productId && !item.isService).forEach((item, index) => rows.push({
         id: `sale-${sale.id}-${index}`,
         kind: 'sale',
         date,
@@ -105,7 +105,7 @@ function ProductReportDetailPage() {
       const date = toReportDate(refund.returnedAt);
       if (!date || !inRange(date)) return;
       const originalSale = saleById.get(refund.originalSaleId);
-      refund.items.filter(item => item.itemId === productId).forEach((item, index) => rows.push({
+      (refund.items || []).filter(item => item.itemId === productId).forEach((item, index) => rows.push({
         id: `return-${refund.id}-${index}`,
         kind: 'return',
         date,
