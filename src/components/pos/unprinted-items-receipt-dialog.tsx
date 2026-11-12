@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { POSReceiptBankDetails } from '@/components/pos/pos-receipt-bank-details';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,11 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
   const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
   const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
   const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
+  const posBankFallback = {
+    bankName: effectivePosSettings.bankName || settings?.bankName || '',
+    accountName: effectivePosSettings.accountName || settings?.accountName || '',
+    accountNumber: effectivePosSettings.accountNumber || settings?.accountNumber || '',
+  };
 
   // Use branch-specific information if available, otherwise fall back to global settings
   const branchLogoUrl = currentBranch?.logoUrl;
@@ -320,6 +326,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                         <span>{formatCurrency(total)}</span>
                       </div>
                     )}
+                    <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="terminal" />
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
@@ -404,6 +411,7 @@ export function UnprintedItemsReceiptDialog({ isOpen, onClose, heldSale, onPrint
                       </div>
                     </div>
                     <div className="mt-8 text-center text-xs text-slate-500">
+                      <POSReceiptBankDetails staffUid={currentHeldSale.heldByUid} fallback={posBankFallback} variant="invoice" />
                       <p>This is a docket for preparation and is not a final bill.</p>
                     </div>
                   </div>
