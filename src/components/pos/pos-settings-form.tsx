@@ -234,7 +234,7 @@ export function POSSettingsForm() {
 
   // Retry locally queued POS settings (including bank logos) when connectivity returns.
   React.useEffect(() => {
-    if (!firestore || typeof window === 'undefined') return;
+    if ((!firestore && !isLocalMasterHost()) || typeof window === 'undefined') return;
     let syncing = false;
     const syncPendingSettings = async () => {
       if (syncing || !navigator.onLine) return;
@@ -254,7 +254,16 @@ export function POSSettingsForm() {
           if (!file) throw new Error('The locally saved bank logo is unavailable.');
           data.bankLogoUrl = await uploadPosBankLogo(file, imgbbApiKey);
         }
-        await setDoc(doc(firestore, pending.collectionPath, 'settings'), data, { merge: true });
+        if (firestore) {
+          await setDoc(doc(firestore, pending.collectionPath, 'settings'), data, { merge: true });
+        } else {
+          const response = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionName: pending.collectionPath, docId: 'settings', action: 'set', data }),
+          });
+          if (!response.ok) throw new Error('Local Master POS settings sync failed.');
+        }
         try {
           const current = JSON.parse(localStorage.getItem('app_saved_settings') || '{}');
           localStorage.setItem('app_saved_settings', JSON.stringify({ ...current, ...data }));
@@ -541,13 +550,26 @@ export function POSSettingsForm() {
             details: `Updated POS receipt and invoice settings for ${currentBranchId === 'global' || !currentBranchId ? 'Global' : currentBranch?.name || 'Branch'}.`,
             changes: changes.length > 0 ? changes : [{ field: 'Bank Logo', before: 'No change', after: 'Updated' }],
           });
-          if (typeof navigator === 'undefined' || navigator.onLine) {
-            await batch.commit();
+          // Firestore queues writes while offline; the explicit local record also
+          // covers ImgBB retries and sessions running without a cloud Firestore client.
+          await batch.commit();
+          const hasOfflineBankLogo = !!getOfflinePosBankLogoKey(finalBankLogoUrl);
+          if (typeof navigator !== 'undefined' && navigator.onLine && !hasOfflineBankLogo) {
             localStorage.removeItem(`pos_settings_pending_${collectionPath}`);
-          } else {
-            // Firestore's offline queue will commit when the connection returns;
-            // the explicit pending record also preserves settings for no-Firestore LAN sessions.
-            toast({ title: 'Saved offline', description: 'POS settings are stored on this device and will synchronize when the connection returns.' });
+          } else if (typeof navigator !== 'undefined' && navigator.onLine && hasOfflineBankLogo) {
+            window.dispatchEvent(new Event('online'));
+          }
+        } else if (isLocalMasterHost()) {
+          const response = await fetch('/api/lan-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionName: collectionPath, docId: 'settings', action: 'set', data: settingsToSave }),
+          });
+          if (!response.ok) throw new Error('Local Master POS settings save failed.');
+          if (typeof navigator !== 'undefined' && navigator.onLine && !getOfflinePosBankLogoKey(finalBankLogoUrl)) {
+            localStorage.removeItem(`pos_settings_pending_${collectionPath}`);
+          } else if (typeof navigator !== 'undefined' && navigator.onLine) {
+            window.dispatchEvent(new Event('online'));
           }
         }
       }
