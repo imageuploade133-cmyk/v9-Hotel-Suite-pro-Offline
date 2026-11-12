@@ -11,7 +11,11 @@ export function toReportDate(value: unknown): Date | null {
   if (!value) return null;
   try {
     const candidate = value as { toDate?: () => Date };
-    const date = typeof candidate?.toDate === 'function' ? candidate.toDate() : new Date(value as string | number | Date);
+    const date = value instanceof Date
+      ? new Date(value.getTime())
+      : typeof candidate?.toDate === 'function'
+        ? candidate.toDate()
+        : new Date(value as string | number);
     return Number.isNaN(date.getTime()) ? null : date;
   } catch {
     return null;
