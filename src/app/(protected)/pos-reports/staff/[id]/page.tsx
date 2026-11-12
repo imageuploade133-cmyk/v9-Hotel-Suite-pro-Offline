@@ -275,8 +275,12 @@ function StaffTransactionBreakdownPage() {
 
     <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
       <DialogContent
-        style={{ position: 'fixed', inset: 0, left: 0, top: 0, right: 0, bottom: 0, width: '100vw', height: '100dvh', maxWidth: 'none', maxHeight: 'none', margin: 0, transform: 'none', borderRadius: 0 }}
-        className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-none border-0 p-3 sm:p-5"
+        // The shared DialogContent applies sm:left-1/2 + sm:-translate-x-1/2 and
+        // sm:max-w-lg. Explicitly neutralize those desktop rules: browser zoom
+        // changes the CSS viewport and can otherwise make this preview drift left
+        // or remain constrained inside a centered dialog.
+        style={{ position: 'fixed', inset: 0, width: 'auto', height: 'auto', minWidth: 0, minHeight: 0, maxWidth: 'none', maxHeight: 'none', margin: 0, transform: 'none', borderRadius: 0 }}
+        className="!fixed !inset-0 !left-0 !top-0 !right-0 !bottom-0 !m-0 !h-[100dvh] !w-[100dvw] !min-h-0 !min-w-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0 !transform-none !rounded-none !border-0 !p-3 !overflow-hidden sm:!fixed sm:!inset-0 sm:!left-0 sm:!top-0 sm:!right-0 sm:!bottom-0 sm:!h-[100dvh] sm:!w-[100dvw] sm:!max-h-none sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:!rounded-none sm:!p-5"
       >
         <DialogHeader className="shrink-0 border-b pb-3">
 
