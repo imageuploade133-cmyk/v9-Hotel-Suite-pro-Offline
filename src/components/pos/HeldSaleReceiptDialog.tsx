@@ -70,6 +70,9 @@ export function HeldSaleReceiptDialog({
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   const allItemsPrinted = React.useMemo(() => {
@@ -161,7 +164,7 @@ export function HeldSaleReceiptDialog({
                   <span>{formatCurrency(total)}</span>
                 </div>
                 <div className="text-center text-xs mt-6">
-                  <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="terminal" />
+                  <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="terminal" receiptType="docket" />
                   <p>THIS IS NOT A FINAL RECEIPT</p>
                 </div>
               </div>
@@ -201,7 +204,7 @@ export function HeldSaleReceiptDialog({
                     </div>
                   </div>
                 </div>
-                <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="invoice" />
+                <POSReceiptBankDetails staffUid={heldSale.heldByUid} fallback={posBankFallback} variant="invoice" receiptType="docket" />
               </div>
             </TabsContent>
           </div>

@@ -166,6 +166,9 @@ export function StockSaleReceiptDialog({
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   // Business name and address - use effective POS settings business name (separate for each context)
@@ -333,7 +336,7 @@ export function StockSaleReceiptDialog({
                   </div>
                 </div>
 
-                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="invoice" />
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="invoice" receiptType="paid" />
 
                 <div className="mt-8 text-sm">
                   <div className="flex items-center gap-3">
@@ -438,7 +441,7 @@ export function StockSaleReceiptDialog({
 
                   </>
                 )}
-                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="terminal" />
+                <POSReceiptBankDetails staffUid={sale.soldByUid} fallback={posBankFallback} variant="terminal" receiptType="paid" />
                 <div className="text-center text-xs mt-6 whitespace-pre-line">
                   <p>{posFooter}</p>
                 </div>

@@ -105,6 +105,9 @@ export function HeldSaleReceiptDialog({
     bankName: effectivePosSettings.bankName || globalPosSettings?.bankName || settings?.bankName || '',
     accountName: effectivePosSettings.accountName || globalPosSettings?.accountName || settings?.accountName || '',
     accountNumber: effectivePosSettings.accountNumber || globalPosSettings?.accountNumber || settings?.accountNumber || '',
+    bankLogoUrl: effectivePosSettings.bankLogoUrl || globalPosSettings?.bankLogoUrl || '',
+    showAccountOnDocket: effectivePosSettings.showAccountOnDocket ?? globalPosSettings?.showAccountOnDocket ?? true,
+    showAccountOnPaid: effectivePosSettings.showAccountOnPaid ?? globalPosSettings?.showAccountOnPaid ?? true,
   };
 
   // Set up real-time listener for the held sale document
@@ -446,7 +449,7 @@ export function HeldSaleReceiptDialog({
                         <span>{formatCurrency(total)}</span>
                       </div>
                     )}
-                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" />
+                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="terminal" receiptType="docket" />
                     <div className="text-center text-xs mt-6 whitespace-pre-line">
                       <p>{posFooter}</p>
                     </div>
@@ -498,7 +501,7 @@ export function HeldSaleReceiptDialog({
                         )}
                       </div>
                     </div>
-                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" />
+                    <POSReceiptBankDetails staffUid={currentHeldSale?.heldByUid} fallback={posBankFallback} variant="invoice" receiptType="docket" />
                   </div>
                 </TabsContent>
               </>
