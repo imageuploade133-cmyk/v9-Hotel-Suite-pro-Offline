@@ -84,6 +84,17 @@ function MyPOSAccountSettingsPage() {
       }
       try {
         const ref = doc(firestore, 'posStaffAccountSettings', uid);
+        const pending = (() => {
+          try { return localStorage.getItem(posStaffBankPendingKey(uid)) === '1'; }
+          catch { return false; }
+        })();
+        if (pending && typeof navigator !== 'undefined' && navigator.onLine) {
+          const cached = normalizePosBankDetails(JSON.parse(localStorage.getItem(posStaffBankStorageKey(uid)) || '{}'));
+          await setDoc(ref, { ...cached, uid, updatedAt: new Date().toISOString() }, { merge: true });
+          setValues(cached);
+          localStorage.removeItem(posStaffBankPendingKey(uid));
+          return;
+        }
         const snapshot = await getDoc(ref);
         if (!active) return;
         if (snapshot.exists()) {
