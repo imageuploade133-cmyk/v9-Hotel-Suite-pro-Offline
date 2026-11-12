@@ -97,6 +97,9 @@ export function HeldSaleReceiptDialog({
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posShowCashier = effectivePosSettings.posShowCashierName !== false;
   const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
+  const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
+  const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
+  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
 
   // Set up real-time listener for the held sale document
   React.useEffect(() => {
@@ -380,7 +383,8 @@ export function HeldSaleReceiptDialog({
             ) : (
               <>
                 <TabsContent value="terminal">
-                  <div id="held-sale-terminal-print" ref={terminalRef} className="print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+                  <div id="held-sale-terminal-print" ref={terminalRef} className={`print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <div className="text-center space-y-1 mb-4">
                       {posLogoUrl && (
                         <img
@@ -442,7 +446,8 @@ export function HeldSaleReceiptDialog({
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
-                  <div id="held-sale-invoice-print" ref={invoiceRef} className="print-content p-8 bg-white text-black text-sm">
+                  <div id="held-sale-invoice-print" ref={invoiceRef} className={`print-content p-8 bg-white text-black text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <h2 className="font-bold text-2xl text-center mb-4">
                       {isUpdateDocket ? 'UPDATE ORDER' : 'DRAFT ORDER'}
                     </h2>

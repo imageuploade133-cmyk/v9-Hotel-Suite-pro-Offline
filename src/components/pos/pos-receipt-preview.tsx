@@ -22,6 +22,8 @@ interface POSReceiptPreviewProps {
   posShowCashierName?: boolean;
   posShowPaymentMethod?: boolean;
   posShowBarcode?: boolean;
+  posPrintBoldText?: boolean;
+  posPrintBoldLines?: boolean;
   posTaxLabel?: string;
   posTaxRate?: number;
   businessName?: string;
@@ -44,6 +46,8 @@ export function POSReceiptPreview({
   posShowCashierName = true,
   posShowPaymentMethod = true,
   posShowBarcode = false,
+  posPrintBoldText = false,
+  posPrintBoldLines = false,
   posTaxLabel = 'Tax',
   posTaxRate = 0,
   businessName = 'Hotel Suite Pro',
@@ -93,7 +97,8 @@ export function POSReceiptPreview({
           </TabsList>
           <div className="mt-2 h-[600px] overflow-y-auto rounded-lg border bg-white shadow-inner">
             <TabsContent value="terminal">
-              <div className="p-4 bg-white text-black receipt max-w-sm mx-auto text-xs font-mono">
+              <div className={`p-4 bg-white text-black receipt max-w-sm mx-auto text-xs font-mono${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                <style>{".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}"}</style>
                 {/* Logo Section */}
                 <div className="text-center space-y-2 mb-4">
                   {displayLogoUrl ? (
@@ -206,7 +211,8 @@ export function POSReceiptPreview({
             </TabsContent>
 
             <TabsContent value="a4">
-              <div className="p-8 bg-white text-black text-sm max-w-2xl mx-auto">
+              <div className={`p-8 bg-white text-black text-sm max-w-2xl mx-auto${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                <style>{".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}"}</style>
                 {/* Header */}
                 <header className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">

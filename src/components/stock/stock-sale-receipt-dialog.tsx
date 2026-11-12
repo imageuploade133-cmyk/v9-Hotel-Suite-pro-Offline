@@ -219,6 +219,9 @@ export function StockSaleReceiptDialog({
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posHeader = effectivePosSettings.posReceiptHeader || 'SALE RECEIPT';
   const posFooter = effectivePosSettings.posReceiptFooter || 'Thank you for your patronage!';
+  const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
+  const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
+  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
 
   // Business name and address - use effective POS settings business name (separate for each context)
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -273,7 +276,8 @@ export function StockSaleReceiptDialog({
           </TabsList>
           <div className="max-h-[60vh] overflow-y-auto mt-4 p-1 rounded-lg border">
             <TabsContent value="invoice">
-              <div id={invoiceId} ref={invoiceRef} className="print-content p-8 bg-white text-black text-sm">
+              <div id={invoiceId} ref={invoiceRef} className={`print-content p-8 bg-white text-black text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                <style>{receiptPrintStyle}</style>
                 <header className="flex justify-between items-start mb-8">
                   <div>
                     {posLogoUrl ? (
@@ -409,7 +413,8 @@ export function StockSaleReceiptDialog({
             </TabsContent>
 
             <TabsContent value="terminal">
-              <div id={terminalId} ref={terminalRef} className="p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+              <div id={terminalId} ref={terminalRef} className={`p-4 bg-white text-black receipt max-w-sm mx-auto text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                <style>{receiptPrintStyle}</style>
                 <div className="text-center space-y-1 mb-4">
                   {posLogoUrl && (
                     <img src={posLogoUrl} alt={displayName || 'logo'} style={{ height: `${posLogoSize}px` }} className="mx-auto" />

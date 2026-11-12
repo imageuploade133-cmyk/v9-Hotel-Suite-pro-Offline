@@ -82,6 +82,9 @@ export function DraftDocketReceiptDialog({
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posShowCashier = effectivePosSettings.posShowCashierName !== false;
   const posShowRunningTableTotal = effectivePosSettings.posShowRunningTableTotal !== false;
+  const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
+  const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
+  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
 
   // Display name - use effective POS settings business name
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -385,7 +388,8 @@ export function DraftDocketReceiptDialog({
           </TabsList>
           <div className="receipt-reference-main">
             <TabsContent value="terminal" className="receipt-reference-tab-panel">
-              <div id="draft-docket-terminal-print" ref={terminalRef} className="print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+              <div id="draft-docket-terminal-print" ref={terminalRef} className={`print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                 <div className="text-center space-y-1 mb-4">
                   {posLogoUrl && (
                     <img
@@ -452,7 +456,8 @@ export function DraftDocketReceiptDialog({
               </div>
             </TabsContent>
             <TabsContent value="invoice" className="receipt-reference-tab-panel">
-              <div ref={invoiceRef} data-invoice-paper className="print-content p-8 bg-white text-black text-sm">
+              <div ref={invoiceRef} data-invoice-paper className={`print-content p-8 bg-white text-black text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                 <h2 className="font-bold text-2xl text-center mb-4 text-red-600">
                   {isUpdate ? 'UPDATE ORDER' : 'NOT PAID DRAFT Bill'}
                 </h2>

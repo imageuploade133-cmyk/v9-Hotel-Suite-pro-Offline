@@ -92,6 +92,9 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
   const posShowBusinessName = effectivePosSettings.posShowBusinessName !== false;
   const posShowDate = effectivePosSettings.posShowDate !== false;
   const posShowCashier = effectivePosSettings.posShowCashierName !== false;
+  const posPrintBoldText = effectivePosSettings.posPrintBoldText === true;
+  const posPrintBoldLines = effectivePosSettings.posPrintBoldLines === true;
+  const receiptPrintStyle = ".pos-print-bold-text,.pos-print-bold-text *{font-weight:700!important}.pos-print-bold-lines .border{border-width:2px!important}.pos-print-bold-lines .border-t{border-top-width:2px!important}.pos-print-bold-lines .border-b{border-bottom-width:2px!important}.pos-print-bold-lines .border-y{border-top-width:2px!important;border-bottom-width:2px!important}.pos-print-bold-lines hr{border-top-width:2px!important}.pos-print-bold-lines [data-orientation=horizontal]{height:2px!important;min-height:2px!important}";
 
   // Display name - use effective POS settings business name
   const effectiveBusinessName = effectivePosSettings.businessName;
@@ -283,7 +286,8 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
             {qtyToPrint > 0 ? (
               <>
                 <TabsContent value="terminal">
-                  <div id="single-item-terminal-print" ref={terminalRef} className="print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm">
+                  <div id="single-item-terminal-print" ref={terminalRef} className={`print-content p-4 bg-white text-black receipt max-w-sm mx-auto text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <div className="text-center mb-4 space-y-1">
                       {posLogoUrl && (
                         <img
@@ -316,7 +320,8 @@ export function SingleItemReceiptDialog({ isOpen, onClose, sale, item, onSuccess
                   </div>
                 </TabsContent>
                 <TabsContent value="invoice">
-                  <div id="single-item-invoice-print" ref={invoiceRef} className="print-content p-8 bg-white text-black text-sm">
+                  <div id="single-item-invoice-print" ref={invoiceRef} className={`print-content p-8 bg-white text-black text-sm${posPrintBoldText ? " pos-print-bold-text" : ""}${posPrintBoldLines ? " pos-print-bold-lines" : ""}`}>
+                  <style>{receiptPrintStyle}</style>
                     <header className="text-center mb-6">
                       {posLogoUrl ? (
                         <img
