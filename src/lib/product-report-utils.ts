@@ -23,7 +23,7 @@ export function toReportDate(value: unknown): Date | null {
 }
 
 export function getProductMovementSummary(
-  product: Pick<StockItem, 'id' | 'quantity' | 'reservedQuantity'>,
+  product: Pick<StockItem, 'id' | 'quantity' | 'reservedQuantity'> & { createdAt?: unknown },
   sales: StockSale[],
   returns: StockReturn[],
   restocks: ProductRestockMovement[],
@@ -73,10 +73,16 @@ export function getProductMovementSummary(
   }
 
   const currentOnHand = Number(product.quantity) || 0;
+  const createdAt = toReportDate(product.createdAt);
+  const reservedNow = Math.max(0, Number(product.reservedQuantity) || 0);
   // Reconstruct historical balances by reversing movements recorded after each boundary.
+  // A product created during/after the selected period did not exist at the opening boundary.
   // This is exact only to the extent that all stock adjustments/transfers were ledgered.
-  const openingStock = currentOnHand - restockedAfterStart + soldAfterStart - returnedAfterStart;
-  const availableAtEnd = currentOnHand - restockedAfterEnd + soldAfterEnd - returnedAfterEnd;
+  const reconstructedOpening = currentOnHand - restockedAfterStart + soldAfterStart - returnedAfterStart;
+  const reconstructedAtEnd = currentOnHand - restockedAfterEnd + soldAfterEnd - returnedAfterEnd;
+  const openingStock = createdAt && createdAt >= start ? 0 : reconstructedOpening;
+  const onHandAtEnd = createdAt && createdAt > end ? 0 : reconstructedAtEnd;
+  const availableAtEnd = onHandAtEnd - (end >= startOfDay(new Date()) ? reservedNow : 0);
 
   return {
     openingStock,
@@ -85,7 +91,7 @@ export function getProductMovementSummary(
     returnedInRange,
     netSoldInRange: soldInRange - returnedInRange,
     currentOnHand,
-    reservedNow: Math.max(0, Number(product.reservedQuantity) || 0),
-    currentlyAvailable: currentOnHand - Math.max(0, Number(product.reservedQuantity) || 0),
+    reservedNow,
+    currentlyAvailable: currentOnHand - reservedNow,
   };
 }
