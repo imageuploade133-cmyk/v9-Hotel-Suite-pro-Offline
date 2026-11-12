@@ -19,6 +19,7 @@ import { CreditSaleBankAccountForm } from '@/components/settings/credit-sale-ban
 import { EbulkSmsSettingsForm } from '@/components/settings/ebulk-sms-settings-form';
 import { GoogleAppsScriptSettingsForm } from '@/components/settings/google-apps-script-settings-form';
 import { MenuProductCardSettingsForm } from '@/components/settings/menu-product-card-settings-form';
+import { GlobalDefaultProductImageSettings } from '@/components/settings/global-default-product-image-settings';
 
 function SettingsPage2() {
   return (
@@ -35,6 +36,7 @@ function SettingsPage2() {
       <CreditSaleBankAccountForm />
       <EbulkSmsSettingsForm />
       <MenuProductCardSettingsForm />
+      <GlobalDefaultProductImageSettings />
 
       <Card>
         <CardHeader>
