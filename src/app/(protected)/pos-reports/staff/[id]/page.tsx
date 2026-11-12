@@ -83,6 +83,32 @@ function StaffTransactionBreakdownPage() {
 
 
   const [printPreviewOpen, setPrintPreviewOpen] = React.useState(false);
+  // Track the *visual* viewport, not only the layout viewport. Browser zoom and
+  // mobile pinch-zoom can change its size and offset while the page layout remains
+  // larger. Keeping the preview tied to these values makes its edges follow the
+  // actually visible screen on desktop and mobile.
+  const [previewViewport, setPreviewViewport] = React.useState({ top: 0, left: 0, width: 0, height: 0 });
+  React.useEffect(() => {
+    if (!printPreviewOpen) return;
+    const updateViewport = () => {
+      const viewport = window.visualViewport;
+      setPreviewViewport({
+        top: viewport?.offsetTop ?? 0,
+        left: viewport?.offsetLeft ?? 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight,
+      });
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.visualViewport?.addEventListener('scroll', updateViewport);
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.visualViewport?.removeEventListener('scroll', updateViewport);
+    };
+  }, [printPreviewOpen]);
   const [printFormat, setPrintFormat] = React.useState<'invoice' | 'terminal'>('invoice');
   const [includeTransactionList, setIncludeTransactionList] = React.useState(true);
   const [includeItemDetails, setIncludeItemDetails] = React.useState(true);
@@ -275,12 +301,26 @@ function StaffTransactionBreakdownPage() {
 
     <Dialog open={printPreviewOpen} onOpenChange={setPrintPreviewOpen}>
       <DialogContent
-        // The shared DialogContent applies sm:left-1/2 + sm:-translate-x-1/2 and
-        // sm:max-w-lg. Explicitly neutralize those desktop rules: browser zoom
-        // changes the CSS viewport and can otherwise make this preview drift left
-        // or remain constrained inside a centered dialog.
-        style={{ position: 'fixed', inset: 0, width: 'auto', height: 'auto', minWidth: 0, minHeight: 0, maxWidth: 'none', maxHeight: 'none', margin: 0, transform: 'none', borderRadius: 0 }}
-        className="!fixed !inset-0 !left-0 !top-0 !right-0 !bottom-0 !m-0 !h-[100dvh] !w-[100dvw] !min-h-0 !min-w-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0 !transform-none !rounded-none !border-0 !p-3 !overflow-hidden sm:!fixed sm:!inset-0 sm:!left-0 sm:!top-0 sm:!right-0 sm:!bottom-0 sm:!h-[100dvh] sm:!w-[100dvw] sm:!max-h-none sm:!max-w-none sm:!translate-x-0 sm:!translate-y-0 sm:!rounded-none sm:!p-5"
+        // Use the live visual viewport so browser zoom and mobile pinch-zoom cannot
+        // leave this surface centered in, or clipped by, the larger layout viewport.
+        style={{
+          position: 'fixed',
+          top: previewViewport.top,
+          left: previewViewport.left,
+          right: 'auto',
+          bottom: 'auto',
+          width: previewViewport.width || '100%',
+          height: previewViewport.height || '100%',
+          minWidth: 0,
+          minHeight: 0,
+          maxWidth: 'none',
+          maxHeight: 'none',
+          margin: 0,
+          transform: 'none',
+          borderRadius: 0,
+          boxSizing: 'border-box',
+        }}
+        className="!fixed !m-0 !min-h-0 !min-w-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0 !transform-none !rounded-none !border-0 !p-3 !overflow-hidden sm:!p-5"
       >
         <DialogHeader className="shrink-0 border-b pb-3">
 
