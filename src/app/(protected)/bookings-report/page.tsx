@@ -181,10 +181,30 @@ function BookingsReportPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Booking Income</CardTitle><CalendarCheck className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.bookingIncome)}</div><p className="text-xs text-muted-foreground">Paid booking payments</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Bills Income</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.billsIncome)}</div><p className="text-xs text-muted-foreground">Paid additional guest bills</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Refunds</CardTitle><RotateCcw className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold tabular-nums text-destructive">{money(totals.refunds)}</div><p className="text-xs text-muted-foreground">Refunded bookings and bills</p></CardContent></Card>
-        <Card className="border-primary/30"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Grand Total</CardTitle><Wallet className="h-4 w-4 text-primary" /></CardHeader><CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.grandTotal)}</div><p className="text-xs text-muted-foreground">Booking + bills − refunds</p></CardContent></Card>
+        <div className="rounded-xl bg-gradient-to-br from-sky-500/80 via-indigo-500/70 to-cyan-400/80 p-[1.5px] shadow-sm">
+          <Card className="h-full border-0 bg-card shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Booking Income</CardTitle><CalendarCheck className="h-4 w-4 text-muted-foreground" /></CardHeader>
+            <CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.bookingIncome)}</div><p className="text-xs text-muted-foreground">Paid booking payments</p></CardContent>
+          </Card>
+        </div>
+        <div className="rounded-xl bg-gradient-to-br from-violet-500/80 via-fuchsia-500/70 to-indigo-400/80 p-[1.5px] shadow-sm">
+          <Card className="h-full border-0 bg-card shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Bills Income</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader>
+            <CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.billsIncome)}</div><p className="text-xs text-muted-foreground">Paid additional guest bills</p></CardContent>
+          </Card>
+        </div>
+        <div className="rounded-xl bg-gradient-to-br from-rose-500/80 via-orange-500/70 to-amber-400/80 p-[1.5px] shadow-sm">
+          <Card className="h-full border-0 bg-card shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Refunds</CardTitle><RotateCcw className="h-4 w-4 text-muted-foreground" /></CardHeader>
+            <CardContent><div className="text-2xl font-bold tabular-nums text-destructive">{money(totals.refunds)}</div><p className="text-xs text-muted-foreground">Refunded bookings and bills</p></CardContent>
+          </Card>
+        </div>
+        <div className="rounded-xl bg-gradient-to-br from-primary via-primary/70 to-primary/40 p-[1.5px] shadow-sm">
+          <Card className="h-full border-0 bg-primary/10 text-primary shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Grand Total</CardTitle><Wallet className="h-4 w-4 text-primary" /></CardHeader>
+            <CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.grandTotal)}</div><p className="text-xs text-primary/75">Booking + bills − refunds</p></CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card>
