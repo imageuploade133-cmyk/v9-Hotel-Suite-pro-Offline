@@ -56,6 +56,7 @@ const getServiceColumns = (
     onDelete: (item: UnifiedItem) => void,
     onViewSales: (item: UnifiedItem) => void,
     currency: string,
+    salesData: StockSale[] | null,
     globalServiceImageUrl?: string,
     useGlobalServiceImage?: boolean
 ): ColumnDef<UnifiedItem>[] => [
@@ -100,6 +101,20 @@ const getServiceColumns = (
     accessorKey: 'price',
     header: ({ column }) => <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>Price <ArrowUpDown className="ml-2 h-4 w-4" /></Button>,
     cell: ({ row }) => <div className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(row.original.price || 0)}</div>
+  },
+  {
+    accessorKey: 'costPrice',
+    header: 'Cost Price',
+    cell: ({ row }) => <div>{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(row.original.costPrice || 0)}</div>
+  },
+  {
+    id: 'totalIncome',
+    header: 'Total Income',
+    cell: ({ row }) => {
+      const item = row.original;
+      const income = (salesData || []).reduce((sum, sale) => sum + (sale.items || []).filter(sold => (sold.itemId && sold.itemId === item.id) || (!sold.itemId && (sold.itemName === item.name || sold.name === item.name))).reduce((itemSum, sold) => itemSum + Number(sold.sellingPrice || 0) * Number(sold.quantity || 0), 0), 0);
+      return <div className="font-semibold tabular-nums">{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(income)}</div>;
+    }
   },
   {
     accessorKey: 'quantity',
@@ -166,10 +181,11 @@ export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, re
         onDelete,
         onViewSales,
         settings?.currency || 'USD',
+        salesData,
         settings?.globalServiceImageUrl || settings?.globalStockImageUrl,
         settings?.useGlobalServiceImage !== false || settings?.useGlobalStockImage === true
       ),
-      [onEdit, onDelete, onViewSales, settings]
+      [onEdit, onDelete, onViewSales, settings, salesData]
     );
 
     const table = useReactTable({
