@@ -207,7 +207,8 @@ function BookingsReportPage() {
         </div>
       </div>
 
-      <Card>
+      <div className="rounded-xl bg-gradient-to-br from-sky-500/70 via-indigo-500/60 to-violet-500/70 p-[1.5px] shadow-sm">
+      <Card className="border-0 bg-card shadow-none">
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><CardTitle>{isAdmin ? 'Staff Booking Performance' : 'My Booking Performance'}</CardTitle><p className="text-sm text-muted-foreground">Report period: {period}</p></div>
           <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search staff..." className="pl-9" /></div>
@@ -234,6 +235,7 @@ function BookingsReportPage() {
           </div>}
         </CardContent>
       </Card>
+      </div>
       <style jsx global>{`@media print { aside, header, nav, button, input { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } }`}</style>
     </div>
   );
