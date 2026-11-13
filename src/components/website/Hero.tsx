@@ -67,9 +67,9 @@ export function Hero() {
     const hasVideo = Boolean(videoUrl && !videoFailed);
 
     React.useEffect(() => {
-        setIsMediaLoading(Boolean(hasVideo || imageToDisplay));
+        setIsMediaLoading(Boolean(videoUrl || imageToDisplay));
         setVideoFailed(false);
-    }, [videoUrl, imageToDisplay, hasVideo]);
+    }, [videoUrl, imageToDisplay]);
 
     const mediaReady = () => setIsMediaLoading(false);
     const modalVideoUrl = getVideoEmbedUrl(videoUrl) || (directVideo ? videoUrl : 'https://www.youtube-nocookie.com/embed/RUNEmaJJ_1g?autoplay=1&mute=1');
