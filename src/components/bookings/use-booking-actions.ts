@@ -461,7 +461,9 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     const batch = writeBatch(firestore);
 
     const billRef = doc(collection(firestore, `bookings/${booking.id}/bills`));
-    batch.set(billRef, { items: items.map(item => ({ ...item, billId: billRef.id })), total, bookingId: booking.id, createdAt: serverTimestamp(), createdBy: user.uid, createdByName: userProfile.name || 'Unknown', paid: false });
+    const createdAt = new Date();
+    const billData = { items: items.map(item => ({ ...item, billId: billRef.id })), total, bookingId: booking.id, createdAt: serverTimestamp(), createdBy: user.uid, createdByName: userProfile.name || 'Unknown', paid: false };
+    batch.set(billRef, billData);
 
     const restaurantItems = items.filter(item => !item.isService && !item.id.startsWith('laundry-'));
     let createdOrderRef: any = null;
@@ -500,27 +502,22 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     batch.set(holdSaleRef, holdSaleData);
 
     try {
-        await batch.commit();
-
-        pushLanMutation('heldSales', holdSaleRef.id, 'set', {
-          ...holdSaleData,
-          heldAt: new Date().toISOString(),
-        } as any);
-
+        const localMutations: Array<{ collectionName: string; docId: string; action: 'set'; data: Record<string, unknown> }> = [
+          { collectionName: `bookings/${booking.id}/bills`, docId: billRef.id, action: 'set', data: { ...billData, createdAt: createdAt.toISOString() } as any },
+          { collectionName: 'heldSales', docId: holdSaleRef.id, action: 'set', data: { ...holdSaleData, heldAt: createdAt.toISOString() } as any },
+        ];
         if (createdOrderRef && createdKitchenOrderData) {
-          pushLanMutation('orders', createdOrderRef.id, 'set', {
-            ...createdKitchenOrderData,
-            id: createdOrderRef.id,
-            createdAt: new Date().toISOString(),
-          } as any);
+          localMutations.push({ collectionName: 'orders', docId: createdOrderRef.id, action: 'set', data: { ...createdKitchenOrderData, id: createdOrderRef.id, createdAt: createdAt.toISOString() } as any });
         }
+        await commitLocalFirstMutations(localMutations, `guest-bill-add:${billRef.id}`, () => batch.commit());
 
         toast({ variant: 'success', title: 'Bill Updated', description: `Successfully added charge to the bill for Room ${booking.roomNumber}. ${restaurantItems.length > 0 ? 'Order sent to kitchen.' : ''} An on-hold sale has been created for tracking.` });
         setActionState(prev => ({...prev, bookingToAddBill: null}));
         onSuccess();
     } catch (error) {
         console.error('Error adding bill/order:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add items to the bill or send order to kitchen.' });
+        toast({ variant: 'destructive', title: 'Error', description: error instanceof Error ? error.message : 'Failed to add items to the bill or send order to kitchen.' });
+        throw error;
     }
   };
 
