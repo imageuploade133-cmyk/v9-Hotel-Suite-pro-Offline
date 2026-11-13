@@ -4,7 +4,6 @@ import * as React from 'react';
 import { Monitor, Image, BedDouble, GalleryHorizontal, Target, PanelBottom } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion } from '@/components/ui/accordion';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { WebsitePreview } from '@/components/settings/website-preview';
 import { HeroSettingsForm } from '@/components/settings/website-studio2/hero-settings-form';
 import { AccommodationsSettingsForm } from '@/components/settings/website-studio2/accommodations-settings';
