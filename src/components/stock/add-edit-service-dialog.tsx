@@ -92,6 +92,7 @@ import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required.'),
   price: z.coerce.number().min(0, 'Price must be a non-negative number.'),
+  costPrice: z.coerce.number().min(0, 'Cost price must be a non-negative number.').default(0),
   category: z.string().min(1, 'Category is required.'),
   description: z.string().optional(),
   menuId: z.string().optional(),
@@ -216,6 +217,14 @@ function ServiceFormFields({
                     )}
                 />
                 </div>
+                <FormField control={form.control} name="costPrice" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Cost Price (per item)</FormLabel>
+                        <FormControl><Input type="number" min="0" step="0.01" placeholder="0.00" {...field} value={field.value ?? 0} /></FormControl>
+                        <FormDescription>Used to calculate stock investment and profit on future sales.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )} />
                 {!isEditMode && (
                     <FormField
                         control={form.control}
@@ -361,6 +370,7 @@ export function AddEditServiceItemDialog({
     defaultValues: {
       name: '',
       price: 0,
+      costPrice: 0,
       category: 'General',
       description: '',
       menuId: 'none',
@@ -407,6 +417,7 @@ export function AddEditServiceItemDialog({
         form.reset({
           name: service.name,
           price: service.price || 0,
+          costPrice: service.costPrice || 0,
           category: service.category,
           description: service.description || '',
           menuId: 'none',
@@ -419,6 +430,7 @@ export function AddEditServiceItemDialog({
         form.reset({
           name: '',
           price: 0,
+          costPrice: 0,
           category: 'General',
           description: '',
           menuId: 'none',
@@ -515,6 +527,7 @@ export function AddEditServiceItemDialog({
       const serviceData = {
         name: data.name,
         price: data.price,
+        costPrice: data.costPrice || 0,
         category: data.category,
         description: data.description || '',
         isService: true,
