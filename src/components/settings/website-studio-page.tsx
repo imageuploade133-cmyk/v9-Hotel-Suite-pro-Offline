@@ -15,20 +15,13 @@ import WebsiteStudioLoading from '@/app/(protected)/settings/website-studio/load
 import { useSettings } from '@/contexts/settings-context';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { Accordion } from '@/components/ui/accordion';
-import { WebsitePreview } from '@/components/settings/website-preview';
 import { BookingProvider, useBooking } from '@/components/website/booking-provider';
 import { BookingDialog } from '@/components/website/booking-dialog';
 import type { Room, Amenity, Review, Settings, SiteData } from '@/components/website/types';
 import { ServerCrash } from 'lucide-react';
+import { WebsiteStudioWorkspace } from '@/components/settings/website-studio-workspace';
 import Link from 'next/link';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { HeroSettingsForm } from '@/components/settings/website-studio2/hero-settings-form';
-import { AccommodationsSettingsForm } from '@/components/settings/website-studio2/accommodations-settings';
-import { VisionMissionSettings } from '@/components/settings/website/vision-mission-settings';
 import { uploadImage } from '@/lib/helpers';
-import { GallerySettingsForm } from '@/components/settings/website-studio2/gallery-settings-form';
-import { FooterSettingsForm } from '@/components/settings/website/footer-settings';
 
 
 const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
@@ -175,37 +168,24 @@ const AdminDashboardContent = ({ pageData }: { pageData: SiteData }) => {
 
     return (
       <FormProvider {...methods}>
-        <form id="website-content-form" onSubmit={methods.handleSubmit(onSubmit)} className="h-full flex flex-col">
-          <div className="flex justify-between items-start mb-6">
+        <form id="website-content-form" onSubmit={methods.handleSubmit(onSubmit)} className="flex min-h-[calc(100vh-7rem)] flex-col gap-1">
+          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <TopHeader name="Website Studio" icon={<Globe className="h-10 w-10" />} description="Visually edit your public-facing website content and appearance." />
-            <div className="flex items-center gap-2">
-               <Button asChild variant="outline">
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+               <Button asChild variant="outline" className="w-full sm:flex-1 xl:w-auto">
                   <Link href="/settings/website-studio2">
                       <Settings2 className="mr-2 h-4 w-4" />
                       Advanced Settings
                   </Link>
               </Button>
-              <Button type="submit" className="shadow-lg" disabled={isSaving || !methods.formState.isDirty}>
+              <Button type="submit" className="w-full shadow-lg sm:flex-1 xl:w-auto" disabled={isSaving || !methods.formState.isDirty}>
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                   Save Website Content
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 flex-1 min-h-0">
-             <ScrollArea className="h-full max-h-[calc(100vh-200px)] border rounded-lg p-4 bg-card">
-                 <Accordion type="multiple" defaultValue={['hero-section']}>
-                    <HeroSettingsForm form={methods} sectionId="hero-section" />
-                    <AccommodationsSettingsForm form={methods} sectionId="accommodations-section" />
-                    <GallerySettingsForm form={methods} sectionId="gallery-section" />
-                    <VisionMissionSettings form={methods} sectionId="vision-mission-section" />
-                    <FooterSettingsForm form={methods} sectionId="footer-section" />
-                 </Accordion>
-             </ScrollArea>
-              <div className="h-full max-h-[calc(100vh-200px)]">
-                  <WebsitePreview pageData={pageData} />
-              </div>
-          </div>
+          <WebsiteStudioWorkspace form={methods} pageData={pageData} />
         </form>
         <BookingDialog />
       </FormProvider>
