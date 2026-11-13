@@ -10,6 +10,7 @@ import { useFirestore, useCollection } from '@/firebase';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
+import { useUser } from '@/contexts/user-context';
 import type { StockSale, StockReturn, HeldSale, StockItem } from '@/lib/types';
 import { getSafeDate } from '@/lib/helpers';
 import { getProductImageUrl as resolveProductImageUrl } from '@/lib/product-image';
@@ -36,6 +37,8 @@ function StaffTransactionBreakdownPage() {
   const firestore = useFirestore();
   const { getCollectionPath, isGlobalMode, isBranchMode, currentBranch } = useBranch();
   const { settings, getEffectivePosSettings } = useSettings();
+  const { userMap } = useUser();
+  const staffProfile = userMap.get(staffUid);
   const posSettings = React.useMemo(() => getEffectivePosSettings('pos'), [getEffectivePosSettings]);
   const receiptLogoUrl = posSettings.posUseBusinessLogo !== false
     ? (currentBranch?.logoUrl || settings?.businessLogoUrl || '')
@@ -102,6 +105,7 @@ function StaffTransactionBreakdownPage() {
   const [printFormat, setPrintFormat] = React.useState<'invoice' | 'terminal'>('invoice');
   const [includeTransactionList, setIncludeTransactionList] = React.useState(true);
   const [includeItemDetails, setIncludeItemDetails] = React.useState(true);
+  const [includeProductImages, setIncludeProductImages] = React.useState(false);
   const runningTableTotal = staffTables.reduce((sum, table) => sum + (table.cart || []).reduce((sub, item) => sub + Math.max(0, Number(item.sellQuantity || 0)) * Math.max(0, Number(item.price ?? item.sellingPrice ?? 0)), 0), 0);
   const printPeriod = dateRange?.from
     ? format(dateRange.from, 'dd MMM yyyy') + (dateRange.to ? ' – ' + format(dateRange.to, 'dd MMM yyyy') : '')
@@ -109,10 +113,10 @@ function StaffTransactionBreakdownPage() {
   const printDate = format(new Date(), 'dd MMM yyyy, hh:mm a');
   const printEventType = (event: DetailEvent) => event.kind === 'sale' ? 'SALE' : event.kind === 'refund' ? 'REFUND' : 'RUNNING TABLE';
   const printEventItems = (event: DetailEvent) => event.kind === 'sale'
-    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0), image: productImageFor(item, item.itemId) }))
+    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0), image: includeProductImages ? productImageFor(item, item.itemId) : undefined }))
     : event.kind === 'refund'
       ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)), image: productImageFor(item, item.itemId) }))
-      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0), image: productImageFor(item, item.id) }));
+      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0), image: includeProductImages ? productImageFor(item, item.id) : undefined }));
   const printReport = () => {
     if (isLoading) return;
     window.print();
@@ -154,7 +158,17 @@ function StaffTransactionBreakdownPage() {
   }, [dateRange]);
   const backUrl = '/pos-reports' + (dateQuery ? '?' + dateQuery : '');
 
-  const staffName = staffSales[0]?.soldByName || staffReturns[0]?.returnedByName || staffTables[0]?.heldByName || 'Staff member';
+  const staffName = staffProfile?.name || staffSales[0]?.soldByName || staffReturns[0]?.returnedByName || staffTables[0]?.heldByName || 'Staff member';
+  const staffEmail = staffProfile?.email || staffSales[0]?.soldByEmail || '—';
+  const staffPhone = staffProfile?.phoneNumber || staffSales[0]?.soldByPhone || '—';
+  const staffRole = staffProfile?.role || 'Staff';
+  const tableNameFor = (event: DetailEvent) => {
+    if (event.kind === 'running') return event.table.name || '—';
+    const relatedSale = event.kind === 'sale' ? event.sale : staffSales.find(sale => sale.id === event.refund.originalSaleId);
+    const held = staffTables.find(table => table.id === (relatedSale as any)?.linkedHeldSaleId
+      || table.linkedStockSaleId === relatedSale?.id);
+    return held?.name || (relatedSale as any)?.tableName || '—';
+  };
   const tableUnits = (table: HeldSale) => (table.cart || []).reduce((sum, item) => sum + Number(item.sellQuantity || 0), 0);
 
 
@@ -193,6 +207,7 @@ function StaffTransactionBreakdownPage() {
           <div className="space-y-3 border-t pt-4"><p className="text-sm font-semibold">Include in report</p>
             <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeTransactionList} onChange={event => setIncludeTransactionList(event.target.checked)} /><span><span className="font-medium">Transaction list</span><span className="block text-xs text-muted-foreground">Include sales, refunds and active running tables.</span></span></label>
             <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeItemDetails} onChange={event => setIncludeItemDetails(event.target.checked)} disabled={!includeTransactionList} /><span><span className="font-medium">Item details</span><span className="block text-xs text-muted-foreground">Include item names, quantities and values.</span></span></label>
+            <label className="flex cursor-pointer items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={includeProductImages} onChange={event => setIncludeProductImages(event.target.checked)} disabled={!includeTransactionList || !includeItemDetails} /><span><span className="font-medium">Show product images in printout</span><span className="block text-xs text-muted-foreground">Off by default for invoice and terminal printing.</span></span></label>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">The report includes every matching record in the selected date range, not just the current table page. Running-table value is kept separate from completed income.</div>
           <div className="space-y-1 border-t pt-4"><p className="text-sm font-semibold">Report search</p><Input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Reference, customer, item..." aria-label="Filter report transactions" /><p className="text-xs text-muted-foreground">Search filters the transactions included in the preview and totals.</p></div>
@@ -213,11 +228,12 @@ function StaffTransactionBreakdownPage() {
               {posSettings.posShowDate !== false && <p className="mt-1 text-xs">Generated: {printDate}</p>}
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-black py-3 text-xs">
-              <p><strong>Staff:</strong> {staffName}</p><p><strong>Period:</strong> {printPeriod}</p>
-              <p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
+              <p><strong>Staff Name:</strong> {staffName}</p><p><strong>Staff Email:</strong> {staffEmail}</p>
+              <p><strong>Staff Phone:</strong> {staffPhone}</p><p><strong>Staff Role:</strong> {staffRole}</p>
+              <p><strong>Period:</strong> {printPeriod}</p><p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
               {posSettings.posShowCashierName !== false && <p><strong>Cashier:</strong> {staffName}</p>}
             </div>
-            {includeTransactionList && <div className="py-3"><h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>{filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current report filters.</p> : <div className="space-y-3">{filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs"><div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div><div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>{includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item,index) => <div key={event.id + '-item-' + index} className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2"><span className="h-7 w-7 shrink-0 overflow-hidden rounded border border-gray-300 bg-gray-100">{item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[8px] text-gray-500">IMG</span>}</span><span className="min-w-0 break-words">{item.name} × {item.qty}</span></span><span className="shrink-0">{money(item.qty * item.unit)}</span></div>)}</div>}</div>)}</div>}</div>}
+            {includeTransactionList && <div className="py-3"><h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>{filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current report filters.</p> : <div className="space-y-3">{filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs"><div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div><div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div><div className="mt-1 grid grid-cols-2 gap-x-2 text-[10px]"><span>Customer: {event.kind === 'sale' ? (event.sale.customerName || 'Walk-in') : event.kind === 'refund' ? (event.refund.customerName || 'Walk-in') : (event.table.customer?.name || 'Walk-in')}</span><span className="text-right">Table: {tableNameFor(event)}</span></div>{includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item,index) => <div key={event.id + '-item-' + index} className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2"><span className="h-7 w-7 shrink-0 overflow-hidden rounded border border-gray-300 bg-gray-100">{includeProductImages && item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : null}</span><span className="min-w-0 break-words">{item.name} × {item.qty}</span></span><span className="shrink-0">{money(item.qty * item.unit)}</span></div>)}</div>}</div>)}</div>}</div>}
             <div className="mt-2 border-t-2 border-black pt-3"><h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2><div className="space-y-1 text-xs"><div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(filteredIncome)}</strong></div><div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(filteredRefunds)}</strong></div><div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(filteredRunningTableTotal)}</strong></div></div><p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p></div>
             <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">{posSettings.posReceiptFooter || posSettings.posThankYouMessage || "Thank you."}<p className="mt-1">End of report · {staffName}</p></div>
           </div>
