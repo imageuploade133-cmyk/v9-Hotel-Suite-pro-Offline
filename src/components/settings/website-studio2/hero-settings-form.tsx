@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import Image from 'next/image';
-import { Upload, X, Home, Loader2 } from 'lucide-react';
+import { Upload, X, Home, Video, Link2 } from 'lucide-react';
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useSettings } from '@/contexts/settings-context';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,30 @@ export function HeroSettingsForm({
     const { toast } = useToast();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = React.useState(false);
+    const videoInputRef = React.useRef<HTMLInputElement>(null);
+    const videoFile = form.watch(`${fieldName}.videoFile`);
+    const videoUrl = form.watch(`${fieldName}.videoUrl`) || '';
+
+    const handleVideoSelect = (file?: File) => {
+        if (!file) return;
+        if (!file.type.startsWith('video/')) {
+            toast({ variant: 'destructive', title: 'Invalid video', description: 'Please select an MP4, WebM or MOV video.' });
+            return;
+        }
+        const maxVideoSizeMb = 100;
+        if (file.size > maxVideoSizeMb * 1024 * 1024) {
+            toast({ variant: 'destructive', title: 'Video Too Large', description: `Hero videos must be ${maxVideoSizeMb}MB or smaller.` });
+            return;
+        }
+        form.setValue(`${fieldName}.videoFile`, file, { shouldDirty: true });
+        form.setValue(`${fieldName}.videoUrl`, '', { shouldDirty: true });
+    };
+
+    const removeVideo = () => {
+        form.setValue(`${fieldName}.videoFile`, undefined, { shouldDirty: true });
+        form.setValue(`${fieldName}.videoUrl`, '', { shouldDirty: true });
+        if (videoInputRef.current) videoInputRef.current.value = '';
+    };
 
     const maxFileSize = settings?.maxFileSizeMb ?? 5;
 
@@ -108,7 +132,51 @@ export function HeroSettingsForm({
                                 <FormItem><FormLabel>Button Text</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}
                         />
-                         <FormItem>
+                        <div className="space-y-3 rounded-lg border p-4">
+                            <div className="flex items-center gap-2">
+                                <Video className="h-5 w-5 text-primary" />
+                                <div>
+                                    <FormLabel className="text-base">Hero Background Video</FormLabel>
+                                    <p className="text-xs text-muted-foreground">Use an uploaded video or paste a direct video, YouTube or Vimeo link. Video plays muted, automatically and in a loop.</p>
+                                </div>
+                            </div>
+                            <FormItem>
+                                <FormLabel>Paste Video Link</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="url"
+                                        value={videoUrl}
+                                        placeholder="https://... (MP4, WebM, YouTube or Vimeo)"
+                                        onChange={(event) => {
+                                            form.setValue(`${fieldName}.videoUrl`, event.target.value, { shouldDirty: true });
+                                            if (event.target.value) form.setValue(`${fieldName}.videoFile`, undefined, { shouldDirty: true });
+                                        }}
+                                    />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">For direct hosting, use a publicly accessible MP4 or WebM URL. YouTube and Vimeo links are embedded.</p>
+                            </FormItem>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button type="button" variant="outline" onClick={() => videoInputRef.current?.click()}>
+                                    <Upload className="mr-2 h-4 w-4" /> Upload Video
+                                </Button>
+                                <Input
+                                    ref={videoInputRef}
+                                    type="file"
+                                    accept="video/mp4,video/webm,video/quicktime"
+                                    className="hidden"
+                                    onChange={(event) => handleVideoSelect(event.target.files?.[0])}
+                                />
+                                {videoFile && <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{videoFile.name}</span>}
+                                {(videoFile || videoUrl) && (
+                                    <Button type="button" variant="ghost" size="sm" onClick={removeVideo}>
+                                        <X className="mr-1 h-4 w-4" /> Remove video
+                                    </Button>
+                                )}
+                            </div>
+                            {videoFile && <p className="text-xs text-muted-foreground">Selected video: {(videoFile.size / (1024 * 1024)).toFixed(1)} MB. It will upload when you save Website Content.</p>}
+                            {videoUrl && <p className="break-all text-xs text-muted-foreground"><Link2 className="mr-1 inline h-3 w-3" /> {videoUrl}</p>}
+                        </div>
+                        <div className="space-y-2">
                             <FormLabel>Background Image</FormLabel>
                             {imagePreview ? (
                                 <div className="relative group w-full aspect-video">

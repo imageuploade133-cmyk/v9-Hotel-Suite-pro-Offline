@@ -15,6 +15,7 @@ import WebsiteStudioLoading from '@/app/(protected)/settings/website-studio/load
 import { useSettings } from '@/contexts/settings-context';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BookingProvider, useBooking } from '@/components/website/booking-provider';
 import { BookingDialog } from '@/components/website/booking-dialog';
 import type { Room, Amenity, Review, Settings, SiteData } from '@/components/website/types';
@@ -35,6 +36,8 @@ const websiteDataSchema = z.object({
           buttonText: z.string().optional(),
           imageUrl: z.string().url().optional().or(z.literal('')),
           imageFile: z.instanceof(File).optional(),
+          videoUrl: z.string().url().optional().or(z.literal('')),
+          videoFile: z.instanceof(File).optional(),
       }).optional(),
       accommodations: z.object({
           show: z.boolean().default(true),
@@ -114,7 +117,19 @@ const AdminDashboardContent = ({ pageData }: { pageData: SiteData }) => {
                 const url = await uploadImage(data.websiteData.hero.imageFile, imgbbApiKey, `hero-image-${Date.now()}`);
                 processedData.hero.imageUrl = url;
             }
-            if (processedData.hero) delete processedData.hero.imageFile;
+            if (data.websiteData?.hero?.videoFile) {
+                const videoFile = data.websiteData.hero.videoFile;
+                if (!videoFile.type.startsWith('video/')) throw new Error('Please select a valid video file.');
+                toast({ title: 'Uploading Hero Video...', description: 'Please keep this page open until the upload finishes.' });
+                const safeName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+                const videoRef = storageRef(getStorage(), `website/hero-videos/${Date.now()}-${safeName}`);
+                await uploadBytes(videoRef, videoFile, { contentType: videoFile.type });
+                processedData.hero.videoUrl = await getDownloadURL(videoRef);
+            }
+            if (processedData.hero) {
+                delete processedData.hero.imageFile;
+                delete processedData.hero.videoFile;
+            }
 
             // Handle Social/Branding Logo
             if (data.websiteData?.socialAndBranding?.websiteLogoFile) {
