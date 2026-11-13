@@ -83,8 +83,13 @@ export function printHtml(html: string, options: PrintOptions = {}): void {
 
   const styles = getDocumentStyles();
 
+  const printAttributes = [
+    document.documentElement.dataset.posPrintBoldText === 'true' ? 'data-pos-print-bold-text="true"' : '',
+    document.documentElement.dataset.posPrintBoldLines === 'true' ? 'data-pos-print-bold-lines="true"' : '',
+  ].filter(Boolean).join(' ');
+
   const htmlContent = `<!DOCTYPE html>
-<html>
+<html ${printAttributes}>
 <head>
   <title>${title}</title>
   <style>${styles}</style>
