@@ -28,6 +28,7 @@ export const BRANCH_COMPATIBLE_PERMISSIONS = new Set([
 
   // Bookings
   PagePermission.VIEW_BOOKINGS_PAGE,
+  PagePermission.VIEW_BOOKINGS_REPORT,
   PagePermission.CREATE_BOOKING,
   PagePermission.EDIT_BOOKING,
   PagePermission.CANCEL_BOOKING,
