@@ -59,7 +59,7 @@ export function CheckInDialog({
   const { data: paymentMethods } = useCollection(paymentMethodsQuery);
 
   const currency = settings?.currency || 'USD';
-  const amount = Number(booking?.totalAmount ?? booking?.amount ?? totalAmount ?? 0);
+  const amount = Number(booking?.totalAmount || booking?.amount || totalAmount || 0);
 
   React.useEffect(() => {
     let cancelled = false;
