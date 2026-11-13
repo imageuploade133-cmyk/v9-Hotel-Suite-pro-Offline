@@ -606,7 +606,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     };
     const paymentRef = existingPayment
         ? doc(firestore, 'payments', existingPayment.id)
-        : doc(collection(firestore, 'payments'));
+        : doc(firestore, 'payments', `booking-payment-${booking.id}`);
     let paymentData: any = existingPayment?.data() || null;
     if (!existingPayment) {
         paymentData = {
