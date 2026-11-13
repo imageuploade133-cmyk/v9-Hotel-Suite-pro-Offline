@@ -735,6 +735,8 @@ export default function ProtectedLayout({
     }
   }, [user, authLoading, router]);
 
+  const isWebsiteStudio = pathname === '/settings/website-studio';
+
   const { theme, setTheme } = useTheme();
   const [themeMounted, setThemeMounted] = React.useState(false);
   React.useEffect(() => setThemeMounted(true), []);
@@ -769,7 +771,7 @@ export default function ProtectedLayout({
        <AppBadgeUpdater count={unreadNotificationsCount} />
        {showCelebration && <RewardCelebration onCelebrationEnd={() => setShowCelebration(false)} />}
       <TooltipProvider>
-        <aside
+        {!isWebsiteStudio && <aside
           className={cn(
             'fixed inset-y-0 left-0 z-10 hidden flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-300 sm:flex',
             isCollapsed ? 'w-20' : 'w-64'
@@ -894,15 +896,16 @@ export default function ProtectedLayout({
                 </React.Fragment>
             ))}
           </nav>
-        </aside>
+        </aside>}
 
         <div
           className={cn(
             'flex min-w-0 w-full max-w-full flex-col transition-all duration-300',
-            isCollapsed ? 'sm:pl-20' : 'sm:pl-64'
+            !isWebsiteStudio && (isCollapsed ? 'sm:pl-20' : 'sm:pl-64'),
+            isWebsiteStudio && 'h-screen min-h-0 overflow-hidden'
           )}
         >
-          <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-background px-2 sm:h-16 sm:gap-4 sm:px-6">
+          {!isWebsiteStudio && <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b bg-background px-2 sm:h-16 sm:gap-4 sm:px-6">
             <Sheet
               open={mobileMenuOpen}
               onOpenChange={(open) => {
@@ -1177,7 +1180,7 @@ export default function ProtectedLayout({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </header>
+          </header>}
           <main className={pathname === '/settings/website-studio' ? "min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden p-0" : "min-w-0 w-full max-w-full flex-1 overflow-x-clip overflow-y-auto p-3 sm:p-6 lg:p-8"}>
             <FinancialProvider>
               {children}
