@@ -114,7 +114,13 @@ const getServiceColumns = (
     header: 'Total Income',
     cell: ({ row }) => {
       const item = row.original;
-      const income = (salesData || []).reduce((sum, sale) => sum + (sale.items || []).filter(sold => (sold.itemId && sold.itemId === item.id) || (!sold.itemId && (sold.itemName === item.name || sold.name === item.name))).reduce((itemSum, sold) => itemSum + Number(sold.sellingPrice || 0) * Number(sold.quantity || 0), 0), 0);
+      const income = (salesData || []).reduce((sum, sale) => {
+        if (sale.paymentStatus === 'Unpaid' || sale.paymentStatus === 'Refunded') return sum;
+        return sum + (sale.items || []).filter(sold => (sold.itemId && sold.itemId === item.id) || (!sold.itemId && sold.itemName === item.name)).reduce((itemSum, sold) => {
+          const refunded = (sale.refundedItems || []).filter(refund => refund.itemId === sold.itemId).reduce((n, refund) => n + Number(refund.quantity || 0), 0);
+          return itemSum + Number(sold.sellingPrice || 0) * Math.max(0, Number(sold.quantity || 0) - refunded);
+        }, 0);
+      }, 0);
       return <div className="font-semibold tabular-nums">{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(income)}</div>;
     }
   },
