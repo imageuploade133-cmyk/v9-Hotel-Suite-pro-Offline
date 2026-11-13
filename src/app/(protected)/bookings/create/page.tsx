@@ -15,7 +15,7 @@ import { BookingFormFields, createBookingSchema, type BookingFormValues } from '
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/contexts/user-context';
 import { useFirestore } from '@/firebase';
-import { doc, collection, writeBatch, serverTimestamp, getDocs, query, where, limit, increment } from 'firebase/firestore';
+import { doc, collection, writeBatch, serverTimestamp, getDocs, query, where, limit } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { useSettings } from '@/contexts/settings-context';
 import { differenceInDays, isWithinInterval, startOfDay, endOfDay, isSameDay } from 'date-fns';
