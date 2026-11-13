@@ -116,7 +116,7 @@ const getServiceColumns = (
     cell: ({ row }) => {
       const item = row.original;
       const income = (salesData || []).reduce((sum, sale) => {
-        if (sale.paymentStatus === 'Unpaid' || sale.paymentStatus === 'Refunded') return sum;
+        if (sale.paymentStatus === 'Refunded') return sum;
         return sum + (sale.items || []).filter(sold => (sold.itemId && sold.itemId === item.id) || (!sold.itemId && sold.itemName === item.name)).reduce((itemSum, sold) => {
           const refunded = (sale.refundedItems || []).filter(refund => refund.itemId === sold.itemId).reduce((n, refund) => n + Number(refund.quantity || 0), 0);
           return itemSum + Number(sold.sellingPrice || 0) * Math.max(0, Number(sold.quantity || 0) - refunded);
