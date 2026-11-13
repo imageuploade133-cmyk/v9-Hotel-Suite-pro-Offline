@@ -11,7 +11,8 @@ import { useUser } from '@/contexts/user-context';
 import { useGlobalCollectionData } from '@/hooks/use-global-collection-data';
 import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
-import type { StockSale, StockReturn, HeldSale } from '@/lib/types';
+import type { StockItem, StockSale, StockReturn, HeldSale } from '@/lib/types';
+import { getProductImageUrl } from '@/lib/product-image';
 import { getSafeDate } from '@/lib/helpers';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -55,21 +56,32 @@ function MyPOSReportPrintPage() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialRange);
   React.useEffect(() => setDateRange(initialRange), [initialRange]);
 
+  const stockQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stock'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const salesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const returnsQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockReturns'))) : null, [firestore, getCollectionPath, isGlobalMode]);
   const heldQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('heldSales'))) : null, [firestore, getCollectionPath, isGlobalMode]);
+  const branchStock = useCollection<StockItem>(stockQuery);
   const branchSales = useCollection<StockSale>(salesQuery);
   const branchReturns = useCollection<StockReturn>(returnsQuery);
   const branchHeld = useCollection<HeldSale>(heldQuery);
+  const globalStock = useGlobalCollectionData<StockItem>('stock', []);
   const globalSales = useGlobalCollectionData<StockSale>('stockSales', []);
   const globalReturns = useGlobalCollectionData<StockReturn>('stockReturns', []);
   const globalHeld = useGlobalCollectionData<HeldSale>('heldSales', []);
+  const stock = isGlobalMode ? globalStock.data : branchStock.data;
+  const stockById = React.useMemo(() => new Map((stock || []).map(item => [item.id, item])), [stock]);
+  const productImageFor = React.useCallback((item: unknown, itemId?: string) => {
+    const directImage = getProductImageUrl(item);
+    if (directImage) return directImage;
+    const stockItem = itemId ? stockById.get(itemId) : undefined;
+    return getProductImageUrl(stockItem, settings) || getProductImageUrl(undefined, settings);
+  }, [stockById, settings]);
   const sales = isGlobalMode ? globalSales.data : branchSales.data;
   const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
   const heldTables = isGlobalMode ? globalHeld.data : branchHeld.data;
   const isLoading = isGlobalMode
-    ? globalSales.isLoading || globalReturns.isLoading || globalHeld.isLoading
-    : branchSales.isLoading || branchReturns.isLoading || branchHeld.isLoading;
+    ? globalStock.isLoading || globalSales.isLoading || globalReturns.isLoading || globalHeld.isLoading
+    : branchStock.isLoading || branchSales.isLoading || branchReturns.isLoading || branchHeld.isLoading;
 
   const inRange = React.useCallback((date: Date | null) => {
     if (!date || !dateRange?.from) return true;
@@ -97,10 +109,10 @@ function MyPOSReportPrintPage() {
   const printDate = format(new Date(), 'dd MMM yyyy, hh:mm a');
   const printEventType = (event: DetailEvent) => event.kind === 'sale' ? 'SALE' : event.kind === 'refund' ? 'REFUND' : 'RUNNING TABLE';
   const printEventItems = (event: DetailEvent) => event.kind === 'sale'
-    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0) }))
+    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0), imageUrl: productImageFor(item, item.itemId) }))
     : event.kind === 'refund'
-      ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)) }))
-      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0) }));
+      ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)), imageUrl: productImageFor(item, item.itemId) }))
+      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0), imageUrl: productImageFor(item, item.id) }));
   const printReport = () => {
     if (isLoading) return;
     window.print();
@@ -205,7 +217,7 @@ function MyPOSReportPrintPage() {
               <p><strong>Transactions:</strong> {filteredEvents.length}</p><p><strong>Currency:</strong> {currency}</p>
               {posSettings.posShowCashierName !== false && <p><strong>Cashier:</strong> {staffName}</p>}
             </div>
-            {includeTransactionList && <div className="py-3"><h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>{filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current report filters.</p> : <div className="space-y-3">{filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs"><div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div><div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>{includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item,index) => <div key={event.id + '-item-' + index} className="flex justify-between gap-2"><span>{item.name} × {item.qty}</span><span>{money(item.qty * item.unit)}</span></div>)}</div>}</div>)}</div>}</div>}
+            {includeTransactionList && <div className="py-3"><h2 className="mb-2 text-sm font-extrabold">TRANSACTION DETAILS</h2>{filteredEvents.length === 0 ? <p className="py-4 text-center text-xs">No transactions match the current report filters.</p> : <div className="space-y-3">{filteredEvents.map(event => <div key={'print-' + event.id} className="break-inside-avoid border-b border-dashed border-gray-400 pb-2 text-xs"><div className="flex justify-between gap-2 font-bold"><span>{printEventType(event)} · {event.reference}</span><span className="whitespace-nowrap">{money(event.amount)}</span></div><div className="mt-1 flex justify-between gap-2 text-[10px]"><span>{event.date ? format(event.date, 'dd MMM yyyy, hh:mm a') : 'Date unavailable'}</span><span>{event.kind === 'running' ? 'NOT SETTLED / NOT COMPLETED' : event.kind === 'refund' ? 'REFUND' : event.sale.paymentStatus || 'SALE'}</span></div>{includeItemDetails && <div className="mt-1 space-y-0.5 pl-2">{printEventItems(event).map((item,index) => <div key={event.id + '-item-' + index} className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2">{item.imageUrl && <img src={item.imageUrl} alt="" className="h-7 w-7 shrink-0 rounded border border-gray-300 object-cover" />}<span className="min-w-0">{item.name} × {item.qty}</span></span><span className="shrink-0">{money(item.qty * item.unit)}</span></div>)}</div>}</div>)}</div>}</div>}
             <div className="mt-2 border-t-2 border-black pt-3"><h2 className="mb-2 text-sm font-extrabold">FINANCIAL SUMMARY</h2><div className="space-y-1 text-xs"><div className="flex justify-between gap-3"><span>Total Income</span><strong>{money(filteredIncome)}</strong></div><div className="flex justify-between gap-3"><span>Total Refund</span><strong>{money(filteredRefunds)}</strong></div><div className="flex justify-between gap-3"><span>Total Running Table Value (Unsettled)</span><strong>{money(filteredRunningTableTotal)}</strong></div></div><p className="mt-2 border-t border-dashed border-black pt-2 text-[10px]">Running-table value is not settled income and is excluded from completed sales income.</p></div>
             <div className="mt-6 border-t border-black pt-2 text-center text-[10px]">{posSettings.posReceiptFooter || posSettings.posThankYouMessage || "Thank you."}<p className="mt-1">End of report · {staffName}</p></div>
           </div>
