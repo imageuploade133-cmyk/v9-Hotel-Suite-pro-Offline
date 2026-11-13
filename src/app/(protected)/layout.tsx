@@ -599,6 +599,7 @@ export default function ProtectedLayout({
           { href: '/bookings/create', icon: CalendarPlus, label: 'New Booking', permission: PagePermission.CREATE_BOOKING },
           { href: '/active-check-ins', icon: UserCheck, label: 'Active Check-ins', notificationCount: (individualRoomsByStatus['Active Check-ins'] || []).length, permission: PagePermission.VIEW_BOOKINGS_PAGE },
           { href: '/reservations', icon: CalendarClock, label: 'Reservations', notificationCount: newReservationsCount, permission: PagePermission.VIEW_BOOKINGS_PAGE },
+          { href: '/bookings-report', icon: FileText, label: 'Bookings Report', permission: PagePermission.VIEW_BOOKINGS_REPORT },
         ]
       },
       {
