@@ -40,6 +40,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { usePermissions } from '@/hooks/use-permissions';
 
 function ServicesPage() {
     const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -58,6 +59,8 @@ function ServicesPage() {
     const { settings } = useSettings();
     const { getCollectionPath, currentBranch, isBranchMode, isGlobalMode } = useBranch();
     const { userProfile } = useUser();
+    const { hasPermission } = usePermissions();
+    const canRestock = hasPermission(PagePermission.RESTOCK_INVENTORY);
 
     // Branch mode queries
     const branchSalesQuery = React.useMemo(() => {
@@ -133,7 +136,7 @@ function ServicesPage() {
         return sum + (date && isToday(date) ? Math.max(0, Number(entry.totalCost || 0)) : 0);
       }, 0);
       const totalProfit = (sales || []).reduce((sum, sale) => {
-        if (sale.paymentStatus === 'Unpaid' || sale.paymentStatus === 'Refunded') return sum;
+        if (sale.paymentStatus === 'Refunded') return sum;
         return sum + (sale.items || []).filter(item => item.isService).reduce((lineSum, item) => {
           const refunded = (sale.refundedItems || []).filter(refund => refund.itemId === item.itemId).reduce((n, refund) => n + Number(refund.quantity || 0), 0);
           const soldQty = Math.max(0, Number(item.quantity || 0) - refunded);
@@ -291,6 +294,7 @@ function ServicesPage() {
                           onDelete={handleDelete}
                           onViewSales={setSelectedServiceForLog}
                           onRestock={openRestock}
+                          canRestock={canRestock}
                           reloadCounter={reloadCounter}
                         />
                     </CardContent>
