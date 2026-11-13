@@ -468,7 +468,7 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
 
         const totalRoomIncome = bookings
             .filter(b => b.status !== 'Cancelled' && b.status !== 'Refunded')
-            .reduce((sum, b) => sum + Number(b.totalAmount ?? b.amount ?? 0), 0);
+            .reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0);
 
         const totalReservations = bookings.length;
         const activeReservations = bookings.filter(b => b.status === 'Booked' || b.status === 'Reserved').length;
