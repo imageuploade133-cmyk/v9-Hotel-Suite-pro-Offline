@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { collection, collectionGroup, query, where } from 'firebase/firestore';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { ArrowRight, BedDouble, CalendarCheck, CalendarClock, FileText, Loader2, Printer, Search, Wallet, RotateCcw, Users } from 'lucide-react';
+import { ArrowRight, CalendarCheck, FileText, Loader2, Printer, Search, Wallet, RotateCcw } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { useUser } from '@/contexts/user-context';
@@ -113,7 +113,8 @@ function BookingsReportPage() {
       if (checkIn && dateMatches(booking.checkInDate, dateRange)) checkIn.checkIns += 1;
       const checkOut = ensure(booking.checkedOutByUid, booking.checkedOutByName);
       if (checkOut && dateMatches(booking.actualCheckOutDate, dateRange)) checkOut.checkOuts += 1;
-      if (booking.status === 'Refunded' && dateMatches(booking.cancelledAt || booking.refundedAt, dateRange)) {
+      if (booking.status === 'Refunded' && dateMatches(booking.cancelledAt || booking.refundedAt, dateRange)
+        && !(payments || []).some(payment => payment.bookingId === booking.id && payment.status === 'Refunded')) {
         const refundStaff = ensure(booking.cancelledByUid, booking.cancelledByName);
         if (refundStaff) refundStaff.refunds += amountOf(booking.totalAmount ?? booking.amount);
       }
@@ -128,7 +129,7 @@ function BookingsReportPage() {
       if (!row) return;
       if (bookingPayment && payment.status === 'Paid') row.bookingIncome += amountOf(payment.amount);
       if (payment.type === 'Additional Charges' && payment.status === 'Paid') row.billsIncome += amountOf(payment.amount);
-      if (payment.status === 'Refunded' || payment.type === 'Refund') {
+      if (payment.status === 'Refunded') {
         row.refunds += amountOf(payment.refundDetails?.amount ?? payment.amount);
       }
     });
