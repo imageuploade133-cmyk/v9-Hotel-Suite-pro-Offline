@@ -525,7 +525,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
   };
 
   const handlePayBills = async (booking: Booking, paymentMethod: string, paidItems: BillItem[], customAmount?: number) => {
-    if (!firestore || !userProfile || !user) return;
+    if (!firestore || !userProfile || !user) throw new Error('Your session is not ready. Please sign in again and retry.');
     const billsSnapshot = await getDocs(collection(firestore, 'bookings/' + booking.id + '/bills'));
     const currentBills = billsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ref: snapshot.ref, data: snapshot.data() as Bill }));
     const getPaid = (bill: Bill) => Number(bill.paidAmount) || (bill.paid ? Number(bill.total || 0) : 0);
