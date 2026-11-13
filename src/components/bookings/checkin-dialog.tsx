@@ -68,10 +68,6 @@ export function CheckInDialog({
       setIsCheckingPayment(true);
       setHasConfirmedPayment(false);
       try {
-        if (booking.paymentId) {
-          setHasConfirmedPayment(true);
-          return;
-        }
         if (!firestore) return;
         const snapshot = await getDocs(query(
           collection(firestore, 'payments'),
