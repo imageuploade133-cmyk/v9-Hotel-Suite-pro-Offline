@@ -177,7 +177,8 @@ export function HeroSettingsForm({
                             {videoUrl && <p className="break-all text-xs text-muted-foreground"><Link2 className="mr-1 inline h-3 w-3" /> {videoUrl}</p>}
                         </div>
                         <div className="space-y-2">
-                            <FormLabel>Background Image</FormLabel>
+                            <FormItem>
+                                <FormLabel>Background Image</FormLabel>
                             {imagePreview ? (
                                 <div className="relative group w-full aspect-video">
                                     <Image src={imagePreview} alt="Preview" fill style={{ objectFit: 'cover' }} className="rounded-md border p-1" />
@@ -199,7 +200,8 @@ export function HeroSettingsForm({
                                 <Input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e.target.files)} />
                             </FormControl>
                             <FormMessage />
-                        </FormItem>
+                            </FormItem>
+                        </div>
                     </div>
                 </AccordionContent>
             </Card>
