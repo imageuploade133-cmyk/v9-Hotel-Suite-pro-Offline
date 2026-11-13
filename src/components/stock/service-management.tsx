@@ -160,7 +160,17 @@ export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, re
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
-    const columns = React.useMemo(() => getServiceColumns(onEdit, onDelete, onViewSales, settings?.currency || 'USD', settings?.globalServiceImageUrl, settings?.useGlobalServiceImage), [onEdit, onDelete, onViewSales, settings]);
+    const columns = React.useMemo(
+      () => getServiceColumns(
+        onEdit,
+        onDelete,
+        onViewSales,
+        settings?.currency || 'USD',
+        settings?.globalServiceImageUrl || settings?.globalStockImageUrl,
+        settings?.useGlobalServiceImage !== false || settings?.useGlobalStockImage === true
+      ),
+      [onEdit, onDelete, onViewSales, settings]
+    );
 
     const table = useReactTable({
         data: unifiedItems,
