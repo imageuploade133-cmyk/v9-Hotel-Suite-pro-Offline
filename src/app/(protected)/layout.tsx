@@ -571,6 +571,7 @@ export default function ProtectedLayout({
       { href: '/gym-management', icon: Dumbbell, label: 'Gym Management', permission: PagePermission.VIEW_GYM_PAGE },
       { href: '/barbing-salon', icon: Scissors, label: 'Barbing Salon', permission: PagePermission.VIEW_SALON_PAGE },
       { href: '/services', icon: ConciergeBell, label: 'Services / Foods', permission: PagePermission.VIEW_SERVICES_PAGE },
+      { href: '/services-restock', icon: PackagePlus, label: 'Services & Foods Restock', permission: PagePermission.RESTOCK_SERVICES },
       { href: '/suppliers', icon: Truck, label: 'Suppliers', permission: PagePermission.MANAGE_SUPPLIERS },
       { href: '/stock-keeper', icon: Archive, label: 'Stock Keeper', permission: PagePermission.VIEW_STOCK_MANAGEMENT },
       { href: '/stock-management', icon: Package, label: 'Global Stock Management', permission: PagePermission.VIEW_STOCK_MANAGEMENT },
