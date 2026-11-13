@@ -526,11 +526,20 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
   const handlePayBills = async (booking: Booking, paymentMethod: string, paidItems: BillItem[], customAmount?: number) => {
     if (!firestore || !userProfile || !user) throw new Error('Your session is not ready. Please sign in again and retry.');
-    const billsSnapshot = await getDocs(collection(firestore, 'bookings/' + booking.id + '/bills'));
+    const billsSnapshot = await getDocs(query(collection(firestore, 'bookings/' + booking.id + '/bills'), orderBy('createdAt', 'asc')));
     const currentBills = billsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ref: snapshot.ref, data: snapshot.data() as Bill }));
     const getPaid = (bill: Bill) => Number(bill.paidAmount) || (bill.paid ? Number(bill.total || 0) : 0);
+    const validatedPaidItems = customAmount === undefined ? paidItems.map(requestedItem => {
+      const bill = currentBills.find(entry => entry.id === requestedItem.billId);
+      const storedItem = bill?.data.items.find(item => item.id === requestedItem.id);
+      if (!bill || !storedItem || storedItem.paid || requestedItem.quantity !== storedItem.quantity || requestedItem.price !== storedItem.price) {
+        throw new Error('A selected bill item has changed or is already paid. Refresh the bill and try again.');
+      }
+      return { ...storedItem, billId: bill.id };
+    }) : [];
+    if (customAmount === undefined && validatedPaidItems.length !== paidItems.length) throw new Error('The selected bill items could not be verified.');
     const outstanding = currentBills.reduce((sum, entry) => sum + Math.max(0, Number(entry.data.total || 0) - getPaid(entry.data)), 0);
-    const amountToPay = customAmount !== undefined ? customAmount : paidItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const amountToPay = customAmount !== undefined ? customAmount : validatedPaidItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     if (!Number.isFinite(amountToPay) || amountToPay <= 0 || amountToPay > outstanding + 0.005) {
       throw new Error('Payment amount is invalid or exceeds the current outstanding bill balance. Refresh and try again.');
     }
@@ -538,7 +547,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     const batch = writeBatch(firestore);
     const paymentRef = doc(collection(firestore, 'payments'));
     const sanitizedBookingDetails = { ...booking, checkInDate: booking.checkInDate || null, checkOutDate: booking.checkOutDate || null, actualCheckOutDate: booking.actualCheckOutDate || null };
-    const paymentData: Partial<Payment> = { id: paymentRef.id, bookingId: booking.id, guestName: booking.guestName, guestEmail: booking.guestEmail || null, roomNumber: booking.roomNumber, amount: amountToPay, paymentMethod: paymentMethod as any, status: 'Paid', transactionDate: now, bookingDetails: sanitizedBookingDetails, createdByUid: user.uid, createdByName: userProfile.name, type: 'Additional Charges', ...(customAmount === undefined ? { items: paidItems.map(({ billId, ...item }) => item) } : { notes: 'Custom amount allocated against outstanding guest bills' }) };
+    const paymentData: Partial<Payment> = { id: paymentRef.id, bookingId: booking.id, guestName: booking.guestName, guestEmail: booking.guestEmail || null, roomNumber: booking.roomNumber, amount: amountToPay, paymentMethod: paymentMethod as any, status: 'Paid', transactionDate: now, bookingDetails: sanitizedBookingDetails, createdByUid: user.uid, createdByName: userProfile.name, type: 'Additional Charges', ...(customAmount === undefined ? { items: validatedPaidItems.map(({ billId, ...item }) => item) } : { notes: 'Custom amount allocated against outstanding guest bills' }) };
     batch.set(paymentRef, paymentData);
     const localMutations: Array<{ collectionName: string; docId: string; action: 'set' | 'update'; data: Record<string, unknown> }> = [
       { collectionName: 'payments', docId: paymentRef.id, action: 'set', data: paymentData as any },
@@ -561,7 +570,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
       if (remaining > 0.005) throw new Error('The bill balance changed while processing. Refresh and retry.');
     } else {
       const selectedByBill = new Map<string, BillItem[]>();
-      for (const item of paidItems) selectedByBill.set(item.billId, [...(selectedByBill.get(item.billId) || []), item]);
+      for (const item of validatedPaidItems) selectedByBill.set(item.billId, [...(selectedByBill.get(item.billId) || []), item]);
       for (const [billId, items] of selectedByBill) {
         const entry = currentBills.find(candidate => candidate.id === billId);
         if (!entry) throw new Error('A selected bill could not be found. Refresh and try again.');
