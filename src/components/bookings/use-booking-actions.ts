@@ -107,9 +107,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
       const payment = paymentDoc.data() as Payment;
       return payment.status === 'Paid' && payment.type === 'Booking' && Number(payment.amount || 0) > 0;
     });
-    const isPaidReservation = !!confirmedBookingPayment || (
-      booking.status === 'Reserved' && !!booking.paymentId
-    );
+    const isPaidReservation = !!confirmedBookingPayment;
 
     const finalRoomNumber = roomNumber || booking.roomNumber;
     if (!finalRoomNumber || finalRoomNumber === 'N/A') {
