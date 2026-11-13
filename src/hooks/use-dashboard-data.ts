@@ -449,7 +449,7 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
 
         const checkedInBookingIds = new Set(
             bookings
-                .filter(booking => ['Active', 'Checked-in'].includes(booking.status))
+                .filter(booking => ['Reserved', 'Active', 'Checked-in'].includes(booking.status))
                 .map(booking => booking.id)
         );
         const paidRoomAndBillPayments = payments.filter(payment =>
@@ -464,7 +464,7 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
 
         const totalRoomIncome = bookings
             .filter(b => b.status !== 'Cancelled' && b.status !== 'Refunded')
-            .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+            .reduce((sum, b) => sum + Number(b.totalAmount ?? b.amount ?? 0), 0);
 
         const totalReservations = bookings.length;
         const activeReservations = bookings.filter(b => b.status === 'Booked' || b.status === 'Reserved').length;
