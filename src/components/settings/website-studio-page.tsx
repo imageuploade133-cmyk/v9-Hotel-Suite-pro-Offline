@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Globe, Loader2, Palette, Settings2 } from 'lucide-react';
+import { ArrowLeft, Globe, Loader2, Palette, Settings2 } from 'lucide-react';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { TopHeader } from '@/components/ui/top-header';
@@ -170,7 +170,12 @@ const AdminDashboardContent = ({ pageData }: { pageData: SiteData }) => {
       <FormProvider {...methods}>
         <form id="website-content-form" onSubmit={methods.handleSubmit(onSubmit)} className="flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden">
           <div className="flex shrink-0 flex-col gap-3 border-b bg-background px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-            <TopHeader name="Website Studio" icon={<Globe className="h-10 w-10" />} description="Visually edit your public-facing website content and appearance." />
+            <div className="flex min-w-0 items-center gap-3">
+              <Button asChild type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label="Back to Dashboard">
+                <Link href="/dashboard"><ArrowLeft className="h-5 w-5" /></Link>
+              </Button>
+              <TopHeader name="Website Studio" icon={<Globe className="h-10 w-10" />} description="Visually edit your public-facing website content and appearance." />
+            </div>
             <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
                <Button asChild variant="outline" className="w-full sm:flex-1 xl:w-auto">
                   <Link href="/settings/website-studio2">
