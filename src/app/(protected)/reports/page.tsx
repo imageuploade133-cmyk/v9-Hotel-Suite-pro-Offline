@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSafeDate } from '@/lib/helpers';
+import { getProductImageUrl } from '@/lib/product-image';
 import { endOfDay, format, isWithinInterval, startOfDay, subDays } from 'date-fns';
 import { Banknote, BarChart3, Package, RotateCcw, Search, ShoppingBag, TrendingUp, Table2, Printer } from 'lucide-react';
 
@@ -47,23 +48,6 @@ type StaffSummaryRow = {
   runningTables: number;
 };
 
-function getProductImageUrl(item: any): string | undefined {
-  const candidates = [
-    item?.imageUrl, item?.imageURL, item?.image, item?.photoURL,
-    item?.productImage, item?.thumbnailUrl, item?.thumbnail,
-    ...(Array.isArray(item?.images) ? item.images : []),
-    ...(Array.isArray(item?.imageUrls) ? item.imageUrls : []),
-  ];
-  for (const candidate of candidates) {
-    const value = typeof candidate === 'string'
-      ? candidate
-      : candidate && typeof candidate === 'object'
-        ? candidate.url || candidate.src || candidate.downloadURL
-        : undefined;
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return undefined;
-}
 
 function ReportsPage() {
   const router = useRouter();
@@ -143,7 +127,7 @@ function ReportsPage() {
     (stock || []).forEach(item => rows.set(item.id, {
       id: item.id,
       name: item.name || 'Unnamed product',
-      imageUrl: getProductImageUrl(item),
+      imageUrl: getProductImageUrl(item, settings),
       category: item.category || 'Uncategorized',
       stock: Number(item.quantity || 0),
       unitsSold: 0,
@@ -181,7 +165,7 @@ function ReportsPage() {
       netRevenue: Math.max(0, row.grossRevenue - row.refunds),
       netProfit: row.grossRevenue - row.refunds - row.cost,
     })).sort((a, b) => b.netRevenue - a.netRevenue);
-  }, [stock, filteredSales, filteredReturns]);
+  }, [stock, filteredSales, filteredReturns, settings]);
 
   const staffRows = React.useMemo<StaffSummaryRow[]>(() => {
     const rows = new Map<string, StaffSummaryRow>();

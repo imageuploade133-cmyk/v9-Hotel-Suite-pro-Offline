@@ -12,6 +12,7 @@ import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
 import type { StockItem, StockSale, StockReturn } from '@/lib/types';
 import { toReportDate } from '@/lib/product-report-utils';
+import { getProductImageUrl as resolveProductImageUrl } from '@/lib/product-image';
 import { TopHeader } from '@/components/top-header';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
@@ -36,23 +37,6 @@ type ProductEvent = {
   note?: string;
 };
 
-function getProductImageUrl(item: any): string | undefined {
-  const candidates = [
-    item?.imageUrl, item?.imageURL, item?.image, item?.photoURL,
-    item?.productImage, item?.thumbnailUrl, item?.thumbnail,
-    ...(Array.isArray(item?.images) ? item.images : []),
-    ...(Array.isArray(item?.imageUrls) ? item.imageUrls : []),
-  ];
-  for (const candidate of candidates) {
-    const value = typeof candidate === 'string'
-      ? candidate
-      : candidate && typeof candidate === 'object'
-        ? candidate.url || candidate.src || candidate.downloadURL
-        : undefined;
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return undefined;
-}
 
 function ProductReportDetailPage() {
   const params = useParams<{ productId: string }>();
@@ -87,7 +71,7 @@ function ProductReportDetailPage() {
     : branchStock.isLoading || branchSales.isLoading || branchReturns.isLoading;
 
   const product = React.useMemo(() => (stock || []).find(item => item.id === productId), [stock, productId]);
-  const productImageUrl = React.useMemo(() => product ? getProductImageUrl(product) : undefined, [product]);
+  const productImageUrl = React.useMemo(() => product ? resolveProductImageUrl(product, settings) : resolveProductImageUrl(undefined, settings), [product, settings]);
   const currency = settings?.currency || 'USD';
   const money = React.useCallback((amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number.isFinite(amount) ? amount : 0), [currency]);
   const inRange = React.useCallback((value: unknown) => {
