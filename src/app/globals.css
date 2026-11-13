@@ -186,6 +186,21 @@
     }
 }
 
+/* POS Receipt Print Appearance applies consistently to all project printouts. */
+@media print {
+  html[data-pos-print-bold-text="true"] body,
+  html[data-pos-print-bold-text="true"] body * {
+    font-weight: 700 !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  html[data-pos-print-bold-lines="true"] body :where(hr, table, thead, tbody, tfoot, tr, th, td, .border, [class*="border-"]) {
+    border-width: 1.5px !important;
+    border-color: #333 !important;
+  }
+  html[data-pos-print-bold-lines="true"] body :where(hr) { border-top-width: 2px !important; }
+}
+
 @media print {
   @page {
     margin: 0mm !important;
