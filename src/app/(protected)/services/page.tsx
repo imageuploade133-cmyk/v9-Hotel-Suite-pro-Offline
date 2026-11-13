@@ -131,10 +131,12 @@ function ServicesPage() {
       const items = serviceItems || [];
       const tracked = items.filter(item => Number.isFinite(item.quantity));
       const totalInvestment = tracked.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.costPrice || 0)), 0);
-      const todayRestockValue = (restockHistory || []).reduce((sum, entry) => {
+      const todaysRestocks = (restockHistory || []).filter(entry => {
         const date = getSafeDate(entry.restockedAt);
-        return sum + (date && isToday(date) ? Math.max(0, Number(entry.totalCost || 0)) : 0);
-      }, 0);
+        return date && isToday(date);
+      });
+      const todayRestockValue = todaysRestocks.reduce((sum, entry) => sum + Math.max(0, Number(entry.totalCost || 0)), 0);
+      const todayRestockQuantity = todaysRestocks.reduce((sum, entry) => sum + Math.max(0, Number(entry.quantityAdded || 0)), 0);
       const totalProfit = (sales || []).reduce((sum, sale) => {
         if (sale.paymentStatus === 'Refunded') return sum;
         return sum + (sale.items || []).filter(item => item.isService).reduce((lineSum, item) => {
@@ -143,7 +145,7 @@ function ServicesPage() {
           return lineSum + (Number(item.sellingPrice || 0) - Number(item.costPrice || 0)) * soldQty;
         }, 0);
       }, 0);
-      return { totalInvestment, todayRestockValue, totalProfit };
+      return { totalInvestment, todayRestockValue, todayRestockQuantity, totalProfit };
     }, [serviceItems, restockHistory, sales]);
     const handleSuccess = () => {
         setReloadCounter(c => c + 1);
@@ -280,7 +282,7 @@ function ServicesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     <StatCard title="Total Investment" value={formatCurrency(serviceStats.totalInvestment)} icon={Package} description="Current on-hand tracked service and food stock at weighted average cost." isLoading={areServicesLoading} />
                     <StatCard title="Total Profit" value={formatCurrency(serviceStats.totalProfit)} icon={TrendingUp} description="Sold service and food items less their saved sale-time cost; refunded quantities excluded." isLoading={areSalesLoading} />
-                    <StatCard title="Today's Restock Value" value={formatCurrency(serviceStats.todayRestockValue)} icon={RotateCcw} description="Total cost of service and food stock restocked today." isLoading={areRestocksLoading} />
+                    <StatCard title="Today's Restock Value" value={formatCurrency(serviceStats.todayRestockValue)} icon={RotateCcw} description={`${serviceStats.todayRestockQuantity.toLocaleString()} units restocked today.`} isLoading={areRestocksLoading} />
                 </div>
 
                 <Card>
