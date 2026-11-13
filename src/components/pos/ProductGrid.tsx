@@ -41,9 +41,20 @@ interface ProductCardProps {
 
 const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, buttonStyle }: ProductCardProps) => {
     const { settings } = useSettings();
-    const useGlobalImage = settings?.useGlobalStockImage;
-    const globalImageUrl = settings?.globalStockImageUrl;
-    const image = (item.images && item.images[0]) || (useGlobalImage ? globalImageUrl : undefined);
+    const isServiceItem = Boolean(item.isService);
+    const imageCandidates = [
+      item.images?.[0],
+      isServiceItem
+        ? (settings?.useGlobalServiceImage ? settings?.globalServiceImageUrl : undefined)
+        : (settings?.useGlobalStockImage ? settings?.globalStockImageUrl : undefined),
+      // Backward-compatible fallback for older service records/settings that only
+      // have the shared stock default configured.
+      isServiceItem && !settings?.useGlobalServiceImage && settings?.useGlobalStockImage
+        ? settings?.globalStockImageUrl
+        : undefined,
+    ].filter((value): value is string => typeof value === 'string' && /^https?:\/\//i.test(value));
+    const [imageIndex, setImageIndex] = React.useState(0);
+    const image = imageCandidates[imageIndex];
     const currency = settings?.currency || 'USD';
     const [isAdding, setIsAdding] = React.useState(false);
     const [showAdded, setShowAdded] = React.useState(false);
@@ -52,7 +63,7 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
       return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
     };
 
-    const hasFiniteStock = !item.isService && item.quantity !== Infinity;
+    const hasFiniteStock = item.quantity !== Infinity && item.quantity !== undefined && item.quantity !== null;
     const availableQuantity = hasFiniteStock
       ? Math.max(0, Number(item.quantity || 0) - Number((item as any).held || 0))
       : Infinity;
@@ -98,7 +109,14 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
             </motion.div>
             <div className="relative aspect-square w-full bg-muted">
                 {image ? (
-                    <Image src={image} alt={item.name} fill className="object-cover" />
+                    <Image
+                      src={image}
+                      alt={item.name}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                      onError={() => setImageIndex(index => Math.min(index + 1, imageCandidates.length))}
+                  />
                 ) : (
                     <div className="flex items-center justify-center h-full w-full"><ConciergeBell className="h-10 w-10 text-muted-foreground/50"/></div>
                 )}
