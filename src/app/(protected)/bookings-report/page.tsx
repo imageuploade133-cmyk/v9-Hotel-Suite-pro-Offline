@@ -55,6 +55,8 @@ function BookingsReportPage() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [search, setSearch] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [isPrinting, setIsPrinting] = React.useState(false);
+  const [openingStaffUid, setOpeningStaffUid] = React.useState<string | null>(null);
   const pageSize = 10;
 
   const allBookingsQuery = React.useMemo(() => firestore && isAdmin ? query(collection(firestore, 'bookings')) : null, [firestore, isAdmin]);
@@ -176,7 +178,7 @@ function BookingsReportPage() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <DateRangePicker date={dateRange} onDateChange={setDateRange} />
-          <Button type="button" variant="outline" onClick={() => window.print()} disabled={isLoading}><Printer className="mr-2 h-4 w-4" />Print Summary</Button>
+          <Button type="button" variant="outline" onClick={() => { setIsPrinting(true); window.print(); window.setTimeout(() => setIsPrinting(false), 800); }} disabled={isLoading || isPrinting}>{isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}{isPrinting ? "Preparing..." : "Print Summary"}</Button>
         </div>
       </div>
 
@@ -199,16 +201,16 @@ function BookingsReportPage() {
             <CardContent><div className="text-2xl font-bold tabular-nums text-destructive">{money(totals.refunds)}</div><p className="text-xs text-muted-foreground">Refunded bookings and bills</p></CardContent>
           </Card>
         </div>
-        <div className="rounded-xl bg-gradient-to-br from-primary via-primary/70 to-primary/40 p-[1.5px] shadow-sm">
-          <Card className="h-full border-0 bg-primary/10 text-primary shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Grand Total</CardTitle><Wallet className="h-4 w-4 text-primary" /></CardHeader>
-            <CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.grandTotal)}</div><p className="text-xs text-primary/75">Booking + bills − refunds</p></CardContent>
+        <div className="rounded-xl border-2 border-green-500 shadow-sm">
+          <Card className="h-full border-0 bg-green-50 text-green-800 shadow-none dark:bg-green-950/30 dark:text-green-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Grand Total</CardTitle><Wallet className="h-4 w-4 text-green-700 dark:text-green-300" /></CardHeader>
+            <CardContent><div className="text-2xl font-bold tabular-nums">{money(totals.grandTotal)}</div><p className="text-xs text-green-700/80 dark:text-green-300/80">Booking + bills − refunds</p></CardContent>
           </Card>
         </div>
       </div>
 
-      <div className="rounded-xl bg-gradient-to-br from-sky-500/70 via-indigo-500/60 to-violet-500/70 p-[1.5px] shadow-sm">
-      <Card className="border-0 bg-card shadow-none">
+      <div className="rounded-xl">
+      <Card className="border shadow-sm">
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><CardTitle>{isAdmin ? 'Staff Booking Performance' : 'My Booking Performance'}</CardTitle><p className="text-sm text-muted-foreground">Report period: {period}</p></div>
           <div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search staff..." className="pl-9" /></div>
@@ -222,7 +224,7 @@ function BookingsReportPage() {
               <td className="px-3 py-3"><div className="font-semibold">{row.name}</div><div className="text-xs text-muted-foreground">{row.email}</div><div className="mt-1 flex gap-1"><Badge variant="secondary">{row.paidBills} paid bills</Badge><Badge variant="outline">{row.unpaidBills} unpaid</Badge></div></td>
               <td className="px-3 py-3 text-right tabular-nums">{money(row.bookingIncome)}</td><td className="px-3 py-3 text-right tabular-nums">{money(row.billsIncome)}</td><td className="px-3 py-3 text-right tabular-nums text-destructive">{money(row.refunds)}</td><td className="px-3 py-3 text-right font-bold tabular-nums">{money(row.grandTotal)}</td>
               <td className="px-3 py-3 text-center">{row.bookings}</td><td className="px-3 py-3 text-center">{row.checkIns}</td><td className="px-3 py-3 text-center">{row.checkOuts}</td>
-              <td className="px-3 py-3 text-right"><Button asChild size="sm"><Link href={`/bookings-report/staff/${encodeURIComponent(row.uid)}`}>View Report <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></td>
+              <td className="px-3 py-3 text-right"><Button asChild size="sm" disabled={openingStaffUid === row.uid}><Link href={`/bookings-report/staff/${encodeURIComponent(row.uid)}`} onClick={() => setOpeningStaffUid(row.uid)}>{openingStaffUid === row.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{openingStaffUid === row.uid ? "Opening..." : "View Report"} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></td>
             </tr>)}</tbody>
           </table></div>}
           {!isLoading && visibleRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
