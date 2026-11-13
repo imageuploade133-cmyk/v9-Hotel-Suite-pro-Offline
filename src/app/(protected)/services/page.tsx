@@ -29,6 +29,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { useSettings } from '@/contexts/settings-context';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
+import { usePermissions } from '@/hooks/use-permissions';
 import { getSafeDate } from '@/lib/helpers';
 import { where } from 'firebase/firestore';
 import { isToday, isWithinInterval, startOfDay, endOfDay, format } from 'date-fns';
@@ -51,6 +52,8 @@ function ServicesPage() {
     const { settings } = useSettings();
     const { getCollectionPath, currentBranch, isBranchMode, isGlobalMode } = useBranch();
     const { userProfile } = useUser();
+    const { hasPermission } = usePermissions();
+    const canViewServiceRestock = hasPermission(PagePermission.RESTOCK_SERVICES);
 
     // Branch mode queries
     const branchSalesQuery = React.useMemo(() => {
@@ -167,7 +170,7 @@ function ServicesPage() {
                     <div className="flex items-center gap-2">
                         <DateRangePicker date={dateRange} onDateChange={setDateRange} />
                         <Button asChild variant="outline"><Link href="/stock-management"><Package className="mr-2 h-4 w-4" />Manage Stock</Link></Button>
-                        <Button asChild variant="outline"><Link href="/services-restock"><RotateCcw className="mr-2 h-4 w-4" />Restock History</Link></Button>
+                        {canViewServiceRestock && <Button asChild variant="outline"><Link href="/services-restock"><RotateCcw className="mr-2 h-4 w-4" />Restock History</Link></Button>}
                         <Button onClick={() => { setSelectedService(null); setIsFormOpen(true); }}>
                             <Plus className="mr-2 h-4 w-4"/> Add New Service
                         </Button>
