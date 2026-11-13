@@ -99,7 +99,18 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
   const handleCheckIn = async (booking: Booking, paymentMethod?: string, amount?: number, roomNumber?: string) => {
     if (!firestore || !user || !userProfile) return;
-    const isPaidReservation = booking.status === 'Reserved';
+    const existingBookingPayments = await getDocs(query(
+      collection(firestore, 'payments'),
+      where('bookingId', '==', booking.id),
+      where('status', '==', 'Paid')
+    ));
+    const confirmedBookingPayment = existingBookingPayments.docs.find(paymentDoc => {
+      const payment = paymentDoc.data() as Payment;
+      return payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+    });
+    const isPaidReservation = !!confirmedBookingPayment || (
+      booking.status === 'Reserved' && !!booking.paymentId
+    );
 
     const finalRoomNumber = roomNumber || booking.roomNumber;
     if (!finalRoomNumber || finalRoomNumber === 'N/A') {
@@ -123,7 +134,11 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     let paymentRecordForReceipt: Payment | null = null;
 
-    if (!isPaidReservation && paymentMethod && amount) {
+    if (!isPaidReservation) {
+        if (!paymentMethod || !Number.isFinite(amount) || Number(amount) <= 0) {
+          toast({ variant: 'destructive', title: 'Payment Required', description: 'Select a payment method and enter a valid reservation payment before checking in.' });
+          throw new Error('A valid payment is required to check in this unpaid reservation.');
+        }
         bookingUpdateData.paymentMethod = paymentMethod as any;
         bookingUpdateData.totalAmount = amount;
 
@@ -141,6 +156,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             bookingDetails: {
               ...booking,
               ...bookingUpdateData,
+              paymentId: paymentRef.id,
               discountType: booking.discountType || null,
               discountValue: booking.discountValue || null,
               discountReason: booking.discountReason || null,
@@ -150,6 +166,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             createdByName: userProfile.name,
         };
         batch.set(paymentRef, paymentData);
+        bookingUpdateData.paymentId = paymentRef.id;
         paymentRecordForReceipt = paymentData as Payment;
     }
 
@@ -568,18 +585,30 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     const batch = writeBatch(firestore);
     const bookingRef = doc(firestore, 'bookings', booking.id);
 
-    const totalAmount = booking.totalAmount || 0;
-    const hasPayment = totalAmount > 0;
+    const totalAmount = Number(booking.totalAmount ?? booking.amount ?? 0);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+        toast({ variant: 'destructive', title: 'Cannot Mark as Paid', description: 'This reservation has no valid amount. Update the reservation amount before recording payment.' });
+        return;
+    }
+
+    const existingPaymentsSnapshot = await getDocs(query(
+        collection(firestore, 'payments'),
+        where('bookingId', '==', booking.id),
+        where('status', '==', 'Paid')
+    ));
+    const existingPayment = existingPaymentsSnapshot.docs.find(paymentDoc => {
+        const payment = paymentDoc.data() as Payment;
+        return payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+    });
 
     const bookingUpdateData: Partial<Booking> = {
         status: 'Reserved',
-        paymentMethod: hasPayment ? (paymentMethod as any) : null
+        paymentMethod: existingPayment?.data().paymentMethod || (paymentMethod as any),
+        paymentId: existingPayment?.id || undefined,
     };
-    batch.update(bookingRef, bookingUpdateData);
-
-    let paymentRef: any = null;
-    let paymentData: any = null;
-    if (hasPayment) {
+    const paymentRef: any = existingPayment ? doc(firestore, 'payments', existingPayment.id) : doc(collection(firestore, 'payments'));
+    let paymentData: any = existingPayment?.data() || null;
+    if (!existingPayment) {
         paymentRef = doc(collection(firestore, 'payments'));
         paymentData = {
             id: paymentRef.id,
@@ -591,13 +620,15 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             paymentMethod: paymentMethod as any,
             status: 'Paid',
             transactionDate: new Date(),
-            bookingDetails: { ...booking, ...bookingUpdateData },
+            bookingDetails: { ...booking, ...bookingUpdateData, paymentId: paymentRef.id },
             type: 'Booking',
             createdByUid: user.uid,
             createdByName: userProfile.name,
         };
         batch.set(paymentRef, paymentData);
+        bookingUpdateData.paymentId = paymentRef.id;
     }
+    batch.update(bookingRef, bookingUpdateData);
 
     try {
         const updatedAt = new Date().toISOString();
@@ -607,11 +638,12 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             action: 'update' as const,
             data: {
                 status: 'Reserved',
-                paymentMethod: hasPayment ? paymentMethod : null,
+                paymentMethod: bookingUpdateData.paymentMethod || paymentMethod,
+                paymentId: bookingUpdateData.paymentId || existingPayment?.id || null,
                 updatedAt,
             },
         }];
-        if (hasPayment && paymentRef && paymentData) {
+        if (!existingPayment && paymentRef && paymentData) {
             localMutations.push({
                 collectionName: 'payments',
                 docId: paymentRef.id,
