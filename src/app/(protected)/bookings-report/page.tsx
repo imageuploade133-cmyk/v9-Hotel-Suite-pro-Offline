@@ -54,6 +54,8 @@ function BookingsReportPage() {
   const uid = user?.uid || userProfile?.uid || '';
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [search, setSearch] = React.useState('');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const pageSize = 10;
 
   const allBookingsQuery = React.useMemo(() => firestore && isAdmin ? query(collection(firestore, 'bookings')) : null, [firestore, isAdmin]);
   const myCreatedBookingsQuery = React.useMemo(() => firestore && !isAdmin && uid ? query(collection(firestore, 'bookings'), where('createdByUid', '==', uid)) : null, [firestore, isAdmin, uid]);
@@ -157,6 +159,10 @@ function BookingsReportPage() {
     grandTotal: sum.grandTotal + row.grandTotal,
   }), { bookingIncome: 0, billsIncome: 0, refunds: 0, grandTotal: 0 }), [staffRows]);
   const visibleRows = staffRows.filter(row => (row.name + ' ' + row.email).toLowerCase().includes(search.trim().toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / pageSize));
+  const pagedRows = visibleRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  React.useEffect(() => setCurrentPage(1), [search, dateRange]);
+  React.useEffect(() => setCurrentPage(page => Math.min(page, pageCount)), [pageCount]);
   const currency = settings?.currency || 'USD';
   const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
   const period = dateRange?.from ? format(dateRange.from, 'dd MMM yyyy') + (dateRange.to ? ' – ' + format(dateRange.to, 'dd MMM yyyy') : '') : 'All dates';
@@ -170,7 +176,7 @@ function BookingsReportPage() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <DateRangePicker date={dateRange} onDateChange={setDateRange} />
-          <Button variant="outline" onClick={() => window.print()} disabled={isLoading}><Printer className="mr-2 h-4 w-4" />Print Summary</Button>
+          <Button type="button" variant="outline" onClick={() => window.print()} disabled={isLoading}><Printer className="mr-2 h-4 w-4" />Print Summary</Button>
         </div>
       </div>
 
@@ -191,13 +197,21 @@ function BookingsReportPage() {
           visibleRows.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">No booking report records found for this period.</div> :
           <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm">
             <thead><tr className="border-b text-left text-muted-foreground"><th className="px-3 py-3">Staff</th><th className="px-3 py-3 text-right">Booking Income</th><th className="px-3 py-3 text-right">Bills Income</th><th className="px-3 py-3 text-right">Refunds</th><th className="px-3 py-3 text-right">Grand Total</th><th className="px-3 py-3 text-center">Bookings</th><th className="px-3 py-3 text-center">Check-ins</th><th className="px-3 py-3 text-center">Check-outs</th><th className="px-3 py-3 text-right">Action</th></tr></thead>
-            <tbody>{visibleRows.map(row => <tr key={row.uid} className="border-b last:border-0 hover:bg-muted/40">
+            <tbody>{pagedRows.map(row => <tr key={row.uid} className="border-b last:border-0 hover:bg-muted/40">
               <td className="px-3 py-3"><div className="font-semibold">{row.name}</div><div className="text-xs text-muted-foreground">{row.email}</div><div className="mt-1 flex gap-1"><Badge variant="secondary">{row.paidBills} paid bills</Badge><Badge variant="outline">{row.unpaidBills} unpaid</Badge></div></td>
               <td className="px-3 py-3 text-right tabular-nums">{money(row.bookingIncome)}</td><td className="px-3 py-3 text-right tabular-nums">{money(row.billsIncome)}</td><td className="px-3 py-3 text-right tabular-nums text-destructive">{money(row.refunds)}</td><td className="px-3 py-3 text-right font-bold tabular-nums">{money(row.grandTotal)}</td>
               <td className="px-3 py-3 text-center">{row.bookings}</td><td className="px-3 py-3 text-center">{row.checkIns}</td><td className="px-3 py-3 text-center">{row.checkOuts}</td>
               <td className="px-3 py-3 text-right"><Button asChild size="sm"><Link href={`/bookings-report/staff/${encodeURIComponent(row.uid)}`}>View Report <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></td>
             </tr>)}</tbody>
           </table></div>}
+          {!isLoading && visibleRows.length > 0 && <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, visibleRows.length)} of {visibleRows.length} staff records</p>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}>Previous</Button>
+              <span className="min-w-20 text-center text-sm tabular-nums">Page {currentPage} of {pageCount}</span>
+              <Button type="button" variant="outline" size="sm" disabled={currentPage >= pageCount} onClick={() => setCurrentPage(page => Math.min(pageCount, page + 1))}>Next</Button>
+            </div>
+          </div>}
         </CardContent>
       </Card>
       <style jsx global>{`@media print { aside, header, nav, button, input { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } }`}</style>
