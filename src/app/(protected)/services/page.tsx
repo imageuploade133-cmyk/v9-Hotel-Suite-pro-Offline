@@ -4,7 +4,7 @@ import * as React from 'react';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
-import { Plus, ConciergeBell, DollarSign, CalendarCheck, Package, TrendingUp, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ConciergeBell, DollarSign, CalendarCheck, Package, TrendingUp, RotateCcw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { StockSale, ServiceItem } from '@/lib/types';
 import { useFirestore, useCollection } from '@/firebase';
@@ -37,7 +37,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
 import { ServiceSalesLogDialog } from '@/components/stock/service-sales-log-dialog';
 import Link from 'next/link';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 function ServicesPage() {
     const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -187,17 +187,15 @@ function ServicesPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-3">
-                  <div><h2 className="text-base font-semibold">Inventory & Profit Overview</h2><p className="text-sm text-muted-foreground">Financial summary for Services & Foods stock.</p></div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowAllSummaryCards(value => !value)} aria-expanded={showAllSummaryCards}>
-                    {showAllSummaryCards ? 'See less' : 'See more'} {showAllSummaryCards ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <StatCard title="Total Investment" value={formatCurrency(serviceStats.totalInvestment)} icon={Package} description="Current on-hand tracked stock valued at weighted-average cost." isLoading={areServicesLoading} className="border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100" iconClassName="text-sky-700 dark:text-sky-300" />
-                  <StatCard title="Total Profit" value={formatCurrency(serviceStats.totalProfit)} icon={TrendingUp} description="Sold item revenue less saved sale-time cost, after refunded quantities." isLoading={areSalesLoading} className="border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100" iconClassName="text-emerald-700 dark:text-emerald-300" />
+                <div>
+                  <h2 className="text-base font-semibold">Inventory & Profit Overview</h2>
+                  <p className="text-sm text-muted-foreground">Financial summary for Services & Foods stock.</p>
                 </div>
                 <Collapsible open={showAllSummaryCards} onOpenChange={setShowAllSummaryCards}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <StatCard title="Total Investment" value={formatCurrency(serviceStats.totalInvestment)} icon={Package} description="Current on-hand tracked stock valued at weighted-average cost." isLoading={areServicesLoading} className="border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100" iconClassName="text-sky-700 dark:text-sky-300" />
+                    <StatCard title="Total Profit" value={formatCurrency(serviceStats.totalProfit)} icon={TrendingUp} description="Sold item revenue less saved sale-time cost, after refunded quantities." isLoading={areSalesLoading} className="border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100" iconClassName="text-emerald-700 dark:text-emerald-300" />
+                  </div>
                   <CollapsibleContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-4">
                       <StatCard title="Total Income from Services" value={formatCurrency(totalIncome)} icon={DollarSign} description="All-time revenue from services and foods." isLoading={areSalesLoading} className="border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100" iconClassName="text-violet-700 dark:text-violet-300" />
@@ -206,6 +204,14 @@ function ServicesPage() {
                       <StatCard title={incomeLabel} value={formatCurrency(filteredIncome)} icon={DollarSign} description="Income for the selected date range." isLoading={areSalesLoading} className="border-indigo-200 bg-indigo-50 text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-100" iconClassName="text-indigo-700 dark:text-indigo-300" />
                     </div>
                   </CollapsibleContent>
+                  <div className="mt-4 flex items-center justify-center">
+                    <CollapsibleTrigger asChild>
+                      <Button type="button" variant="outline" className="w-full sm:w-auto">
+                        {showAllSummaryCards ? 'Show Less' : 'Show More Stats'}
+                        <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showAllSummaryCards ? 'rotate-180' : ''}`} />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
                 </Collapsible>
 
                 <Card>
