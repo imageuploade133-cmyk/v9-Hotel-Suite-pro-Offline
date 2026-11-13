@@ -187,11 +187,15 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
             });
         };
 
+        const bookingStatusById = new Map(bookings.map(booking => [booking.id, booking.status]));
         const calculateIncome = (incomePayments: Payment[] | undefined | null) => {
             if (!incomePayments || !Array.isArray(incomePayments)) return 0;
             return incomePayments.reduce((acc, p) => {
-                if (p.status === 'Paid') return acc + p.amount;
-                return acc;
+                if (p.status !== 'Paid') return acc;
+                const linkedBookingStatus = p.bookingId ? bookingStatusById.get(p.bookingId) : undefined;
+                if (linkedBookingStatus === 'Refunded' || linkedBookingStatus === 'Cancelled') return acc;
+                const refundedAmount = Math.max(0, Number(p.refundDetails?.amount || 0));
+                return acc + Math.max(0, Number(p.amount || 0) - refundedAmount);
             }, 0);
         };
 
@@ -469,8 +473,9 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
         const totalReservations = bookings.length;
         const activeReservations = bookings.filter(b => b.status === 'Booked' || b.status === 'Reserved').length;
         const totalPaidOnBookings = payments
-            .filter(p => p.bookingId && p.status !== 'Refunded')
-            .reduce((acc, p) => acc + p.amount, 0);
+            .filter(p => p.bookingId && p.type === 'Booking' && p.status === 'Paid' &&
+                !['Refunded', 'Cancelled'].includes(bookingStatusById.get(p.bookingId) || ''))
+            .reduce((acc, p) => acc + Math.max(0, Number(p.amount || 0) - Number(p.refundDetails?.amount || 0)), 0);
         const totalRoomOutstanding = totalRoomIncome - totalPaidOnBookings;
 
         // Calculate outstanding bills for active guests
