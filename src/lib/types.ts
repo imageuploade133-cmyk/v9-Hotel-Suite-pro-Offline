@@ -247,6 +247,8 @@ export interface ServiceItem {
     id: string;
     name: string;
     price: number;
+    costPrice?: number;
+    quantity?: number;
     category: string;
     description?: string;
     isService: true;
