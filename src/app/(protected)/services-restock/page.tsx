@@ -200,7 +200,9 @@ function ServicesRestockPage() {
                   <td className="p-3 text-right tabular-nums">{Number(entry.previousQuantity ?? 0).toLocaleString()}</td>
                   <td className="p-3 text-right"><Badge variant="secondary">+{Number(entry.quantityAdded || 0).toLocaleString()}</Badge></td>
                   <td className="p-3 text-right font-semibold tabular-nums">{Number(entry.resultingQuantity ?? (Number(entry.previousQuantity || 0) + Number(entry.quantityAdded || 0))).toLocaleString()}</td>
+                  <td className="p-3 text-right tabular-nums">{formatMoney(entry.previousCostPrice ?? 0)}</td>
                   <td className="p-3 text-right tabular-nums">{formatMoney(entry.costPerUnit || 0)}</td>
+                  <td className="p-3 text-right tabular-nums">{formatMoney(entry.resultingCostPrice ?? entry.costPerUnit ?? 0)}</td>
                   <td className="p-3 text-right font-semibold tabular-nums">{formatMoney(entry.totalCost || 0)}</td>
                   <td className="p-3">{entry.restockedBy || 'Unknown'}<div className="text-xs text-muted-foreground">{entry.restockedByUid || ''}</div></td>
                   <td className="max-w-[220px] whitespace-pre-wrap p-3 text-muted-foreground">{entry.notes || '—'}</td>
