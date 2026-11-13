@@ -582,7 +582,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     const batch = writeBatch(firestore);
     const bookingRef = doc(firestore, 'bookings', booking.id);
 
-    const totalAmount = Number(booking.totalAmount ?? booking.amount ?? 0);
+    const totalAmount = Number(booking.totalAmount || booking.amount || 0);
     if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
         toast({ variant: 'destructive', title: 'Cannot Mark as Paid', description: 'This reservation has no valid amount. Update the reservation amount before recording payment.' });
         return;
