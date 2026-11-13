@@ -27,17 +27,17 @@ export function WebsiteStudioWorkspace({ form, pageData }: { form: StudioForm; p
   const [activeSection, setActiveSection] = React.useState('hero-section');
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(340px,440px)_minmax(0,1fr)] xl:gap-5">
-      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="border-b px-3 pb-3 pt-4 sm:px-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold">Website sections</h2>
-              <p className="text-xs text-muted-foreground">Choose a section to edit its content</p>
+    <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-0 overflow-y-auto bg-muted/20 xl:grid-cols-[minmax(360px,40%)_minmax(0,1fr)] xl:overflow-hidden">
+      <section className="flex min-h-[520px] min-w-0 flex-col overflow-hidden border-b bg-card xl:min-h-0 xl:border-b-0 xl:border-r">
+        <Tabs value={activeSection} onValueChange={setActiveSection} className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 border-b px-3 pb-3 pt-4 sm:px-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold">Website sections</h2>
+                <p className="text-xs text-muted-foreground">Choose a section to edit its content</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">5 sections</span>
             </div>
-            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium">5 sections</span>
-          </div>
-          <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
             <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg bg-muted/70 p-1">
               {sections.map(section => {
                 const Icon = section.icon;
@@ -49,11 +49,8 @@ export function WebsiteStudioWorkspace({ form, pageData }: { form: StudioForm; p
                 );
               })}
             </TabsList>
-          </Tabs>
-        </div>
-
-        <div className="min-h-[390px] flex-1 overflow-y-auto p-3 sm:p-4">
-          <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
             <TabsContent value="hero-section" className="mt-0">
               <div className="mb-3"><h3 className="font-semibold">Hero section</h3><p className="text-sm text-muted-foreground">Control the first section visitors see on your website.</p></div>
               <Accordion type="multiple" defaultValue={['hero-section']}><HeroSettingsForm form={form} sectionId="hero-section" /></Accordion>
@@ -74,12 +71,12 @@ export function WebsiteStudioWorkspace({ form, pageData }: { form: StudioForm; p
               <div className="mb-3"><h3 className="font-semibold">Website footer</h3><p className="text-sm text-muted-foreground">Edit footer information and public-facing details.</p></div>
               <Accordion type="multiple" defaultValue={['footer-section']}><FooterSettingsForm form={form} sectionId="footer-section" /></Accordion>
             </TabsContent>
-          </Tabs>
-        </div>
+          </div>
+        </Tabs>
       </section>
 
-      <section className="flex min-h-[460px] min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-190px)] xl:min-h-[520px]">
-        <div className="flex items-center justify-between gap-2 border-b px-3 py-3 sm:px-4">
+      <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden bg-background xl:h-full xl:min-h-0">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-3 sm:px-4">
           <div><h2 className="flex items-center gap-2 text-sm font-semibold"><Monitor className="h-4 w-4" />Live website preview</h2><p className="text-xs text-muted-foreground">Preview your public website as you edit</p></div>
           <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Live preview</span>
         </div>

@@ -168,8 +168,8 @@ const AdminDashboardContent = ({ pageData }: { pageData: SiteData }) => {
 
     return (
       <FormProvider {...methods}>
-        <form id="website-content-form" onSubmit={methods.handleSubmit(onSubmit)} className="flex min-h-[calc(100vh-7rem)] flex-col gap-1">
-          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <form id="website-content-form" onSubmit={methods.handleSubmit(onSubmit)} className="flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden">
+          <div className="flex shrink-0 flex-col gap-3 border-b bg-background px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
             <TopHeader name="Website Studio" icon={<Globe className="h-10 w-10" />} description="Visually edit your public-facing website content and appearance." />
             <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
                <Button asChild variant="outline" className="w-full sm:flex-1 xl:w-auto">
