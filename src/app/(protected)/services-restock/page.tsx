@@ -190,7 +190,7 @@ function ServicesRestockPage() {
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full min-w-[1120px] text-sm">
                 <thead className="bg-muted/60"><tr className="text-left">
-                  <th className="p-3">Date & time</th><th className="p-3">Item</th><th className="p-3 text-right">Before</th><th className="p-3 text-right">Added</th><th className="p-3 text-right">After</th><th className="p-3 text-right">Purchase unit cost</th><th className="p-3 text-right">Restock value</th><th className="p-3">Restocked by</th><th className="p-3">Notes</th>
+                  <th className="p-3">Date & time</th><th className="p-3">Item</th><th className="p-3 text-right">Before</th><th className="p-3 text-right">Added</th><th className="p-3 text-right">After</th><th className="p-3 text-right">Cost before</th><th className="p-3 text-right">Purchase unit cost</th><th className="p-3 text-right">Cost after</th><th className="p-3 text-right">Restock value</th><th className="p-3">Restocked by</th><th className="p-3">Notes</th>
                 </tr></thead>
                 <tbody>{visibleHistory.map(entry => <tr key={entry.id} className="border-t align-top">
                   <td className="whitespace-nowrap p-3">{formatDateTime(entry.restockedAt)}</td>
