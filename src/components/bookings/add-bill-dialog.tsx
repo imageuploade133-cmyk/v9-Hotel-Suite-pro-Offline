@@ -43,7 +43,7 @@ interface AddBillDialogProps {
   isOpen: boolean;
   onClose: () => void;
   booking: Booking | null;
-  onConfirm: (booking: Booking, items: BillItem[], total: number) => void;
+  onConfirm: (booking: Booking, items: BillItem[], total: number) => Promise<void>;
 }
 
 const getDisplayPrice = (item: MenuItem) => {
@@ -365,16 +365,25 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
   };
 
   const handleConfirm = async () => {
-    if (!booking) return;
-    onConfirm(booking, cart, totalBill);
-    onClose();
+    if (!booking || isSaving || cart.length === 0) return;
+    setIsSaving(true);
+    try {
+      await onConfirm(booking, cart, totalBill);
+      setCart([]);
+      onClose();
+    } catch (error) {
+      // Keep the dialog and cart open so the user can retry after a failed save.
+      console.error('Failed to add guest bill:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!booking) return null;
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSaving) onClose(); }}>
         <DialogContent className="mobile-fullscreen-dialog laundry-mobile-drawer flex h-[100dvh] w-screen max-h-none max-w-none flex-col overflow-hidden rounded-none p-3 sm:h-[90vh] sm:max-h-[min(90dvh,52rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle>Add to Room Bill: Room {booking.roomNumber}</DialogTitle>
@@ -476,7 +485,7 @@ export function AddBillDialog({ isOpen, onClose, booking, onConfirm }: AddBillDi
           </div>
           <DialogFooter className="mobile-fullscreen-dialog-footer shrink-0 border-t pt-3 pb-[env(safe-area-inset-bottom)] sm:pt-4 sm:pb-0">
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
-            <Button onClick={handleConfirm} disabled={isSaving || cart.length === 0}>
+            <Button onClick={handleConfirm} disabled={isSaving || cart.length === 0} loading={isSaving}>
                 <ButtonIcon className="mr-2 h-4 w-4" />
                 {buttonText}
             </Button>

@@ -80,13 +80,12 @@ export function PayBillsDialog({ isOpen, onClose, booking, onConfirm }: PayBills
         const additionalChargesTotal = (bills || []).reduce((acc, bill) => acc + bill.total, 0);
 
         const totalPaymentsForBills = (bills || [])
-        .filter(b => b.paid)
-        .reduce((acc, bill) => acc + bill.total, 0);
+        .reduce((acc, bill) => acc + (Number(bill.paidAmount) || (bill.paid ? Number(bill.total) || 0 : 0)), 0);
 
         return { allUnpaidItems: unpaidItems, totalBill: additionalChargesTotal, totalPaid: totalPaymentsForBills };
     }, [bills, booking]);
 
-    const balanceDue = totalBill - totalPaid;
+    const balanceDue = Math.max(0, totalBill - totalPaid);
 
     const selectedItemsTotal = selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const paymentAmount = isCustomAmount ? parseFloat(customAmount) || 0 : selectedItemsTotal;

@@ -445,6 +445,8 @@ export interface Bill {
     createdBy: string;
     createdByName: string;
     paid: boolean;
+    /** Cumulative amount collected against this bill, including partial payments. */
+    paidAmount?: number;
     paymentId?: string;
     paymentMethod?: string;
     paidAt?: Timestamp;
