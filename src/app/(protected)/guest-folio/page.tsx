@@ -250,6 +250,13 @@ function GuestFolioPage() {
         const otherPaymentsTotal = associatedPayments.filter(p => p.type !== 'Booking').reduce((acc, p) => acc + p.amount, 0);
         totalPaid += otherPaymentsTotal;
 
+        // Resolve staff attribution before constructing payment rows.
+        const getPaymentStaffName = (payment: Payment) => {
+            if (payment.type === 'Booking') return booking.createdByName || 'System';
+            const bill = allBills?.find(candidate => candidate.paymentId === payment.id);
+            return bill?.createdByName || userMap.get(payment.createdByUid || '') || 'System';
+        };
+
         // Build payments array - include implicit room charge payment for checked-in guests
         let allPaymentsList = associatedPayments.map(p => ({
             amount: p.amount,
