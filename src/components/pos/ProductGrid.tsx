@@ -48,7 +48,7 @@ function getProductImageUrls(item: UnifiedItem): string[] {
   const add = (value: unknown) => {
     if (typeof value === 'string') {
       const url = value.trim();
-      if (/^https?:\\/\\//i.test(url) || url.startsWith('/')) urls.push(url);
+      if (/^https?:\/\//i.test(url) || url.startsWith('/')) urls.push(url);
       return;
     }
     if (Array.isArray(value)) {
