@@ -31,6 +31,41 @@ interface ProductGridProps {
   reloadTrigger: number;
 }
 
+/**
+ * Normalise both current and legacy product-image fields.
+ * Older stock records may use imageUrl/image, while current uploads use images[].
+ * Some imported records store each image as an object containing its URL.
+ */
+function getProductImageUrls(item: UnifiedItem): string[] {
+  const values: unknown[] = [
+    (item as any).images,
+    (item as any).imageUrl,
+    (item as any).imageURL,
+    (item as any).image,
+    (item as any).productImage,
+  ];
+  const urls: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === 'string') {
+      const url = value.trim();
+      if (/^https?:\\/\\//i.test(url) || url.startsWith('/')) urls.push(url);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(add);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      const imageObject = value as Record<string, unknown>;
+      for (const key of ['url', 'src', 'secure_url', 'display_url', 'imageUrl', 'image_url', 'downloadURL']) {
+        if (imageObject[key]) add(imageObject[key]);
+      }
+    }
+  };
+  values.forEach(add);
+  return [...new Set(urls)];
+}
+
 interface ProductCardProps {
   item: UnifiedItem;
   onAddToCart: (item: UnifiedItem) => void;
@@ -42,8 +77,8 @@ interface ProductCardProps {
 const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, buttonStyle }: ProductCardProps) => {
     const { settings } = useSettings();
     const isServiceItem = Boolean(item.isService);
-    const imageCandidates = [
-      item.images?.[0],
+    const individualImageCandidates = getProductImageUrls(item);
+    const fallbackImageCandidates = [
       isServiceItem
         ? (settings?.useGlobalServiceImage ? settings?.globalServiceImageUrl : undefined)
         : (settings?.useGlobalStockImage ? settings?.globalStockImageUrl : undefined),
@@ -52,8 +87,12 @@ const ProductCard = ({ item, onAddToCart, cardBorderEnabled, cardBorderColor, bu
       isServiceItem && !settings?.useGlobalServiceImage && settings?.useGlobalStockImage
         ? settings?.globalStockImageUrl
         : undefined,
-    ].filter((value): value is string => typeof value === 'string' && /^https?:\/\//i.test(value));
+    ].filter((value): value is string => typeof value === 'string' && /^https?:\/\//i.test(value.trim()));
+    // A product's own uploaded image always takes priority. The global image is
+    // considered only when there is no individual image or the individual URL fails.
+    const imageCandidates = [...new Set([...individualImageCandidates, ...fallbackImageCandidates])];
     const [imageIndex, setImageIndex] = React.useState(0);
+    React.useEffect(() => { setImageIndex(0); }, [item.id, individualImageCandidates[0]]);
     const image = imageCandidates[imageIndex];
     const currency = settings?.currency || 'USD';
     const [isAdding, setIsAdding] = React.useState(false);
