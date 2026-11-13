@@ -11,7 +11,7 @@ function getVideoEmbedUrl(value?: string) {
     if (!value) return null;
     try {
         const url = new URL(value);
-        const host = url.hostname.replace(/^www\\./, '').toLowerCase();
+        const host = url.hostname.replace(/^www\./, '').toLowerCase();
         if (host === 'youtu.be') {
             const id = url.pathname.split('/').filter(Boolean)[0];
             return id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&rel=0` : null;
@@ -33,7 +33,7 @@ function getVideoEmbedUrl(value?: string) {
 function isDirectVideo(value?: string) {
     if (!value) return false;
     try {
-        return /\\.(mp4|webm|mov|m4v)(\\?.*)?$/i.test(new URL(value).pathname + new URL(value).search);
+        return /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(new URL(value).pathname + new URL(value).search);
     } catch {
         return false;
     }
