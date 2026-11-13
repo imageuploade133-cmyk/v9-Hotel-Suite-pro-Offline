@@ -130,7 +130,7 @@ function CreateBookingPage() {
             };
 
             if (data.bookingType === 'checkin' || data.bookingType === 'reservation-and-pay') {
-                const paymentRef = doc(collection(firestore, 'payments'));
+                const paymentRef = doc(firestore, 'payments', `booking-payment-${newBookingId}`);
                 const paymentData = {
                     id: paymentRef.id,
                     bookingId: newBookingId,
