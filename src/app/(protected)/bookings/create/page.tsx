@@ -100,7 +100,7 @@ function CreateBookingPage() {
 
             const { guestPhoto, ...restOfData } = data;
 
-            const newBookingData = {
+            const newBookingData: Record<string, any> = {
                 id: newBookingId,
                 bookingId: newBookingId,
                 ...restOfData,
