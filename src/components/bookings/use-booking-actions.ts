@@ -101,12 +101,11 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     if (!firestore || !user || !userProfile) return;
     const existingBookingPayments = await getDocs(query(
       collection(firestore, 'payments'),
-      where('bookingId', '==', booking.id),
-      where('status', '==', 'Paid')
+      where('bookingId', '==', booking.id)
     ));
     const confirmedBookingPayment = existingBookingPayments.docs.find(paymentDoc => {
       const payment = paymentDoc.data() as Payment;
-      return payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+      return payment.status === 'Paid' && payment.type === 'Booking' && Number(payment.amount || 0) > 0;
     });
     const isPaidReservation = !!confirmedBookingPayment || (
       booking.status === 'Reserved' && !!booking.paymentId
@@ -593,12 +592,11 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     const existingPaymentsSnapshot = await getDocs(query(
         collection(firestore, 'payments'),
-        where('bookingId', '==', booking.id),
-        where('status', '==', 'Paid')
+        where('bookingId', '==', booking.id)
     ));
     const existingPayment = existingPaymentsSnapshot.docs.find(paymentDoc => {
         const payment = paymentDoc.data() as Payment;
-        return payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+        return payment.status === 'Paid' && payment.type === 'Booking' && Number(payment.amount || 0) > 0;
     });
 
     const bookingUpdateData: Partial<Booking> = {
@@ -606,10 +604,11 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         paymentMethod: existingPayment?.data().paymentMethod || (paymentMethod as any),
         paymentId: existingPayment?.id || undefined,
     };
-    const paymentRef: any = existingPayment ? doc(firestore, 'payments', existingPayment.id) : doc(collection(firestore, 'payments'));
+    const paymentRef = existingPayment
+        ? doc(firestore, 'payments', existingPayment.id)
+        : doc(collection(firestore, 'payments'));
     let paymentData: any = existingPayment?.data() || null;
     if (!existingPayment) {
-        paymentRef = doc(collection(firestore, 'payments'));
         paymentData = {
             id: paymentRef.id,
             bookingId: booking.id,
