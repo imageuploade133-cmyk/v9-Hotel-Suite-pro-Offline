@@ -456,7 +456,10 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
   };
 
   const handleAddBill = async (booking: Booking, items: BillItem[], total: number) => {
-    if (!firestore || !user || !userProfile) return;
+    if (!firestore || !user || !userProfile) throw new Error('Your session is not ready. Please sign in again and retry.');
+    if (!Array.isArray(items) || items.length === 0 || !Number.isFinite(total) || total <= 0 || items.some(item => !Number.isFinite(item.price) || item.price <= 0 || !Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      throw new Error('The bill contains invalid items or amounts. Review the cart and try again.');
+    }
 
     const batch = writeBatch(firestore);
 
