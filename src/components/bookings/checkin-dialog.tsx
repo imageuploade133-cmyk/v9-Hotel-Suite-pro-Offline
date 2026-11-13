@@ -16,7 +16,7 @@ import { LogIn, CircleDollarSign, CreditCard, BedDouble } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';
 import type { Booking, Room } from '@/lib/types';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import {
   Select,
   SelectContent,
@@ -48,6 +48,8 @@ export function CheckInDialog({
   const [isCheckingIn, setIsCheckingIn] = React.useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState<string | undefined>();
   const [selectedRoomNumber, setSelectedRoomNumber] = React.useState<string | undefined>();
+  const [hasConfirmedPayment, setHasConfirmedPayment] = React.useState(false);
+  const [isCheckingPayment, setIsCheckingPayment] = React.useState(false);
   const firestore = useFirestore();
 
   const paymentMethodsQuery = React.useMemo(() => {
@@ -57,7 +59,35 @@ export function CheckInDialog({
   const { data: paymentMethods } = useCollection(paymentMethodsQuery);
 
   const currency = settings?.currency || 'USD';
-  const amount = totalAmount || booking?.amount || 0;
+  const amount = Number(booking?.totalAmount || booking?.amount || totalAmount || 0);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const resolvePayment = async () => {
+      if (!isOpen || !booking) return;
+      setIsCheckingPayment(true);
+      setHasConfirmedPayment(false);
+      try {
+        if (!firestore) return;
+        const snapshot = await getDocs(query(
+          collection(firestore, 'payments'),
+          where('bookingId', '==', booking.id)
+        ));
+        const paidBookingPayment = snapshot.docs.some(paymentDoc => {
+          const payment = paymentDoc.data();
+          return payment.status === 'Paid' && payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+        });
+        if (!cancelled) setHasConfirmedPayment(paidBookingPayment);
+      } catch (error) {
+        console.error('Unable to verify reservation payment:', error);
+        if (!cancelled) setHasConfirmedPayment(false);
+      } finally {
+        if (!cancelled) setIsCheckingPayment(false);
+      }
+    };
+    void resolvePayment();
+    return () => { cancelled = true; };
+  }, [isOpen, booking?.id, booking?.paymentId, firestore]);
 
   const selectedRoomType = React.useMemo(() => {
     if (!booking || !availableRooms) return null;
@@ -86,7 +116,7 @@ export function CheckInDialog({
 
   if (!booking) return null;
 
-  const isPaidReservation = booking.status === 'Reserved';
+  const isPaidReservation = hasConfirmedPayment;
   const needsRoomSelection = !booking.roomNumber || booking.roomNumber === 'N/A';
 
   const handleConfirm = async () => {
@@ -107,7 +137,7 @@ export function CheckInDialog({
     }
   };
 
-  const canConfirm = isCheckingIn || (needsRoomSelection && !selectedRoomNumber) || (!isPaidReservation && !selectedPaymentMethod)
+  const canConfirm = isCheckingIn || isCheckingPayment || (needsRoomSelection && !selectedRoomNumber) || (!isPaidReservation && !selectedPaymentMethod) || (!isPaidReservation && amount <= 0)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -147,7 +177,9 @@ export function CheckInDialog({
             </div>
           )}
 
-          {isPaidReservation ? (
+          {isCheckingPayment ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">Verifying reservation payment…</div>
+          ) : isPaidReservation ? (
             <div className="py-4 text-center">
                 <Badge variant="success" className="text-base px-4 py-2">
                 <CircleDollarSign className="mr-2 h-5 w-5" />

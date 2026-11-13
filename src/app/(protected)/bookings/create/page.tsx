@@ -15,7 +15,7 @@ import { BookingFormFields, createBookingSchema, type BookingFormValues } from '
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/contexts/user-context';
 import { useFirestore } from '@/firebase';
-import { doc, collection, writeBatch, serverTimestamp, getDocs, query, where, limit, setDoc, increment } from 'firebase/firestore';
+import { doc, collection, writeBatch, serverTimestamp, getDocs, query, where, limit } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { useSettings } from '@/contexts/settings-context';
 import { differenceInDays, isWithinInterval, startOfDay, endOfDay, isSameDay } from 'date-fns';
@@ -100,17 +100,17 @@ function CreateBookingPage() {
 
             const { guestPhoto, ...restOfData } = data;
 
-            const newBookingData = {
+            const newBookingData: Record<string, any> = {
                 id: newBookingId,
                 bookingId: newBookingId,
                 ...restOfData,
                 guestPhotoURL: guestPhotoUrl || null,
                 checkInDate: Timestamp.fromDate(data.checkInDate),
                 checkOutDate: Timestamp.fromDate(data.checkOutDate),
-                status: 'Reserved',
+                status: data.bookingType === 'checkin' ? 'Active' : (data.bookingType === 'reservation-and-pay' ? 'Reserved' : 'Booked'),
                 amount: totalAmount,
                 totalAmount: totalAmount,
-                paymentMethod: data.paymentMethod || null,
+                paymentMethod: data.bookingType === 'checkin' || data.bookingType === 'reservation-and-pay' ? (data.paymentMethod || null) : null,
                 createdAt: serverTimestamp(),
                 createdByUid: user.uid,
                 createdByName: userProfile.name,
@@ -120,16 +120,44 @@ function CreateBookingPage() {
                 discountReason: data.discountReason || null,
             };
 
+            const batch = writeBatch(firestore);
+            const localMutations: Array<{ collectionName: string; docId: string; action: 'set'; data: Record<string, unknown> }> = [];
             const localBookingData = {
                 ...newBookingData,
                 createdAt: new Date().toISOString(),
                 checkInDate: data.checkInDate.toISOString(),
                 checkOutDate: data.checkOutDate.toISOString(),
             };
+
+            if (data.bookingType === 'checkin' || data.bookingType === 'reservation-and-pay') {
+                const paymentRef = doc(firestore, 'payments', `booking-payment-${newBookingId}`);
+                const paymentData = {
+                    id: paymentRef.id,
+                    bookingId: newBookingId,
+                    guestName: data.guestName,
+                    guestEmail: data.guestEmail || null,
+                    roomNumber: data.roomNumber,
+                    amount: totalAmount,
+                    paymentMethod: data.paymentMethod!,
+                    status: 'Paid',
+                    transactionDate: new Date().toISOString(),
+                    type: 'Booking',
+                    createdByUid: user.uid,
+                    createdByName: userProfile.name,
+                    bookingDetails: { ...localBookingData, paymentId: paymentRef.id },
+                };
+                newBookingData.paymentId = paymentRef.id;
+                localBookingData.paymentId = paymentRef.id;
+                batch.set(paymentRef, { ...paymentData, transactionDate: serverTimestamp() });
+                localMutations.push({ collectionName: 'payments', docId: paymentRef.id, action: 'set', data: paymentData });
+            }
+
+            batch.set(newBookingRef, newBookingData);
+            localMutations.unshift({ collectionName: 'bookings', docId: newBookingId, action: 'set', data: localBookingData as any });
             await commitLocalFirstMutations(
-                [{ collectionName: 'bookings', docId: newBookingId, action: 'set', data: localBookingData as any }],
+                localMutations,
                 `booking-create:${newBookingId}`,
-                () => setDoc(newBookingRef, newBookingData)
+                () => batch.commit()
             );
 
             handleBookingSuccess();

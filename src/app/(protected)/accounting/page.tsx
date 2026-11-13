@@ -237,11 +237,14 @@ function AccountingPage() {
     const allUsers = rawUsers || [];
     const allRooms = rawRooms || [];
     const allStockItems = rawStockItems || [];
+    const refundedBookingIds = new Set(allBookings.filter(booking =>
+      booking.status === 'Refunded' || booking.status === 'Cancelled'
+    ).map(booking => booking.id));
 
     const filterByRange = <T extends { [key: string]: any }>(data: T[], dateKey: string): T[] => {
       if (!dateRange?.from) return data;
-      const start = dateRange.from;
-      const end = dateRange.to || dateRange.from;
+      const start = startOfDay(dateRange.from);
+      const end = endOfDay(dateRange.to || dateRange.from);
       return data.filter(item => {
         const itemDate = getSafeDate(item[dateKey]);
         return itemDate && itemDate >= start && itemDate <= end;
@@ -258,22 +261,11 @@ function AccountingPage() {
 
     const localUserMap = new Map(allUsers?.map(u => [u.uid, u.name]));
 
-    const allBookingPayments = (bookings || [])
-        .filter(b => b.paymentMethod && b.status !== 'Refunded' && b.status !== 'Cancelled')
-        .map(b => ({
-            id: b.id,
-            amount: b.totalAmount || 0,
-            date: getSafeDate(b.createdAt)!,
-            description: `Booking: Room ${b.roomNumber} - ${b.guestName}`,
-            source: 'Bookings',
-            paymentMethod: b.paymentMethod,
-            user: b.createdByName || localUserMap.get(b.createdByUid || ''),
-            originalDoc: b,
-        }));
-
-    const allAdditionalPayments = (payments || []).filter(p => p.status !== 'Refunded').map(p => ({
+    const allAdditionalPayments = (payments || [])
+    .filter(p => p.status === 'Paid' && !(p.bookingId && refundedBookingIds.has(p.bookingId)))
+    .map(p => ({
         id: p.id,
-        amount: p.amount,
+        amount: Math.max(0, Number(p.amount || 0) - Number(p.refundDetails?.amount || 0)),
         date: getSafeDate(p.transactionDate)!,
         description: `Payment: ${p.type} - ${p.guestName}`,
         source: 'Payments',
@@ -309,7 +301,7 @@ function AccountingPage() {
         originalDoc: s,
     }));
 
-    const allIncomeSources = [...allBookingPayments, ...allAdditionalPayments, ...allStockSalesPayments, ...allSalonServicesPayments].filter(p => p.date);
+    const allIncomeSources = [...allAdditionalPayments, ...allStockSalesPayments, ...allSalonServicesPayments].filter(p => p.date);
 
     const allStockReturnsPeriod = (stockReturns || []).map(r => ({
         amount: r.totalRefundAmount,
@@ -404,8 +396,7 @@ function AccountingPage() {
     if (yearStart) {
         const intervalMonths = eachMonthOfInterval({ start: yearStart, end: yearEnd });
         const allIncome = [
-            ...allBookings.filter(b => b.paymentMethod && b.status !== 'Refunded' && b.status !== 'Cancelled').map(b => ({ amount: b.totalAmount || 0, date: getSafeDate(b.createdAt)! })),
-            ...allPayments.filter(p => p.status !== 'Refunded').map(p => ({ amount: p.amount, date: getSafeDate(p.transactionDate)! })),
+            ...allPayments.filter(p => p.status === 'Paid' && !(p.bookingId && refundedBookingIds.has(p.bookingId))).map(p => ({ amount: Math.max(0, Number(p.amount || 0) - Number(p.refundDetails?.amount || 0)), date: getSafeDate(p.transactionDate)! })),
             ...allStockSales.filter(s => s.paymentStatus === 'Paid').map(s => ({ amount: s.totalAmount, date: getSafeDate(s.soldAt)! })),
             ...allSalonServices.filter(s => s.paymentStatus === 'Paid').map(s => ({ amount: s.totalPrice, date: getSafeDate(s.createdAt)! })),
         ].filter(i => i.date);
@@ -467,7 +458,7 @@ function AccountingPage() {
         }))
       );
       const guestBillTotal = guestBillItems.reduce((acc, item) => acc + item.total, 0);
-      const bookingRoomFee = booking.totalAmount || 0;
+      const bookingRoomFee = Number(booking.totalAmount || booking.amount || 0);
       const bookingReturns = stockReturns?.filter(r => (r as any).bookingId === booking.id) || [];
       const totalReturns = bookingReturns.reduce((acc, item) => acc + item.totalRefundAmount, 0);
       const totalCharges = bookingRoomFee + guestBillTotal;
@@ -475,14 +466,23 @@ function AccountingPage() {
 
       const associatedPayments = payments?.filter(p => p.bookingId === booking.id) || [];
 
-      let totalPaid = 0;
-      const isCheckedIn = booking.status === 'Active' || booking.status === 'Checked-in'
-      if (booking.paymentMethod || isCheckedIn) {
-          totalPaid += bookingRoomFee;
-      }
-
-      const paidBillTotal = bookingBills.filter(b => b.paid).reduce((acc, b) => acc + b.total, 0);
-      totalPaid += paidBillTotal;
+      const paidBookingPayments = associatedPayments.filter(payment =>
+        payment.status === 'Paid' && payment.type === 'Booking'
+      );
+      const totalPaidForRoom = paidBookingPayments.reduce((sum, payment) =>
+        sum + Math.max(0, Number(payment.amount || 0) - Number(payment.refundDetails?.amount || 0)), 0
+      );
+      const paidBillTotal = bookingBills.reduce((sum, bill) => {
+        if (!bill.paid) return sum;
+        const linkedPaymentExists = !!bill.paymentId && associatedPayments.some(payment =>
+          payment.id === bill.paymentId && payment.status === 'Paid'
+        );
+        return sum + (linkedPaymentExists ? 0 : Number(bill.total || 0));
+      }, 0);
+      const paidAdditionalPayments = associatedPayments
+        .filter(payment => payment.status === 'Paid' && payment.type === 'Additional Charges')
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      let totalPaid = totalPaidForRoom + Math.max(paidBillTotal, paidAdditionalPayments);
 
       const balanceDue = totalBill - totalPaid;
 
@@ -545,8 +545,7 @@ function AccountingPage() {
       }, [] as SoldItem[]);
 
       const allTimeIncomes = [
-        ...(allBookings || []).filter(b => (b.createdByUid === user.uid || b.createdByName === name) && b.status !== 'Refunded' && b.status !== 'Cancelled').map(b => ({ source: 'Bookings', amount: b.totalAmount || 0 })),
-        ...(allPayments || []).filter(p => (p.createdByUid === user.uid || p.createdByName === name) && p.status !== 'Refunded').map(p => ({ source: 'Payments', amount: p.amount })),
+        ...(allPayments || []).filter(p => (p.createdByUid === user.uid || p.createdByName === name) && p.status === 'Paid' && !(p.bookingId && refundedBookingIds.has(p.bookingId))).map(p => ({ source: 'Payments', amount: Math.max(0, Number(p.amount || 0) - Number(p.refundDetails?.amount || 0)) })),
         ...(allStockSales || []).filter(s => (s.soldByUid === user.uid || s.soldByName === name) && s.status !== 'Refunded').map(s => ({ source: 'Stock Sales', amount: s.totalAmount })),
         ...(allSalonServices || []).filter(s => s.staffId === user.uid || s.staffName === name).map(s => ({ source: 'Salon', amount: s.totalPrice })),
       ];
@@ -583,10 +582,11 @@ function AccountingPage() {
 
     const balances = new Map<string, number>();
 
-    (allPayments).filter(p => p.status !== 'Refunded').forEach(p => {
+    (allPayments).filter(p => p.status === 'Paid' && !(p.bookingId && refundedBookingIds.has(p.bookingId))).forEach(p => {
       const method = p.paymentMethod;
+      const netAmount = Math.max(0, Number(p.amount || 0) - Number(p.refundDetails?.amount || 0));
       if(method) {
-        balances.set(method, (balances.get(method) || 0) + p.amount);
+        balances.set(method, (balances.get(method) || 0) + netAmount);
       }
     });
 

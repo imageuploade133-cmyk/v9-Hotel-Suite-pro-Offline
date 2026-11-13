@@ -104,7 +104,7 @@ export function BookingDialogs({
       <CheckInDialog
         isOpen={!!bookingToCheckIn}
         booking={bookingToCheckIn}
-        totalAmount={bookingToCheckIn ? rooms?.find(r => r.id === bookingToCheckIn.roomId)?.price : undefined}
+        totalAmount={bookingToCheckIn ? Number(bookingToCheckIn.totalAmount ?? bookingToCheckIn.amount ?? 0) : undefined}
         onClose={() => setActionState({ ...actionState, bookingToCheckIn: null })}
         onCheckIn={handleCheckIn}
         availableRooms={rooms || []}
