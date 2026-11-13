@@ -131,6 +131,14 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     let paymentRecordForReceipt: Payment | null = null;
 
+    if (confirmedBookingPayment) {
+        const confirmedPaymentData = confirmedBookingPayment.data() as Payment;
+        bookingUpdateData.paymentId = confirmedBookingPayment.id;
+        if (!booking.paymentMethod && confirmedPaymentData.paymentMethod) {
+            bookingUpdateData.paymentMethod = confirmedPaymentData.paymentMethod;
+        }
+    }
+
     if (!isPaidReservation) {
         if (!paymentMethod || !Number.isFinite(amount) || Number(amount) <= 0) {
           toast({ variant: 'destructive', title: 'Payment Required', description: 'Select a payment method and enter a valid reservation payment before checking in.' });
