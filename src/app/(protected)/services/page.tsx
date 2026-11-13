@@ -66,6 +66,13 @@ function ServicesPage() {
 
     // Use appropriate result based on mode
     const { data: sales, isLoading: areSalesLoading } = isGlobalMode ? globalSalesResult : branchSalesResult;
+    const branchServiceRestockQuery = React.useMemo(() => !isGlobalMode && firestore
+      ? query(collection(firestore, getCollectionPath('serviceRestockHistory')), orderBy('restockedAt', 'desc')) : null,
+      [firestore, isGlobalMode, getCollectionPath, reloadCounter]);
+    const branchServiceRestocks = useCollection<any>(branchServiceRestockQuery);
+    const globalServiceRestocks = useGlobalCollectionData<any>('serviceRestockHistory', [orderBy('restockedAt', 'desc')]);
+    const { data: serviceRestocks, isLoading: areServiceRestocksLoading } = isGlobalMode ? globalServiceRestocks : branchServiceRestocks;
+
 
     const branchServicesQuery = React.useMemo(() => !isGlobalMode && firestore
       ? query(collection(firestore, getCollectionPath('services')), orderBy('name')) : null,
@@ -118,6 +125,9 @@ function ServicesPage() {
       const items = serviceItems || [];
       const tracked = items.filter(item => Number.isFinite(item.quantity));
       const totalInvestment = tracked.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.costPrice || 0)), 0);
+      const todaysRestocks = (serviceRestocks || []).filter(entry => { const date = getSafeDate(entry.restockedAt); return date && isToday(date); });
+      const todayRestockValue = todaysRestocks.reduce((sum, entry) => sum + Math.max(0, Number(entry.totalCost || 0)), 0);
+      const todayRestockQuantity = todaysRestocks.reduce((sum, entry) => sum + Math.max(0, Number(entry.quantityAdded || 0)), 0);
       const totalProfit = (sales || []).reduce((sum, sale) => {
         if (sale.paymentStatus === 'Refunded') return sum;
         return sum + (sale.items || []).filter(item => item.isService).reduce((lineSum, item) => {
@@ -126,8 +136,8 @@ function ServicesPage() {
           return lineSum + (Number(item.sellingPrice || 0) - Number(item.costPrice || 0)) * soldQty;
         }, 0);
       }, 0);
-      return { totalInvestment, totalProfit };
-    }, [serviceItems, sales]);
+      return { totalInvestment, totalProfit, todayRestockValue, todayRestockQuantity };
+    }, [serviceItems, sales, serviceRestocks]);
     const handleSuccess = () => {
         setReloadCounter(c => c + 1);
     };
@@ -177,30 +187,6 @@ function ServicesPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <StatCard
-                        title="Total Income from Services"
-                        value={formatCurrency(totalIncome)}
-                        icon={DollarSign}
-                        description="All-time revenue from all non-inventory services and foods."
-                        isLoading={areSalesLoading}
-                    />
-                    <StatCard
-                        title="Today's Income from Services"
-                        value={formatCurrency(todaysIncome)}
-                        icon={CalendarCheck}
-                        description="Revenue generated from services and foods sold today."
-                        isLoading={areSalesLoading}
-                    />
-                    <StatCard
-                        title={incomeLabel}
-                        value={formatCurrency(filteredIncome)}
-                        icon={DollarSign}
-                        description="Income for the selected date range."
-                        isLoading={areSalesLoading}
-                    />
-                </div>
-
                 <div className="flex items-center justify-between gap-3">
                   <div><h2 className="text-base font-semibold">Inventory & Profit Overview</h2><p className="text-sm text-muted-foreground">Financial summary for Services & Foods stock.</p></div>
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowAllSummaryCards(value => !value)} aria-expanded={showAllSummaryCards}>
@@ -216,6 +202,7 @@ function ServicesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-4">
                       <StatCard title="Total Income from Services" value={formatCurrency(totalIncome)} icon={DollarSign} description="All-time revenue from services and foods." isLoading={areSalesLoading} className="border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100" iconClassName="text-violet-700 dark:text-violet-300" />
                       <StatCard title="Today's Income from Services" value={formatCurrency(todaysIncome)} icon={CalendarCheck} description="Revenue generated today." isLoading={areSalesLoading} className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100" iconClassName="text-amber-700 dark:text-amber-300" />
+                      <StatCard title="Today Restock Value" value={formatCurrency(serviceStats.todayRestockValue)} icon={RotateCcw} description="Units restocked today." isLoading={areServiceRestocksLoading} className="border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-100" iconClassName="text-rose-700 dark:text-rose-300" />
                       <StatCard title={incomeLabel} value={formatCurrency(filteredIncome)} icon={DollarSign} description="Income for the selected date range." isLoading={areSalesLoading} className="border-indigo-200 bg-indigo-50 text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-100" iconClassName="text-indigo-700 dark:text-indigo-300" />
                     </div>
                   </CollapsibleContent>
