@@ -58,6 +58,7 @@ const getServiceColumns = (
     onDelete: (item: UnifiedItem) => void,
     onViewSales: (item: UnifiedItem) => void,
     onRestock: (item: UnifiedItem) => void,
+    canRestock: boolean,
     currency: string,
     salesData: StockSale[] | null,
     globalServiceImageUrl?: string,
@@ -117,7 +118,7 @@ const getServiceColumns = (
       const item = row.original;
       const income = (salesData || []).reduce((sum, sale) => {
         if (sale.paymentStatus === 'Refunded') return sum;
-        return sum + (sale.items || []).filter(sold => (sold.itemId && sold.itemId === item.id) || (!sold.itemId && sold.itemName === item.name)).reduce((itemSum, sold) => {
+        return sum + (sale.items || []).filter(sold => sold.isService && ((sold.itemId && sold.itemId === item.id) || (!sold.itemId && sold.itemName === item.name))).reduce((itemSum, sold) => {
           const refunded = (sale.refundedItems || []).filter(refund => refund.itemId === sold.itemId).reduce((n, refund) => n + Number(refund.quantity || 0), 0);
           return itemSum + Number(sold.sellingPrice || 0) * Math.max(0, Number(sold.quantity || 0) - refunded);
         }, 0);
@@ -191,6 +192,7 @@ export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, on
         onDelete,
         onViewSales,
         onRestock,
+        canRestock,
         settings?.currency || 'USD',
         salesData,
         settings?.globalServiceImageUrl || settings?.globalStockImageUrl,
