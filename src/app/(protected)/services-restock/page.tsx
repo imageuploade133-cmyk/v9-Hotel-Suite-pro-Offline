@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { collection, doc, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { PackagePlus, Search, RotateCcw, History, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -134,8 +134,10 @@ function ServicesRestockPage() {
         { collectionName: servicePath, docId: selectedItem.id, action: 'update', data: { quantity: afterQty, costPrice: afterCost, updatedAt: new Date().toISOString() } },
         { collectionName: historyPath, docId: historyRef.id, action: 'set', data: entry as any },
       ], `service-restock:${historyRef.id}`, async () => {
-        await updateDoc(serviceRef, { quantity: afterQty, costPrice: afterCost, updatedAt: serverTimestamp() });
-        await setDoc(historyRef, { ...entry, restockedAt: serverTimestamp() });
+        const batch = writeBatch(firestore);
+        batch.update(serviceRef, { quantity: afterQty, costPrice: afterCost, updatedAt: serverTimestamp() });
+        batch.set(historyRef, { ...entry, restockedAt: serverTimestamp() });
+        await batch.commit();
       });
       toast({ variant: 'success', title: 'Restock saved', description: `${added} units added to ${selectedItem.name}.` });
       setQuantity('');
