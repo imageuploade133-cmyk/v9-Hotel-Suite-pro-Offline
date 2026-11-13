@@ -230,7 +230,9 @@ function GuestFolioPage() {
         const totalCharges = (filters.includeRoomFee ? bookingRoomFee : 0) + guestBillTotal;
         const totalBill = totalCharges - totalReturns;
 
-        const associatedPayments = allPayments?.filter(p => p.bookingId === booking.id) || [];
+        const associatedPayments = allPayments?.filter(p =>
+          p.bookingId === booking.id && (p.status === 'Paid' || (!p.status && (p.type === 'Booking' || p.type === 'Additional Charges')))
+        ) || [];
 
         let totalPaid = 0;
         const isCheckedIn = booking.status === 'Active' || booking.status === 'Checked-in';
@@ -268,13 +270,7 @@ function GuestFolioPage() {
 
         const balanceDue = totalBill - totalPaid;
 
-        const getPaymentStaffName = (payment: Payment) => {
-            if (payment.type === 'Booking') {
-                return booking.createdByName || 'System';
-            }
-            const bill = allBills?.find(b => b.paymentId === payment.id);
-            return bill?.createdByName || userMap.get(payment.createdByUid || '') || 'System';
-        }
+
 
         return {
             id: booking.id,
