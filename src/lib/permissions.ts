@@ -7,6 +7,7 @@ export enum PagePermission {
 
   // Bookings
   VIEW_BOOKINGS_PAGE = 'view:bookings',
+  VIEW_BOOKINGS_REPORT = 'view:bookings_report',
   CREATE_BOOKING = 'create:booking',
   EDIT_BOOKING = 'edit:booking',
   CANCEL_BOOKING = 'cancel:booking',
@@ -164,6 +165,7 @@ export const PERMISSION_GROUPS = [
     name: 'Bookings & Check-ins',
     permissions: [
       { id: PagePermission.VIEW_BOOKINGS_PAGE, description: 'View bookings, reservations, and active check-ins lists' },
+      { id: PagePermission.VIEW_BOOKINGS_REPORT, description: 'View your own booking report; administrators can view all staff booking reports' },
       { id: PagePermission.CREATE_BOOKING, description: 'Create new bookings' },
       { id: PagePermission.EDIT_BOOKING, description: 'Edit existing bookings (check-in, check-out, etc.)' },
       { id: PagePermission.CANCEL_BOOKING, description: 'Cancel a booking' },
