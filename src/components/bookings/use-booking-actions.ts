@@ -523,51 +523,65 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
   const handlePayBills = async (booking: Booking, paymentMethod: string, paidItems: BillItem[], customAmount?: number) => {
     if (!firestore || !userProfile || !user) return;
-
+    const billsSnapshot = await getDocs(collection(firestore, 'bookings/' + booking.id + '/bills'));
+    const currentBills = billsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ref: snapshot.ref, data: snapshot.data() as Bill }));
+    const getPaid = (bill: Bill) => Number(bill.paidAmount) || (bill.paid ? Number(bill.total || 0) : 0);
+    const outstanding = currentBills.reduce((sum, entry) => sum + Math.max(0, Number(entry.data.total || 0) - getPaid(entry.data)), 0);
+    const amountToPay = customAmount !== undefined ? customAmount : paidItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (!Number.isFinite(amountToPay) || amountToPay <= 0 || amountToPay > outstanding + 0.005) {
+      throw new Error('Payment amount is invalid or exceeds the current outstanding bill balance. Refresh and try again.');
+    }
+    const now = new Date();
     const batch = writeBatch(firestore);
     const paymentRef = doc(collection(firestore, 'payments'));
-    const amountToPay = customAmount ?? paidItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const now = new Date();
-
     const sanitizedBookingDetails = { ...booking, checkInDate: booking.checkInDate || null, checkOutDate: booking.checkOutDate || null, actualCheckOutDate: booking.actualCheckOutDate || null };
-
-    const paymentData: Partial<Payment> = { id: paymentRef.id, bookingId: booking.id, guestName: booking.guestName, guestEmail: booking.guestEmail || null, roomNumber: booking.roomNumber, amount: amountToPay, paymentMethod: paymentMethod as any, status: 'Paid', transactionDate: now, bookingDetails: sanitizedBookingDetails, createdByUid: user.uid, createdByName: userProfile.name, ...(customAmount ? {type: 'Additional Charges'} : { type: 'Additional Charges', items: paidItems.map(({ billId, ...item }) => item) }) };
+    const paymentData: Partial<Payment> = { id: paymentRef.id, bookingId: booking.id, guestName: booking.guestName, guestEmail: booking.guestEmail || null, roomNumber: booking.roomNumber, amount: amountToPay, paymentMethod: paymentMethod as any, status: 'Paid', transactionDate: now, bookingDetails: sanitizedBookingDetails, createdByUid: user.uid, createdByName: userProfile.name, type: 'Additional Charges', ...(customAmount === undefined ? { items: paidItems.map(({ billId, ...item }) => item) } : { notes: 'Custom amount allocated against outstanding guest bills' }) };
     batch.set(paymentRef, paymentData);
-
-    if (!customAmount) {
-      for (const item of paidItems) {
-          const billRef = doc(firestore, `bookings/${booking.id}/bills/${item.billId}`);
-          const billDoc = await getDoc(billRef);
-
-          if (billDoc.exists()) {
-            const billData = billDoc.data() as Bill;
-            const updatedItems = billData.items.map(i => i.id === item.id ? { ...i, paid: true, paymentId: paymentRef.id } : i);
-            batch.update(billRef, { items: updatedItems });
-
-            const allPaid = updatedItems.every(i => i.paid);
-            if (allPaid) {
-              batch.update(billRef, { paid: true, paymentId: paymentRef.id, paymentMethod, paidAt: Timestamp.fromDate(now) });
-            }
-          }
+    const localMutations: Array<{ collectionName: string; docId: string; action: 'set' | 'update'; data: Record<string, unknown> }> = [
+      { collectionName: 'payments', docId: paymentRef.id, action: 'set', data: paymentData as any },
+    ];
+    if (customAmount !== undefined) {
+      let remaining = amountToPay;
+      for (const entry of currentBills) {
+        if (remaining <= 0.005) break;
+        const alreadyPaid = getPaid(entry.data);
+        const due = Math.max(0, Number(entry.data.total || 0) - alreadyPaid);
+        if (due <= 0) continue;
+        const allocation = Math.min(due, remaining);
+        const nextPaid = Math.min(Number(entry.data.total || 0), alreadyPaid + allocation);
+        const fullyPaid = nextPaid >= Number(entry.data.total || 0) - 0.005;
+        const nextItems = fullyPaid ? entry.data.items.map(item => ({ ...item, paid: true, paymentId: paymentRef.id })) : entry.data.items;
+        batch.update(entry.ref, { paidAmount: nextPaid, paid: fullyPaid, ...(fullyPaid ? { items: nextItems, paymentId: paymentRef.id, paymentMethod, paidAt: Timestamp.fromDate(now) } : {}) });
+        localMutations.push({ collectionName: 'bookings/' + booking.id + '/bills', docId: entry.id, action: 'update', data: { paidAmount: nextPaid, paid: fullyPaid, ...(fullyPaid ? { items: nextItems, paymentId: paymentRef.id, paymentMethod, paidAt: now.toISOString() } : {}) } });
+        remaining -= allocation;
+      }
+      if (remaining > 0.005) throw new Error('The bill balance changed while processing. Refresh and retry.');
+    } else {
+      const selectedByBill = new Map<string, BillItem[]>();
+      for (const item of paidItems) selectedByBill.set(item.billId, [...(selectedByBill.get(item.billId) || []), item]);
+      for (const [billId, items] of selectedByBill) {
+        const entry = currentBills.find(candidate => candidate.id === billId);
+        if (!entry) throw new Error('A selected bill could not be found. Refresh and try again.');
+        const itemIds = new Set(items.map(item => item.id));
+        const nextItems = entry.data.items.map(item => itemIds.has(item.id) ? { ...item, paid: true, paymentId: paymentRef.id } : item);
+        const nextPaid = Math.min(Number(entry.data.total || 0), getPaid(entry.data) + items.reduce((sum, item) => sum + item.price * item.quantity, 0));
+        const fullyPaid = nextItems.every(item => item.paid) || nextPaid >= Number(entry.data.total || 0) - 0.005;
+        batch.update(entry.ref, { items: fullyPaid ? nextItems.map(item => ({ ...item, paid: true, paymentId: paymentRef.id })) : nextItems, paidAmount: nextPaid, ...(fullyPaid ? { paid: true, paymentId: paymentRef.id, paymentMethod, paidAt: Timestamp.fromDate(now) } : {}) });
+        localMutations.push({ collectionName: 'bookings/' + booking.id + '/bills', docId: entry.id, action: 'update', data: { items: fullyPaid ? nextItems.map(item => ({ ...item, paid: true, paymentId: paymentRef.id })) : nextItems, paidAmount: nextPaid, ...(fullyPaid ? { paid: true, paymentId: paymentRef.id, paymentMethod, paidAt: now.toISOString() } : {}) } });
       }
     }
-
     try {
-      await batch.commit();
-
-      pushLanMutation('payments', paymentRef.id, 'set', paymentData as any);
-
-      toast({ variant: 'success', title: 'Payment Successful', description: `Successfully processed payment of ${formatCurrency(amountToPay)}.` });
+      await commitLocalFirstMutations(localMutations, 'guest-bill-payment:' + paymentRef.id, () => batch.commit());
+      toast({ variant: 'success', title: 'Payment Successful', description: 'Successfully processed payment of ' + formatCurrency(amountToPay) + '.' });
       onSuccess();
     } catch (error) {
-      console.error("Error paying bills: ", error);
-      toast({ variant: 'destructive', title: 'Payment Failed', description: 'Could not process payment.' });
+      console.error('Error paying bills: ', error);
+      toast({ variant: 'destructive', title: 'Payment Failed', description: error instanceof Error ? error.message : 'Could not process payment.' });
       throw error;
     } finally {
       setActionState(prev => ({ ...prev, bookingToPayBills: null }));
     }
   };
-
   const handleToggleCollectPayment = async (booking: Booking, collect: boolean) => {
     if (!firestore) return;
     const bookingRef = doc(firestore, 'bookings', booking.id);
