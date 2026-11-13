@@ -141,7 +141,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         bookingUpdateData.paymentMethod = paymentMethod as any;
         bookingUpdateData.totalAmount = amount;
 
-        const paymentRef = doc(collection(firestore, 'payments'));
+        const paymentRef = doc(firestore, 'payments', `booking-payment-${booking.id}`);
         const paymentData: Partial<Payment> = {
             id: paymentRef.id,
             bookingId: booking.id,
