@@ -1178,7 +1178,7 @@ export default function ProtectedLayout({
               </DropdownMenu>
             </div>
           </header>
-          <main className="min-w-0 w-full max-w-full flex-1 overflow-x-clip overflow-y-auto p-3 sm:p-6 lg:p-8">
+          <main className={pathname === '/settings/website-studio' ? "min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden p-0" : "min-w-0 w-full max-w-full flex-1 overflow-x-clip overflow-y-auto p-3 sm:p-6 lg:p-8"}>
             <FinancialProvider>
               {children}
             </FinancialProvider>
