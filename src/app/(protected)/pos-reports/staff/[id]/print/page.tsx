@@ -12,6 +12,7 @@ import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
 import type { StockSale, StockReturn, HeldSale, StockItem } from '@/lib/types';
 import { getSafeDate } from '@/lib/helpers';
+import { getProductImageUrl as resolveProductImageUrl } from '@/lib/product-image';
 import { endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { TopHeader } from '@/components/top-header';
@@ -21,19 +22,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-function getProductImageUrl(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const item = value as Record<string, unknown>;
-  const candidates = [item.imageUrl, item.imageURL, item.image, item.photoURL, item.productImage, item.thumbnailUrl, item.thumbnail, item.imageUrls, item.images];
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
-    if (Array.isArray(candidate)) {
-      const first = candidate.find(entry => typeof entry === 'string' && entry.trim());
-      if (typeof first === 'string') return first.trim();
-    }
-  }
-  return undefined;
-}
 
 type DetailEvent =
   | { id: string; kind: 'sale'; date: Date | null; reference: string; amount: number; sale: StockSale }
@@ -82,6 +70,9 @@ function StaffTransactionBreakdownPage() {
   const globalHeld = useGlobalCollectionData<HeldSale>('heldSales', []);
   const stock = isGlobalMode ? globalStock.data : branchStock.data;
   const stockById = React.useMemo(() => new Map((stock || []).map(item => [item.id, item])), [stock]);
+  const productImageFor = React.useCallback((item: unknown, itemId: string) =>
+    resolveProductImageUrl(item, settings) || resolveProductImageUrl(stockById.get(itemId), settings),
+  [settings, stockById]);
   const sales = isGlobalMode ? globalSales.data : branchSales.data;
   const returns = isGlobalMode ? globalReturns.data : branchReturns.data;
   const heldTables = isGlobalMode ? globalHeld.data : branchHeld.data;
@@ -118,10 +109,10 @@ function StaffTransactionBreakdownPage() {
   const printDate = format(new Date(), 'dd MMM yyyy, hh:mm a');
   const printEventType = (event: DetailEvent) => event.kind === 'sale' ? 'SALE' : event.kind === 'refund' ? 'REFUND' : 'RUNNING TABLE';
   const printEventItems = (event: DetailEvent) => event.kind === 'sale'
-    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0), image: getProductImageUrl(item) || getProductImageUrl(stockById.get(item.itemId)) }))
+    ? (event.sale.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.sellingPrice || 0), image: productImageFor(item, item.itemId) }))
     : event.kind === 'refund'
-      ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)), image: getProductImageUrl(item) || getProductImageUrl(stockById.get(item.itemId)) }))
-      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0), image: getProductImageUrl(item) || getProductImageUrl(stockById.get(item.id)) }));
+      ? (event.refund.items || []).map(item => ({ name: item.itemName, qty: Number(item.quantity || 0), unit: Number(item.refundAmount || 0) / Math.max(1, Number(item.quantity || 0)), image: productImageFor(item, item.itemId) }))
+      : (event.table.cart || []).map(item => ({ name: item.name, qty: Number(item.sellQuantity || 0), unit: Number(item.price ?? item.sellingPrice ?? 0), image: productImageFor(item, item.id) }));
   const printReport = () => {
     if (isLoading) return;
     window.print();
