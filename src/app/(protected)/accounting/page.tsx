@@ -458,7 +458,7 @@ function AccountingPage() {
         }))
       );
       const guestBillTotal = guestBillItems.reduce((acc, item) => acc + item.total, 0);
-      const bookingRoomFee = Number(booking.totalAmount ?? booking.amount ?? 0);
+      const bookingRoomFee = Number(booking.totalAmount || booking.amount || 0);
       const bookingReturns = stockReturns?.filter(r => (r as any).bookingId === booking.id) || [];
       const totalReturns = bookingReturns.reduce((acc, item) => acc + item.totalRefundAmount, 0);
       const totalCharges = bookingRoomFee + guestBillTotal;
