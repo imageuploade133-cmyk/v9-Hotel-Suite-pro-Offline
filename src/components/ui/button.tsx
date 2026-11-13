@@ -87,7 +87,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       }
     };
 
-    const childContent = isLoading ? (
+    // Keep the single Radix Slot child stable; fragments here can strip Link navigation on rerender.
+    const childContent = isLoading && !asChild ? (
       <>
         <Loader2 className="animate-spin" aria-hidden="true" />
         {children}
@@ -122,6 +123,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
+        type={props.type ?? "button"}
         onClick={handleClick}
         disabled={isDisabled}
         aria-busy={isLoading || undefined}
