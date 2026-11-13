@@ -49,6 +49,7 @@ interface ServiceManagementProps {
     onDelete: (item: UnifiedItem) => void;
     onViewSales: (item: UnifiedItem) => void;
     onRestock: (item: UnifiedItem) => void;
+    canRestock: boolean;
     reloadCounter: number;
 }
 
@@ -149,7 +150,7 @@ const getServiceColumns = (
             <Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Open menu</span><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {Number.isFinite(item.quantity) && <DropdownMenuItem onClick={() => onRestock(item)}><Package className="mr-2 h-4 w-4" />Restock</DropdownMenuItem>}
+            {canRestock && Number.isFinite(item.quantity) && <DropdownMenuItem onClick={() => onRestock(item)}><Package className="mr-2 h-4 w-4" />Restock</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => onViewSales(item)}><Eye className="mr-2 h-4 w-4" />View Sales Log</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDelete(item)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
@@ -160,7 +161,7 @@ const getServiceColumns = (
   },
 ];
 
-export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, onRestock, reloadCounter }: ServiceManagementProps) {
+export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, onRestock, canRestock, reloadCounter }: ServiceManagementProps) {
     const firestore = useFirestore();
     const { settings } = useSettings();
     const { getCollectionPath, isGlobalMode } = useBranch();
@@ -195,7 +196,7 @@ export function ServiceManagement({ salesData, onEdit, onDelete, onViewSales, on
         settings?.globalServiceImageUrl || settings?.globalStockImageUrl,
         settings?.useGlobalServiceImage !== false || settings?.useGlobalStockImage === true
       ),
-      [onEdit, onDelete, onViewSales, onRestock, settings, salesData]
+      [onEdit, onDelete, onViewSales, onRestock, canRestock, settings, salesData]
     );
 
     const table = useReactTable({
