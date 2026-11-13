@@ -75,12 +75,11 @@ export function CheckInDialog({
         if (!firestore) return;
         const snapshot = await getDocs(query(
           collection(firestore, 'payments'),
-          where('bookingId', '==', booking.id),
-          where('status', '==', 'Paid')
+          where('bookingId', '==', booking.id)
         ));
         const paidBookingPayment = snapshot.docs.some(paymentDoc => {
           const payment = paymentDoc.data();
-          return payment.type === 'Booking' && Number(payment.amount || 0) > 0;
+          return payment.status === 'Paid' && payment.type === 'Booking' && Number(payment.amount || 0) > 0;
         });
         if (!cancelled) setHasConfirmedPayment(paidBookingPayment);
       } catch (error) {
