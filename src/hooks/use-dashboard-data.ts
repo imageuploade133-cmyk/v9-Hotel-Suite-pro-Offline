@@ -435,6 +435,8 @@ export const useDashboardData = ({ dateRange, incomeFilter, posIncomeFilter, mon
         const getUnrepresentedPaidBillIncome = (sourceBills: Bill[], bookingIds?: Set<string>) =>
             sourceBills.reduce((sum, bill) => {
                 if (bookingIds && !bookingIds.has(bill.bookingId)) return sum;
+                const linkedBookingStatus = bookingStatusById.get(bill.bookingId);
+                if (linkedBookingStatus === 'Refunded' || linkedBookingStatus === 'Cancelled') return sum;
 
                 if (bill.paid) {
                     return sum + (bill.paymentId && paymentIds.has(bill.paymentId) ? 0 : (bill.total || 0));
