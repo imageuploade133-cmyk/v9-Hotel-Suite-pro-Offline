@@ -243,8 +243,9 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
         // Include paid status payments only
         if (p.status === 'Paid') return true;
 
-        // Also include legacy payment types for backwards compatibility
-        if (p.type === 'Booking' || p.type === 'Additional Charges') return true;
+        // Older records without a status remain supported, but explicit Credit/Refunded
+        // records must never be counted as money received.
+        if (!p.status && (p.type === 'Booking' || p.type === 'Additional Charges')) return true;
 
         return false;
     });
@@ -261,6 +262,8 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     }
 
     bookingPayments.forEach(p => {
+        // Room charge is already represented by the synthetic room-payment row above.
+        if (p.type === 'Booking' && booking.totalAmount && booking.totalAmount > 0) return;
         const paymentDate = getSafeDate(p.transactionDate);
         if (paymentDate) {
             const description = p.type === 'Booking'
