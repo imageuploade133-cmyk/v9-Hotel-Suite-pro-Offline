@@ -12,6 +12,7 @@ import { useBranch } from '@/contexts/branch-context';
 import { useSettings } from '@/contexts/settings-context';
 import type { StockItem, StockSale, StockReturn, HeldSale } from '@/lib/types';
 import { getProductMovementSummary, toReportDate, type ProductRestockMovement } from '@/lib/product-report-utils';
+import { getProductImageUrl } from '@/lib/product-image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Printer } from 'lucide-react';
@@ -76,7 +77,7 @@ function ProductReportPrintPage() {
       const date = toReportDate(sale.soldAt);
       return !!date && isWithinInterval(date, { start: startOfDay(rangeFrom), end: endOfDay(rangeTo) });
     }).reduce((sum, sale) => sum + (sale.items || []).filter(line => line.itemId === item.id && !line.isService).reduce((lineSum, line) => lineSum + Math.max(0, Number(line.quantity) || 0) * Math.max(0, Number(line.sellingPrice) || 0), 0), 0);
-    return { ...item, ...summary, grossRevenue };
+    return { ...item, ...summary, grossRevenue, imageUrl: getProductImageUrl(item, settings) };
   }).sort((a, b) => (a.category || 'Uncategorized').localeCompare(b.category || 'Uncategorized') || a.name.localeCompare(b.name)), [stock, sales, returns, restocks, productId, categoryFilter, dateRange]);
 
   const groups = React.useMemo(() => {
@@ -140,7 +141,7 @@ function ProductReportPrintPage() {
             {group.name && <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold uppercase">{group.name}</h3>}
             <table className={`w-full border-collapse ${printFormat === 'terminal' ? 'text-[9px]' : 'text-xs'}`}>
               <thead><tr className="border-b border-black text-left"><th className="py-2 pr-1">Product</th>{showOriginal && <th className="px-1 py-2 text-right">Original</th>}{showAvailable && <th className="px-1 py-2 text-right">Available</th>}{showSold && <th className="px-1 py-2 text-right">Sold</th>}{showReturned && <th className="px-1 py-2 text-right">Returned</th>}{showRevenue && <th className="pl-1 py-2 text-right">Revenue</th>}</tr></thead>
-              <tbody>{group.products.map(item => <tr key={item.id} className="border-b border-black/20 align-top"><td className="py-2 pr-1"><b>{item.name}</b><div className="text-[9px]">{item.sku || item.barcode || ''}</div></td>{showOriginal && <td className="px-1 py-2 text-right tabular-nums">{item.openingStock.toLocaleString()}</td>}{showAvailable && <td className="px-1 py-2 text-right tabular-nums">{item.availableAtEnd.toLocaleString()}</td>}{showSold && <td className="px-1 py-2 text-right tabular-nums">{item.soldInRange.toLocaleString()}</td>}{showReturned && <td className="px-1 py-2 text-right tabular-nums">{item.returnedInRange.toLocaleString()}</td>}{showRevenue && <td className="pl-1 py-2 text-right tabular-nums">{money(item.grossRevenue)}</td>}</tr>)}</tbody>
+              <tbody>{group.products.map(item => <tr key={item.id} className="border-b border-black/20 align-top"><td className="py-2 pr-1"><div className="flex items-center gap-2">{item.imageUrl && <img src={item.imageUrl} alt="" loading="eager" className="h-8 w-8 shrink-0 rounded border border-black/20 object-cover" />}<div><b>{item.name}</b><div className="text-[9px]">{item.sku || item.barcode || ''}</div></div></div></td>{showOriginal && <td className="px-1 py-2 text-right tabular-nums">{item.openingStock.toLocaleString()}</td>}{showAvailable && <td className="px-1 py-2 text-right tabular-nums">{item.availableAtEnd.toLocaleString()}</td>}{showSold && <td className="px-1 py-2 text-right tabular-nums">{item.soldInRange.toLocaleString()}</td>}{showReturned && <td className="px-1 py-2 text-right tabular-nums">{item.returnedInRange.toLocaleString()}</td>}{showRevenue && <td className="pl-1 py-2 text-right tabular-nums">{money(item.grossRevenue)}</td>}</tr>)}</tbody>
               {group.name && <tfoot><tr className="border-t border-black font-bold"><td colSpan={columnCount} className="py-1 text-right">{group.products.length} product(s)</td></tr></tfoot>}
             </table>
           </section>)}
