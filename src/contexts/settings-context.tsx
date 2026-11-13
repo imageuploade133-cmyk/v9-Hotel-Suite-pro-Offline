@@ -389,6 +389,14 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     return base;
   }, [isGlobalMode, currentBranchId, globalPosSettings, branchPosSettings, settings]);
 
+  // Publish effective POS print appearance for every print surface in the project.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const appearance = getEffectivePosSettings('pos');
+    document.documentElement.dataset.posPrintBoldText = appearance.posPrintBoldText ? 'true' : 'false';
+    document.documentElement.dataset.posPrintBoldLines = appearance.posPrintBoldLines ? 'true' : 'false';
+  }, [getEffectivePosSettings]);
+
   const contextValue = useMemo(
     () => ({
       settings,
