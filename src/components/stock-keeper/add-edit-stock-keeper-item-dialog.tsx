@@ -89,6 +89,7 @@ import {
   CommandList,
 } from '../ui/command';
 import { useBranch } from '@/contexts/branch-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const itemSchema = z
   .object({
@@ -465,6 +466,22 @@ export function AddEditStockKeeperItemDialog({ isOpen, onClose, item, onSuccess 
               `stock-keeper-item-update:${item.id}:${Date.now()}`,
               () => updateDoc(itemRef, { ...itemData, updatedAt: serverTimestamp() })
             );
+            void logAuditEvent(firestore, {
+              action: 'Update', module: 'Inventory', entityType: 'Stock Keeper Item',
+              entityId: item.id, entityName: data.name,
+              userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+              userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+              branchId: (item as any).branchId || 'global', branchName: (item as any).branchName || 'Global',
+              description: `Updated staging stock item "${data.name}"`,
+              changes: [
+                { field: 'name', before: item.name, after: data.name },
+                { field: 'quantity', before: item.quantity, after: data.quantity },
+                { field: 'costPrice', before: item.costPrice, after: data.costPrice },
+                { field: 'sellingPrice', before: item.sellingPrice, after: data.sellingPrice },
+              ],
+              details: { category: data.category, supplier: data.supplier || '' },
+              collectionName: actualCollectionPath, documentId: item.id,
+            });
             toast({ variant: 'success', title: 'Item Updated', description: `${data.name} has been updated in staging.` });
         } else {
             const newItemRef = doc(collection(firestore, stockKeeperItemsCollection));
@@ -474,6 +491,16 @@ export function AddEditStockKeeperItemDialog({ isOpen, onClose, item, onSuccess 
               `stock-keeper-item-create:${newItemRef.id}`,
               () => setDoc(newItemRef, { ...itemData, held: 0, createdAt: serverTimestamp() })
             );
+            void logAuditEvent(firestore, {
+              action: 'Create', module: 'Inventory', entityType: 'Stock Keeper Item',
+              entityId: newItemRef.id, entityName: data.name,
+              userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+              userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+              description: `Added "${data.name}" to staging inventory`,
+              changes: [{ field: 'quantity', before: null, after: data.quantity }, { field: 'costPrice', before: null, after: data.costPrice }, { field: 'sellingPrice', before: null, after: data.sellingPrice }],
+              details: { category: data.category, supplier: data.supplier || '' },
+              collectionName: stockKeeperItemsCollection, documentId: newItemRef.id,
+            });
             toast({ variant: 'success', title: 'Item Added to Staging', description: `${data.name} has been added.` });
         }
 
