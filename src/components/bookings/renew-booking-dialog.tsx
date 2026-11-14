@@ -147,7 +147,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
           }
         } else {
           try {
-            const q = query(collection(firestore, 'bookings'), where('roomNumber', '==', booking.roomNumber), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
+            const q = query(collection(firestore, 'bookings'), where('roomId', '==', booking.roomId), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
             const snapshot = await getDocs(q);
             rows = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as Booking));
           } catch {
