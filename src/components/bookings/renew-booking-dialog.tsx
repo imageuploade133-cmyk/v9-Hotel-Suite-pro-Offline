@@ -379,7 +379,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         documentId: booking.id,
         status: 'Success',
         description: `Extended ${booking.guestName}'s stay in Room ${booking.roomNumber} to ${format(newCheckOut, 'MMM dd, yyyy')}`,
-        details: { roomId: booking.roomId, roomNumber: booking.roomNumber, extensionNights: calculation.extensionNights, renewalCharge, paymentMethod: renewalCharge > 0 ? data.paymentMethod : null, renewalBillId: renewalCharge > 0 ? renewalBillRef.id : null, offlineQueued: isOffline },
+        details: { roomId: booking.roomId, roomNumber: booking.roomNumber, extensionNights: calculation.extensionNights, renewalCharge, paymentMethod: renewalCharge > 0 ? data.paymentMethod : null, renewalBillId: renewalCharge > 0 ? renewalBillRef.id : null, offlineQueued: isOffline || isLocalMasterHost() },
         changes: [{ field: 'checkOutDate', before: originalCheckOut.toISOString(), after: newCheckOut.toISOString() }],
       };
 
@@ -494,9 +494,9 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
       toast({
         variant: 'success',
-        title: isOffline ? 'Renewal Saved Offline' : 'Booking Renewed Successfully',
+        title: isOffline ? 'Renewal Saved Offline' : isLocalMasterHost() ? 'Renewal Saved to LAN Master' : 'Booking Renewed Successfully',
         description: renewalCharge > 0
-          ? `${booking.guestName}'s stay was extended. ${formatCurrency(renewalCharge)} was recorded in the guest folio. Existing unpaid bills were left unchanged.${isOffline ? ' The queued changes will sync when internet returns.' : ''}`
+          ? `${booking.guestName}'s stay was extended. ${formatCurrency(renewalCharge)} was recorded in the guest folio. Existing unpaid bills were left unchanged.${isOffline || isLocalMasterHost() ? ' The saved changes are queued to sync with cloud when internet returns.' : ''}`
           : `${booking.guestName}'s stay was extended. No additional room charge was due.${isOffline ? ' The queued changes will sync when internet returns.' : ''}`,
       });
       onSuccess();
