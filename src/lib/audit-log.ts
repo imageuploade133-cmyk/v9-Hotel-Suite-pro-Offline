@@ -47,7 +47,7 @@ export async function logAuditEvent(firestore: Firestore | null | undefined, eve
       entityName: event.entityName || '', collectionName: event.collectionName || '',
       documentId: event.documentId || event.entityId || '', userId: event.userId,
       userName: event.userName, userEmail: event.userEmail || '', userRole: event.userRole || '',
-      branchId: event.branchId || 'global', branchName: event.branchName || 'Global',
+      branchId: event.branchId || 'global', branchName: event.branchName || event.branchId || 'Global',
       description: event.description, details: event.details || {}, changes: event.changes || [],
       status: event.status || 'Success', timestamp: Timestamp.now(), keywords, schemaVersion: 2,
   };
