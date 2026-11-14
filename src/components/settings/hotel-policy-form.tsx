@@ -122,7 +122,7 @@ export function HotelPolicyForm() {
                 };
                 batch.set(auditLogRef, auditData);
                 const localMutations = [
-                    { collectionName: 'settings', docId: 'global', action: 'set' as const, data: { ...data, updatedAt: now.toISOString() } as any },
+                    { collectionName: 'settings', docId: 'global', action: 'update' as const, data: { ...data, updatedAt: now.toISOString() } as any },
                     { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set' as const, data: { ...auditData, timestamp: now.toISOString() } as any },
                 ];
                 if (isLocalMasterHost()) {
