@@ -13,6 +13,7 @@ import { useSettings } from '@/contexts/settings-context';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 import { getSafeDate } from '@/lib/helpers';
 import { PagePermission } from '@/lib/permissions';
 import withAuth from '@/components/auth/withAuth';
@@ -155,6 +156,23 @@ function ServicesRestockPage() {
         batch.update(serviceRef, { quantity: afterQty, costPrice: afterCost, price: updatedSellingPrice, updatedAt: serverTimestamp() });
         batch.set(historyRef, { ...entry, restockedAt: serverTimestamp() });
         await batch.commit();
+      });
+      void logAuditEvent(firestore, {
+        action: 'Restock', module: 'Services & Foods', entityType: 'Service / Food Item',
+        entityId: selectedItem.id, entityName: selectedItem.name,
+        userId: userProfile.uid || userProfile.id,
+        userName: userProfile.name || userProfile.email || 'Unknown user',
+        userEmail: userProfile.email || '', userRole: userProfile.role || '',
+        branchId: selectedItem.branchId || 'global',
+        branchName: selectedItem.branchId || currentBranch?.name || 'Global',
+        description: `Restocked ${selectedItem.name} by ${added} units`,
+        changes: [
+          { field: 'quantity', before: beforeQty, after: afterQty },
+          { field: 'costPrice', before: beforeCost, after: afterCost },
+          { field: 'sellingPrice', before: beforeSellingPrice, after: updatedSellingPrice },
+        ],
+        details: { quantityAdded: added, totalCost: added * purchaseCost, notes },
+        collectionName: servicePath, documentId: selectedItem.id,
       });
       toast({ variant: 'success', title: 'Restock saved', description: `${added} units added to ${selectedItem.name}.` });
       setQuantity('');
