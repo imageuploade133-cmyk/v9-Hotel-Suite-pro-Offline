@@ -300,10 +300,14 @@ export function BusinessInformationForm() {
                         timestamp: serverTimestamp(),
                         userId: userProfile.uid,
                         userName: userProfile.name,
-                        changeType: 'Update',
-                        entityType: 'Settings',
-                        entityId: 'Business Information',
-                        details: 'Updated business information settings.',
+                        userEmail: userProfile.email || user.email || '',
+                        userRole: userProfile.role || '',
+                        branchId: (userProfile as any).branchId || 'global',
+                        changeType: 'Update', action: 'Update', module: 'Settings',
+                        entityType: 'Business Information', entityId: 'global', entityName: 'Business Information',
+                        collectionName: 'settings', documentId: 'global', status: 'Success',
+                        description: 'Updated business identity, branding, watermark and print settings.',
+                        details: { settingsGroup: 'Business Information' },
                         changes,
                     });
 
