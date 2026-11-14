@@ -400,7 +400,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         batch.set(auditRef, auditData);
         const localMutations = [
           { collectionName: 'bookings', docId: booking.id, action: 'update' as const, data: { ...bookingUpdate, checkOutDate: newCheckOut.toISOString(), updatedAt: now.toISOString(), lastRenewedAt: now.toISOString() } },
-          { collectionName: 'rooms', docId: booking.roomId, action: 'update' as const, data: { [`individualRoomStatus.${booking.roomNumber}`]: 'Occupied' } },
+          { collectionName: 'rooms', docId: booking.roomId, action: 'update' as const, data: { individualRoomStatus: { ...(room.individualRoomStatus || {}), [booking.roomNumber]: 'Occupied' } } },
           ...(renewalCharge > 0 ? [
             { collectionName: `bookings/${booking.id}/bills`, docId: renewalBillRef.id, action: 'set' as const, data: { ...renewalBillData, createdAt: now.toISOString(), paidAt: now.toISOString() } },
             { collectionName: 'payments', docId: paymentRef.id, action: 'set' as const, data: { ...paymentData, transactionDate: now.toISOString() } },
