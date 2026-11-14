@@ -170,16 +170,16 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
     const roomPrice = room?.price || 0;
     const totalCost = nights * roomPrice;
 
-    const originalRoomCharge = Number(booking?.totalAmount ?? booking?.amount ?? 0);
-    const additionalCharge = Math.max(0, totalCost - originalRoomCharge);
+    const extensionNights = originalCheckOut ? Math.max(0, differenceInDays(startOfDay(checkOut), startOfDay(originalCheckOut))) : 0;
+    const additionalCharge = extensionNights * roomPrice;
     return {
       nights,
       totalCost,
-      originalRoomCharge,
+      extensionNights,
       additionalCharge,
-      isValid: nights > 0,
+      isValid: nights > 0 && !!originalCheckOut && extensionNights > 0,
     };
-  }, [watchNewCheckIn, watchNewCheckOut, room?.price, booking?.totalAmount, booking?.amount]);
+  }, [watchNewCheckIn, watchNewCheckOut, room?.price, originalCheckOut]);
 
   // Calculate date changes summary
   const dateChangesSummary = React.useMemo(() => {
@@ -190,12 +190,12 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
     const originalNights = differenceInDays(startOfDay(originalCheckOut), startOfDay(originalCheckIn));
     const newNights = calculation.nights;
     const nightDifference = newNights - originalNights;
-    const costDifference = calculation.totalCost - (originalNights * (room?.price || 0));
+    const costDifference = calculation.additionalCharge;
 
     return {
       originalNights,
       newNights,
-      nightDifference,
+      nightDifference: calculation.extensionNights,
       costDifference,
       checkInChanged: !isSameDay(originalCheckIn, watchNewCheckIn),
       checkOutChanged: !isSameDay(originalCheckOut, watchNewCheckOut),
@@ -266,7 +266,6 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
       const renewalBillRef = doc(collection(firestore, `bookings/${booking.id}/bills`));
       const newCheckIn = startOfDay(data.newCheckInDate);
       const newCheckOut = startOfDay(data.newCheckOutDate);
-      const originalStayCost = Number(booking.totalAmount ?? booking.amount ?? 0);
       const renewalCharge = calculation.additionalCharge;
       const renewalDescription = `Room renewal: ${calculation.nights} nights (${format(data.newCheckInDate, 'MMM dd, yyyy')} – ${format(data.newCheckOutDate, 'MMM dd, yyyy')})`;
 
@@ -368,7 +367,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
             createdByUid: user.uid,
             createdByName: userProfile.name || user.displayName || user.email || 'Unknown user',
             items: [{ name: renewalDescription, price: renewalCharge, quantity: 1 }],
-            notes: `Stay renewal for booking ${booking.id}. Previous room charge retained: ${originalStayCost}.`,
+            notes: `Stay renewal for booking ${booking.id}. Original room charge remains unchanged.`,
           });
         }
       });
@@ -542,7 +541,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                                 disabled={(date) => {
                                   // Disable dates before or on check-in date
                                   if (!watchNewCheckIn) return true;
-                                  return isBefore(startOfDay(date), startOfDay(addDays(watchNewCheckIn, 1)));
+                                  return isBefore(startOfDay(date), startOfDay(addDays(watchNewCheckIn, 1))) || (!!originalCheckOut && !isBefore(startOfDay(originalCheckOut), startOfDay(date)));
                                 }}
                                 initialFocus
                               />
@@ -649,7 +648,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                   </div>
                 )}
 
-                {calculation.isValid && calculation.additionalCharge > 0 && <Alert><Info className="h-4 w-4" /><AlertDescription>Additional renewal charge: <strong>{formatCurrency(calculation.additionalCharge)}</strong>. Your original room payment is preserved and will not be charged again.</AlertDescription></Alert>}
+                {calculation.isValid && calculation.additionalCharge > 0 && <Alert><Info className="h-4 w-4" /><AlertDescription>Additional renewal charge: <strong>{formatCurrency(calculation.additionalCharge)}</strong>. Only the additional nights are charged; the original room payment is preserved.</AlertDescription></Alert>}
                 {/* Payment Method */}
                 {calculation.isValid && calculation.additionalCharge > 0 && (
                   <FormField
