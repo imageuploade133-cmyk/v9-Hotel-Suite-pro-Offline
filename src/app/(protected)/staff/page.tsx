@@ -27,6 +27,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { TopHeader } from '@/components/top-header';
 import { logAuditEvent } from '@/lib/audit-log';
+import { useUser } from '@/contexts/user-context';
 
 function StaffPage() {
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -39,6 +40,7 @@ function StaffPage() {
   const [reloadCounter, setReloadCounter] = React.useState(0);
 
   const firestore = useFirestore();
+  const { user, userProfile } = useUser();
   const { toast } = useToast();
 
   const handleSuccess = () => {
@@ -71,7 +73,8 @@ function StaffPage() {
         void logAuditEvent(firestore, {
           action: 'Status Change', module: 'Staff', entityType: 'Staff Account',
           entityId: staffToToggle.uid, entityName: staffToToggle.name,
-          userId: (staffToToggle as any).updatedByUid || '', userName: (staffToToggle as any).updatedByName || 'Staff manager',
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
           description: `${newStatus ? 'Activated' : 'Disabled'} staff account for ${staffToToggle.name}`,
           changes: [{ field: 'isActive', before: !newStatus, after: newStatus }],
           details: { staffEmail: staffToToggle.email || '', staffRole: staffToToggle.role || '' },
