@@ -301,7 +301,6 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     // Separate positive payments from refunds
     // positivePayments now includes the room charge (which is always paid) + any additional payments
     const positivePayments = paymentTransactions.filter(p => p.payment > 0).reduce((sum, t) => sum + t.payment, 0);
-    const totalRefunds = paymentTransactions.filter(p => p.payment < 0).reduce((sum, t) => sum + Math.abs(t.payment), 0);
 
     // Total Payments = room charge (always paid) + additional payments
     // The positivePayments already includes the room charge from the payment transaction we added
@@ -320,7 +319,7 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     }, 0);
     const calculatedTotalUnpaid = calculatedBalance;
 
-    return { allCharges: finalCharges, allPaymentTransactions: paymentTransactions, totalCharges: calculatedTotalCharges, totalPayments: calculatedTotalPayments, balance: calculatedBalance, totalUnpaid: calculatedTotalUnpaid };
+    return { allCharges: charges, allPaymentTransactions: paymentTransactions, totalCharges: calculatedTotalCharges, totalPayments: calculatedTotalPayments, balance: calculatedBalance, totalUnpaid: calculatedTotalUnpaid };
   }, [booking, allBills, allPayments, allReturns, readOnly]);
 
   const checkIn = getSafeDate(booking.checkInDate);
