@@ -36,6 +36,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const categorySchema = z.object({
   name: z.string().min(1, "Category name is required."),
@@ -79,6 +81,7 @@ interface MenuCategoriesClientPageProps {
 export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientPageProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, userProfile } = useUser();
   const [newCategoryName, setNewCategoryName] = React.useState('');
   const [categoryToDelete, setCategoryToDelete] = React.useState<string | null>(null);
   const [editingCategory, setEditingCategory] = React.useState<MenuCategory | null>(null);
@@ -122,6 +125,14 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
         `menu-category-create:${menu.id}:${categoryRef.id}`,
         () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
       );
+      void logAuditEvent(firestore, {
+        action: 'Create', module: 'Menu', entityType: 'Menu Category', entityId: categoryRef.id, entityName: newCategoryName.trim(),
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Created category "${newCategoryName.trim()}" in menu "${menu.name}"`,
+        details: { menuId: menu.id, order: categoryData.order },
+        collectionName: `menus/${menu.id}/categories`, documentId: categoryRef.id,
+      });
       setNewCategoryName('');
       toast({ title: 'Category added', description: `"${newCategoryName}" has been added.` });
     } catch (error) {
@@ -169,6 +180,15 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
           () => batch.commit()
         );
 
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Menu', entityType: 'Menu Category', entityId: editingCategory.id, entityName: newName,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Renamed menu category "${oldName}" to "${newName}" and updated ${matchingItems.length} linked item(s)`,
+          changes: [{ field: 'name', before: oldName, after: newName }],
+          details: { menuId: menu.id, updatedMenuItems: matchingItems.map(item => ({ id: item.id, name: item.name })) },
+          collectionName: categoryCollectionPath, documentId: editingCategory.id,
+        });
         toast({
             title: 'Category Updated',
             description: `"${oldName}" was renamed to "${newName}" and ${matchingItems.length} item(s) were updated.`
@@ -196,6 +216,15 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
         `menu-category-delete:${menu.id}:${categoryToDelete}:${Date.now()}`,
         () => deleteDoc(categoryRef)
       );
+      const deletedCategory = categories?.find(category => category.id === categoryToDelete);
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Menu', entityType: 'Menu Category', entityId: categoryToDelete, entityName: deletedCategory?.name || categoryToDelete,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted category "${deletedCategory?.name || categoryToDelete}" from menu "${menu.name}"`,
+        details: { menuId: menu.id },
+        collectionName: `menus/${menu.id}/categories`, documentId: categoryToDelete,
+      });
       toast({ title: 'Category deleted', description: 'The category has been removed.' });
       setCategoryToDelete(null);
     } catch (error) {
