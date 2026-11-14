@@ -252,6 +252,13 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 
+  const currentGuestBills = React.useMemo(() => offlineOutstandingBills ?? (allBills || []).filter(bill => bill.bookingId === booking?.id), [offlineOutstandingBills, allBills, booking?.id]);
+  const currentOutstandingBalance = React.useMemo(() => currentGuestBills.reduce((sum, bill) => {
+    const total = Math.max(0, Number(bill.total || 0));
+    const paid = typeof bill.paidAmount === 'number' ? bill.paidAmount : bill.paid ? total : (bill.items || []).filter(item => item.paid === true).reduce((itemSum, item) => itemSum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
+    return sum + Math.max(0, total - Math.min(total, Math.max(0, paid)));
+  }, 0), [currentGuestBills]);
+
   const getInitials = (name: string) => {
     if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -545,6 +552,18 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
                     </div>
                   )}
                 </div>
+
+                {currentOutstandingBalance > 0.005 && (
+                  <Alert variant={settings?.requireGuestBillsPaidBeforeRenewal === true ? 'destructive' : 'default'}>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Outstanding Guest Bills: {formatCurrency(currentOutstandingBalance)}</AlertTitle>
+                    <AlertDescription>
+                      {settings?.requireGuestBillsPaidBeforeRenewal === true
+                        ? 'Hotel policy requires this outstanding balance to be settled before this room can be renewed.'
+                        : 'This existing balance will remain on the guest folio after renewal. It will not be erased, merged into the new room charge, or marked as paid.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {/* Date Selection Section */}
                 <div className="space-y-4">
