@@ -34,6 +34,7 @@ import { getSafeDate } from '@/lib/helpers';
 import { useSettings } from '@/contexts/settings-context';
 import { useRouter } from 'next/navigation';
 import { commitLocalFirstMutations, pushLanMutation } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 
 
 export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room[] | null, onSuccess?: () => void }) => {
@@ -224,6 +225,16 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
 
     try {
       await batch.commit();
+      void logAuditEvent(firestore, {
+        action: 'Check-in', module: 'Bookings', entityType: 'Booking',
+        entityId: booking.id, entityName: booking.guestName,
+        userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+        userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+        description: `Checked in ${booking.guestName} to room ${finalRoomNumber}`,
+        changes: [{ field: 'status', before: booking.status, after: 'Active' }, { field: 'roomNumber', before: booking.roomNumber, after: finalRoomNumber }],
+        details: { paymentMethod: paymentMethod || null, amount: amount || 0 },
+        collectionName: 'bookings', documentId: booking.id,
+      });
 
       // Broadcast check-in and room occupancy update to all Wi-Fi terminals via SSE
       pushLanMutation('bookings', booking.id, 'update', {
@@ -350,6 +361,16 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         { collectionName: 'cleaning-queue', docId: cleaningQueueRef.id, action: 'set', data: localCleaningQueue },
       ], `booking-checkout:${booking.id}:${actualCheckOutDate.getTime()}`, () => batch.commit());
 
+      void logAuditEvent(firestore, {
+        action: 'Check-out', module: 'Bookings', entityType: 'Booking',
+        entityId: booking.id, entityName: booking.guestName,
+        userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+        userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+        description: `Checked out ${booking.guestName} from room ${booking.roomNumber}`,
+        changes: [{ field: 'status', before: booking.status, after: 'Checked-out' }],
+        details: { roomNumber: booking.roomNumber, staffName, notes: notes || '', checkedOutAt: actualCheckOutDate.toISOString() },
+        collectionName: 'bookings', documentId: booking.id,
+      });
       toast({
         variant: 'success',
         title: 'Check-out Successful',
@@ -444,6 +465,16 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         () => batch.commit()
       );
 
+      void logAuditEvent(firestore, {
+        action: 'Cancel', module: 'Reservations', entityType: 'Booking',
+        entityId: bookingToCancel.id, entityName: bookingToCancel.guestName,
+        userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+        userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+        description: `${newStatus === 'Refunded' ? 'Cancelled and refunded' : 'Cancelled'} booking for ${bookingToCancel.guestName}`,
+        changes: [{ field: 'status', before: bookingToCancel.status, after: newStatus }],
+        details: { roomNumber: bookingToCancel.roomNumber || '', reason: (bookingToCancel as any).cancellationReason || '' },
+        collectionName: 'bookings', documentId: bookingToCancel.id,
+      });
       router.push('/reservations');
       onSuccess();
     } catch (error: any) {
@@ -514,6 +545,15 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
         }
         await commitLocalFirstMutations(localMutations, `guest-bill-add:${billRef.id}`, () => batch.commit());
 
+        void logAuditEvent(firestore, {
+          action: 'Bill', module: 'Bookings', entityType: 'Guest Bill',
+          entityId: billRef.id, entityName: `Room ${booking.roomNumber} - ${booking.guestName}`,
+          userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+          userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+          description: `Added ${items.length} bill item(s) totalling ${total} for ${booking.guestName}`,
+          details: { bookingId: booking.id, roomNumber: booking.roomNumber, total, items: items.map(item => ({ name: item.name, quantity: item.quantity, price: item.price })) },
+          collectionName: `bookings/${booking.id}/bills`, documentId: billRef.id,
+        });
         toast({ variant: 'success', title: 'Bill Updated', description: `Successfully added charge to the bill for Room ${booking.roomNumber}. ${restaurantItems.length > 0 ? 'Order sent to kitchen.' : ''} An on-hold sale has been created for tracking.` });
         setActionState(prev => ({...prev, bookingToAddBill: null}));
         onSuccess();
