@@ -59,6 +59,7 @@ import { RewardReceiptDialog } from '@/components/salary/reward-receipt-dialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { logAuditEvent } from '@/lib/audit-log';
 
 
 export interface StaffSalaryData {
@@ -1213,7 +1214,17 @@ function SalaryPage() {
             </DialogHeader>
             {!showDocketReverseConfirm ? (
                  <div className="grid gap-3 py-4">
-                    <Button variant="outline" className="justify-start" onClick={() => { setDocketToPrint(actionsDocket); setActionsDocket(null); }}>
+                    <Button variant="outline" className="justify-start" onClick={() => {
+                      if (firestore && actionsDocket) void logAuditEvent(firestore, {
+                        action: 'Print', module: 'Payroll', entityType: 'Salary Docket', entityId: actionsDocket.id, entityName: actionsDocket.userName,
+                        userId: adminUser?.uid || adminProfile?.uid || '', userName: adminProfile?.name || adminUser?.email || 'Unknown user',
+                        userEmail: adminProfile?.email || adminUser?.email || '', userRole: adminProfile?.role || '',
+                        description: `Printed salary docket for ${actionsDocket.userName}`,
+                        details: { staffId: actionsDocket.userId, amount: actionsDocket.amount, notes: actionsDocket.notes || '' },
+                        collectionName: `users/${actionsDocket.userId}/salaryDeductions`, documentId: actionsDocket.id,
+                      });
+                      setDocketToPrint(actionsDocket); setActionsDocket(null);
+                    }}>
                         <Printer className="mr-2 h-4 w-4" />
                         Print Docket
                     </Button>
@@ -1262,6 +1273,14 @@ function SalaryPage() {
                         variant="outline"
                         className="justify-start"
                         onClick={() => {
+                            if (firestore && actionsReward) void logAuditEvent(firestore, {
+                              action: 'Print', module: 'Payroll', entityType: 'Salary Reward Receipt', entityId: actionsReward.id, entityName: actionsReward.userName,
+                              userId: adminUser?.uid || adminProfile?.uid || '', userName: adminProfile?.name || adminUser?.email || 'Unknown user',
+                              userEmail: adminProfile?.email || adminUser?.email || '', userRole: adminProfile?.role || '',
+                              description: `Printed reward receipt for ${actionsReward.userName}`,
+                              details: { staffId: actionsReward.userId, amount: actionsReward.amount, notes: actionsReward.notes || '' },
+                              collectionName: `users/${actionsReward.userId}/salaryRewards`, documentId: actionsReward.id,
+                            });
                             setRewardToPrint(actionsReward);
                             setActionsReward(null);
                         }}
