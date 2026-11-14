@@ -74,6 +74,8 @@ import { Badge } from '@/components/ui/badge';
 import { SyncMenuDialog } from '@/components/menu/sync-menu-dialog';
 import { uploadImage } from '@/lib/helpers';
 import { Label } from '@/components/ui/label';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const menuSchema = z.object({
   name: z.string().min(1, 'Menu name is required.'),
@@ -523,6 +525,7 @@ function MenuFormDialog({
 function AuthenticatedMenusPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, userProfile } = useUser();
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMenu, setEditingMenu] = React.useState<Menu | null>(null);
   const [deletingMenu, setDeletingMenu] = React.useState<Menu | null>(null);
@@ -632,6 +635,14 @@ function AuthenticatedMenusPage() {
       );
       // Note: Deleting subcollections (the items and categories) should ideally be handled by a Cloud Function.
       // This client-side delete only removes the menu document itself.
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Menu', entityType: 'Menu', entityId: actionsMenu.id, entityName: actionsMenu.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted menu "${actionsMenu.name}" (menu document only; subcollections are retained)`,
+        details: { slug: actionsMenu.slug || '', itemCount: actionsMenu.itemCount || 0, categoryCount: actionsMenu.categoryCount || 0 },
+        collectionName: 'menus', documentId: actionsMenu.id,
+      });
       toast({
         variant: 'success',
         title: 'Menu Deleted',
