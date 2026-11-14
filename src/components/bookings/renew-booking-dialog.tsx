@@ -65,6 +65,7 @@ function getGuestBillOutstandingBalance(bills: Bill[], payments: Payment[] = [])
       const hasPaidAmount = typeof bill.paidAmount === 'number';
       let paid = hasPaidAmount ? bill.paidAmount as number : bill.paid ? total : paidItems;
       if (!hasPaidAmount && !bill.paid && legacyUnallocatedPayments > 0) {
+        legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - Math.min(legacyUnallocatedPayments, paidItems));
         const allocation = Math.min(Math.max(0, total - paid), legacyUnallocatedPayments);
         paid += allocation;
         legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - allocation);
