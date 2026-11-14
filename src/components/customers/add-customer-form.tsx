@@ -26,6 +26,7 @@ import Image from 'next/image';
 import { CustomerFormFields } from './customer-form-fields';
 import { useBranch } from '@/contexts/branch-context';
 import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required.'),
@@ -179,6 +180,14 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
             customFields: values.customFields || {},
         };
         await setDoc(customerRef, customerData);
+        void logAuditEvent(firestore, {
+          action: 'Create', module: 'Customers', entityType: 'Customer', entityId: customerRef.id, entityName: values.name,
+          userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+          userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+          description: `Created customer profile for ${values.name}`,
+          details: { email: values.email || '', phoneNumber: values.phoneNumber || '' },
+          collectionName: getCollectionPath('posCustomers'), documentId: customerRef.id,
+        });
 
         // Keep the Local Master PC LAN data store in sync so customers created
         // from a staff terminal are immediately searchable in offline POS.
