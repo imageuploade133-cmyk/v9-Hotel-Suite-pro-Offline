@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { TimeRemaining } from '@/components/bookings/time-remaining';
-import { Bed, DollarSign, FileText, LogIn, LogOut, Mail, MoreHorizontal, Phone, CircleX } from 'lucide-react';
+import { Bed, DollarSign, FileText, LogIn, LogOut, Mail, MoreHorizontal, Phone, CircleX, CalendarClock } from 'lucide-react';
 import { useSettings } from '@/contexts/settings-context';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
@@ -28,6 +28,7 @@ interface ActiveBookingSubCardProps {
   onAddBill: (booking: Booking) => void;
   onViewBill: (booking: Booking) => void;
   onPayBills: (booking: Booking) => void;
+  onRenew: (booking: Booking) => void;
   setDetailsBooking: (booking: Booking | null) => void;
   onToggleCollectPayment: (booking: Booking, collect: boolean) => void;
   onOpenActions?: (booking: Booking) => void;
@@ -41,6 +42,7 @@ export function ActiveBookingSubCard({
   onAddBill,
   onViewBill,
   onPayBills,
+  onRenew,
   setDetailsBooking,
   onToggleCollectPayment,
   onOpenActions,
@@ -142,6 +144,9 @@ export function ActiveBookingSubCard({
                 <Label htmlFor={`collect-payment-sub-${booking.id}`} className="font-semibold text-destructive">Collect Payment</Label>
             </div>
             <div className="flex w-full items-center gap-2">
+                <Button size="sm" variant="outline" className="flex-1 h-8" onClick={() => onRenew(booking)}>
+                    <CalendarClock className="mr-2 h-4 w-4" /> Renew Stay
+                </Button>
                 <Button
                 size="sm"
                 className={cn(

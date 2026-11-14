@@ -78,7 +78,7 @@ export function GuestBillDialog({
 
   React.useEffect(() => {
     if (isOpen && booking?.roomNumber && typeof window !== 'undefined') {
-      setGuestBillUrl(`${window.location.origin}/guest-bill?room=${booking.roomNumber}`);
+      setGuestBillUrl(`${window.location.origin}/guest-bill?booking=${encodeURIComponent(booking.id)}`);
     }
     // Reset printed state when dialog opens
     setBillsPrinted(false);

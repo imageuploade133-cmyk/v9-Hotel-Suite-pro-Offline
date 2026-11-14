@@ -61,6 +61,7 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     bookingToPayBills: null as Booking | null,
     bookingToMarkAsPaid: null as Booking | null,
     bookingToEdit: null as Booking | null,
+    bookingToRenew: null as Booking | null,
     isCancelling: false,
     isGuestFolioOpen: false,
   });
