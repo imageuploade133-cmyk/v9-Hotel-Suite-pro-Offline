@@ -25,6 +25,7 @@ const hotelPolicySchema = z.object({
   checkInTimeOption: z.enum(['exact', 'default']).default('exact'),
   defaultCheckInTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Please enter a valid time in HH:mm format.').optional(),
   allowSameDayBooking: z.boolean().default(false),
+  requireGuestBillsPaidBeforeRenewal: z.boolean().default(false),
 }).refine(data => {
     if (data.checkInTimeOption === 'default' && !data.defaultCheckInTime) {
         return false;
@@ -51,6 +52,7 @@ export function HotelPolicyForm() {
             checkInTimeOption: 'exact',
             defaultCheckInTime: '14:00',
             allowSameDayBooking: false,
+            requireGuestBillsPaidBeforeRenewal: false,
         },
     });
 
@@ -63,6 +65,7 @@ export function HotelPolicyForm() {
                 checkInTimeOption: settings.checkInTimeOption || 'exact',
                 defaultCheckInTime: settings.defaultCheckInTime || '14:00',
                 allowSameDayBooking: settings.allowSameDayBooking || false,
+                requireGuestBillsPaidBeforeRenewal: settings.requireGuestBillsPaidBeforeRenewal === true,
             });
         }
     }, [settings, form]);
@@ -224,6 +227,29 @@ export function HotelPolicyForm() {
                                                     <FormLabel>Default Check-out Time</FormLabel>
                                                     <FormControl><Input type="time" {...field} value={field.value || ''} className="w-48" /></FormControl>
                                                     <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <Separator />
+
+                                    <div>
+                                        <h4 className="font-medium text-foreground mb-2">Renewal & Guest Billing Policy</h4>
+                                        <FormField
+                                            control={form.control}
+                                            name="requireGuestBillsPaidBeforeRenewal"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                    <div className="space-y-1 pr-4">
+                                                        <FormLabel className="text-base">Require Guest Bills to Be Paid Before Room Renewal</FormLabel>
+                                                        <FormDescription>
+                                                            When ON, a guest with any outstanding room or service bill cannot renew until the outstanding balance is settled. When OFF, renewal is allowed and the old balance remains on the guest folio.
+                                                        </FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
                                                 </FormItem>
                                             )}
                                         />
