@@ -182,7 +182,7 @@ export function AddCustomerForm({ open, onOpenChange, onSuccess, collectionName 
         await setDoc(customerRef, customerData);
         void logAuditEvent(firestore, {
           action: 'Create', module: 'Customers', entityType: 'Customer', entityId: customerRef.id, entityName: values.name,
-          userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.displayName || user?.email || 'Unknown user',
           userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
           description: `Created customer profile for ${values.name}`,
           details: { email: values.email || '', phoneNumber: values.phoneNumber || '' },
