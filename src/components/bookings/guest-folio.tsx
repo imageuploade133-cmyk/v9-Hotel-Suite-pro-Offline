@@ -211,16 +211,37 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     // Only show bills that are room bills (not other service bills like food, laundry, etc.)
     // Room bills typically have a specific structure - we filter to only include room-related charges
     const bookingBills = (allBills || []).filter(bill => (bill as any).bookingId === booking.id);
-    bookingBills.forEach(bill => {
+    // Older bill-payment records may not have a billId or paidAmount on the bill.
+    // Preserve their historical FIFO allocation, but never allocate a bill-linked
+    // renewal payment to an unrelated older bill.
+    let legacyUnallocatedPayments = (allPayments || [])
+      .filter(payment => payment.bookingId === booking.id && payment.status === 'Paid'
+        && payment.type === 'Additional Charges' && !(payment as any).billId)
+      .reduce((sum, payment) => sum + Math.max(0, Number(payment.amount || 0)), 0);
+    const billPaidAmounts = new Map<string, number>();
+    const orderedBookingBills = [...bookingBills].sort((a, b) => {
+      const aDate = getSafeDate(a.createdAt)?.getTime() || 0;
+      const bDate = getSafeDate(b.createdAt)?.getTime() || 0;
+      return aDate - bDate;
+    });
+    orderedBookingBills.forEach(bill => {
         const billDate = getSafeDate(bill.createdAt);
         if (!billDate) return;
         const billTotal = Math.max(0, Number(bill.total || 0));
         const explicitPaidItemsTotal = (bill.items || []).filter(item => item.paid === true)
           .reduce((sum, item) => sum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
-        const recordedPaidAmount = typeof bill.paidAmount === 'number'
-          ? bill.paidAmount
+        const hasRecordedPaidAmount = typeof bill.paidAmount === 'number';
+        let billPaidAmount = hasRecordedPaidAmount
+          ? bill.paidAmount as number
           : bill.paid ? billTotal : explicitPaidItemsTotal;
-        let remainingAllocatedPayment = Math.max(0, Math.min(billTotal, recordedPaidAmount) - explicitPaidItemsTotal);
+        if (!hasRecordedPaidAmount && !bill.paid && legacyUnallocatedPayments > 0) {
+            const legacyAllocation = Math.min(Math.max(0, billTotal - billPaidAmount), legacyUnallocatedPayments);
+            billPaidAmount += legacyAllocation;
+            legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - legacyAllocation);
+        }
+        billPaidAmount = Math.max(0, Math.min(billTotal, billPaidAmount));
+        billPaidAmounts.set(bill.id, billPaidAmount);
+        let remainingAllocatedPayment = Math.max(0, billPaidAmount - explicitPaidItemsTotal);
         (bill.items || []).forEach((item, index) => {
             const staffName = bill.createdByName || 'Unknown';
             const itemTotal = Math.max(0, Number(item.price || 0) * Number(item.quantity || 0));
@@ -313,11 +334,8 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     const calculatedTotalCharges = charges.reduce((sum, charge) => sum + charge.charge, 0);
     const calculatedBalance = bookingBills.reduce((sum, bill) => {
         const total = Math.max(0, Number(bill.total || 0));
-        const paid = typeof bill.paidAmount === 'number'
-          ? bill.paidAmount
-          : bill.paid ? total : (bill.items || []).filter(item => item.paid === true)
-              .reduce((itemSum, item) => itemSum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
-        return sum + Math.max(0, total - Math.min(total, Math.max(0, paid)));
+        const paid = billPaidAmounts.get(bill.id) || 0;
+        return sum + Math.max(0, total - paid);
     }, 0);
     const calculatedTotalUnpaid = calculatedBalance;
 
