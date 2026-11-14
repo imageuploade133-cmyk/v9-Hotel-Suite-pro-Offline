@@ -14,6 +14,7 @@ export const BRANCH_ISOLATED_COLLECTIONS = [
   'services',
   'serviceCategories',
   'serviceRestockHistory',
+  'restockHistory',
   'stockAlerts',
   'stockRestock',
   'posCategories',

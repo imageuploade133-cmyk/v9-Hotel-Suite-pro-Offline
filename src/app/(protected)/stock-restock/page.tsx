@@ -121,17 +121,23 @@ function RestockInventoryPage() {
     return c;
   }, [selectedCategory]);
 
-  const historyConstraints = React.useMemo(() => [orderBy('restockedAt', 'desc')], []);
+  // Read the complete ledger and sort client-side so older records without a restockedAt
+  // field are not silently excluded by Firestore's orderBy semantics.
+  const historyConstraints = React.useMemo(() => [] as any[], []);
 
   // Branch mode: use standard useCollection
   const branchStockQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stock')), ...constraints) : null, [firestore, isGlobalMode, getCollectionPath, constraints]);
   const branchCategoriesQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('stockCategories'))) : null, [firestore, isGlobalMode, getCollectionPath]);
   const branchHistoryQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('restockHistory')), ...historyConstraints) : null, [firestore, isGlobalMode, getCollectionPath, historyConstraints]);
+  // Compatibility reader for entries created before restockHistory became branch-isolated.
+  // Only records explicitly tagged for this branch are included to avoid cross-branch leakage.
+  const legacyRootHistoryQuery = React.useMemo(() => isBranchMode && firestore ? query(collection(firestore, 'restockHistory')) : null, [firestore, isBranchMode]);
   const branchSuppliersQuery = React.useMemo(() => !isGlobalMode && firestore ? query(collection(firestore, getCollectionPath('suppliers'))) : null, [firestore, isGlobalMode, getCollectionPath]);
 
   const branchStockResult = useCollection<StockItem>(branchStockQuery);
   const branchCategoriesResult = useCollection<StockCategory>(branchCategoriesQuery);
   const branchHistoryResult = useCollection<RestockEntry>(branchHistoryQuery);
+  const legacyRootHistoryResult = useCollection<RestockEntry>(legacyRootHistoryQuery);
   const branchSuppliersResult = useCollection<StockSupplier>(branchSuppliersQuery);
 
   // Global mode: use global collection hook
@@ -143,7 +149,19 @@ function RestockInventoryPage() {
   // Use appropriate result based on mode
   const { data: stockItems, isLoading: areStockItemsLoading } = isGlobalMode ? globalStockResult : branchStockResult;
   const { data: categories, isLoading: areCategoriesLoading } = isGlobalMode ? globalCategoriesResult : branchCategoriesResult;
-  const { data: restockHistory, isLoading: isHistoryLoading } = isGlobalMode ? globalHistoryResult : branchHistoryResult;
+  const branchHistoryData = branchHistoryResult.data || [];
+  const legacyBranchHistory = (legacyRootHistoryResult.data || []).filter(entry => entry.branchId === currentBranchId);
+  const rawHistory = isGlobalMode
+    ? (globalHistoryResult.data || [])
+    : [...branchHistoryData, ...legacyBranchHistory];
+  const restockHistory = React.useMemo(() => {
+    const unique = new Map<string, RestockEntry>();
+    rawHistory.forEach((entry, index) => unique.set(entry.id || `${entry.itemId || 'item'}-${index}`, entry));
+    const getEntryDate = (entry: RestockEntry) =>
+      getSafeDate(entry.restockedAt) || getSafeDate((entry as any).createdAt) || getSafeDate((entry as any).date) || getSafeDate((entry as any).timestamp);
+    return Array.from(unique.values()).sort((a, b) => (getEntryDate(b)?.getTime() || 0) - (getEntryDate(a)?.getTime() || 0));
+  }, [rawHistory]);
+  const isHistoryLoading = isGlobalMode ? globalHistoryResult.isLoading : (branchHistoryResult.isLoading || legacyRootHistoryResult.isLoading);
   const { data: suppliers } = isGlobalMode ? globalSuppliersResult : branchSuppliersResult;
 
   const currency = settings?.currency || 'USD';
@@ -156,21 +174,21 @@ function RestockInventoryPage() {
     const safeRestockHistory = restockHistory || [];
 
     const totalProducts = safeStockItems.length;
-    const totalStock = safeStockItems.reduce((sum, item) => sum + item.quantity, 0);
-    const totalInventoryValue = safeStockItems.reduce((sum, item) => sum + ((item.costPrice || 0) * item.quantity), 0);
+    const totalStock = safeStockItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const totalInventoryValue = safeStockItems.reduce((sum, item) => sum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
 
     const lowStockItems = safeStockItems.filter(item => item.quantity > 0 && item.quantity <= (item.lowStockThreshold || 0));
     const outOfStockItems = safeStockItems.filter(item => item.quantity <= 0);
 
     const todaysRestocks = safeRestockHistory.filter(entry => {
-      const date = getSafeDate(entry.restockedAt);
+      const date = getSafeDate(entry.restockedAt) || getSafeDate((entry as any).createdAt) || getSafeDate((entry as any).date) || getSafeDate((entry as any).timestamp);
       return date && isToday(date);
     });
-    const todaysItemsRestocked = todaysRestocks.reduce((sum, entry) => sum + entry.quantityAdded, 0);
-    const todaysRestockCost = todaysRestocks.reduce((sum, entry) => sum + entry.totalCost, 0);
+    const todaysItemsRestocked = todaysRestocks.reduce((sum, entry) => sum + (Number(entry.quantityAdded) || 0), 0);
+    const todaysRestockCost = todaysRestocks.reduce((sum, entry) => sum + (Number(entry.totalCost) || ((Number(entry.quantityAdded) || 0) * (Number(entry.costPerUnit) || 0))), 0);
 
-    const totalItemsRestocked = safeRestockHistory.reduce((sum, entry) => sum + entry.quantityAdded, 0);
-    const totalRestockCost = safeRestockHistory.reduce((sum, entry) => sum + entry.totalCost, 0);
+    const totalItemsRestocked = safeRestockHistory.reduce((sum, entry) => sum + (Number(entry.quantityAdded) || 0), 0);
+    const totalRestockCost = safeRestockHistory.reduce((sum, entry) => sum + (Number(entry.totalCost) || ((Number(entry.quantityAdded) || 0) * (Number(entry.costPerUnit) || 0))), 0);
 
     return {
       totalProducts,
@@ -181,6 +199,7 @@ function RestockInventoryPage() {
       todaysItemsRestocked,
       todaysRestockCost: formatCurrency(todaysRestockCost),
       totalItemsRestocked,
+      totalRestockRecords: safeRestockHistory.length,
       totalRestockCost: formatCurrency(totalRestockCost),
     };
   }, [stockItems, restockHistory, currency]);
@@ -205,7 +224,7 @@ function RestockInventoryPage() {
     setRestockSellingPrices(prev => ({ ...prev, [itemId]: value }));
   };
 
-  const handleRestock = async (item: StockItem) => {
+  const handleRestock = async (item: StockItem): Promise<boolean> => {
     const qtyStr = restockQuantities[item.id];
     const costStr = restockCosts[item.id];
     const sellingPriceStr = restockSellingPrices[item.id];
@@ -216,7 +235,7 @@ function RestockInventoryPage() {
         title: 'Invalid Quantity',
         description: 'Please enter a valid quantity greater than 0.',
       });
-      return;
+      return false;
     }
 
     const quantity = Number(qtyStr);
@@ -224,12 +243,12 @@ function RestockInventoryPage() {
     const sellingPrice = sellingPriceStr !== undefined && sellingPriceStr !== '' ? Number(sellingPriceStr) : Number(item.sellingPrice ?? 0);
     if (!Number.isFinite(costPerUnit) || costPerUnit < 0 || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
       toast({ variant: 'destructive', title: 'Invalid price', description: 'Enter a valid non-negative purchase cost and selling price.' });
-      return;
+      return false;
     }
     const totalCost = quantity * costPerUnit;
     if (!Number.isFinite(totalCost)) {
       toast({ variant: 'destructive', title: 'Invalid restock value', description: 'The quantity multiplied by unit cost is too large.' });
-      return;
+      return false;
     }
 
     setSavingStates(prev => ({ ...prev, [item.id]: true }));
@@ -238,9 +257,19 @@ function RestockInventoryPage() {
       if (!firestore || !userProfile) throw new Error('Not authenticated');
 
       // Prepare stock balance and restock ledger as one durable Master-PC transaction.
-      const stockPath = isBranchMode && currentBranchId ? `branches/${currentBranchId}/stock` : 'stock';
+      // Resolve the exact source collection for this item. Global mode can contain
+      // root, branch and POS stock records together, so never infer its source from
+      // the currently selected branch alone.
+      const itemBranchId = (item as any).branchId || (isBranchMode ? currentBranchId : null);
+      const itemPosId = (item as any).posId || null;
+      const stockPath = itemBranchId
+        ? (itemPosId
+          ? `branches/${itemBranchId}/pointOfSales/${itemPosId}/stock`
+          : `branches/${itemBranchId}/stock`)
+        : 'stock';
+      const historyPath = itemBranchId ? `branches/${itemBranchId}/restockHistory` : 'restockHistory';
       const stockRef = doc(firestore, stockPath, item.id);
-      const restockEntryRef = doc(collection(firestore, getCollectionPath('restockHistory')));
+      const restockEntryRef = doc(collection(firestore, historyPath));
       const previousQuantity = Math.max(0, Number(item.quantity || 0));
       const nextQuantity = previousQuantity + quantity;
       const previousCostPrice = Math.max(0, Number(item.costPrice ?? 0));
@@ -267,17 +296,17 @@ function RestockInventoryPage() {
       };
 
       // Add branch ID for branch-isolated collections
-      if (isBranchMode && currentBranchId) {
-        restockEntryData.branchId = currentBranchId;
-        restockEntryData.branchName = currentBranch?.name || currentBranchId;
+      if (itemBranchId) {
+        restockEntryData.branchId = itemBranchId;
+        restockEntryData.branchName = itemBranchId === currentBranchId ? (currentBranch?.name || itemBranchId) : itemBranchId;
       }
+      if (itemPosId) restockEntryData.posId = itemPosId;
 
       // Only add notes if it has a value
       if (bulkRestockNotes && bulkRestockNotes.trim()) {
         restockEntryData.notes = bulkRestockNotes.trim();
       }
 
-      const historyPath = getCollectionPath('restockHistory');
       await commitLocalFirstMutations([
         { collectionName: stockPath, docId: item.id, action: 'update', data: { costPrice: costPerUnit, sellingPrice, updatedAt: new Date().toISOString() } },
         { collectionName: historyPath, docId: restockEntryRef.id, action: 'set', data: restockEntryData },
@@ -311,12 +340,14 @@ function RestockInventoryPage() {
       });
 
       handleSuccess();
+      return true;
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Restock Failed',
         description: error.message || 'Failed to restock item.',
       });
+      return false;
     } finally {
       setSavingStates(prev => ({ ...prev, [item.id]: false }));
     }
@@ -332,7 +363,8 @@ function RestockInventoryPage() {
 
   const handleDialogRestock = async () => {
     if (!selectedItem) return;
-    await handleRestock(selectedItem);
+    const saved = await handleRestock(selectedItem);
+    if (!saved) return;
     setIsRestockDialogOpen(false);
     setSelectedItem(null);
     setBulkRestockNotes('');
@@ -502,7 +534,7 @@ function RestockInventoryPage() {
       header: 'Date',
       cell: ({ row }: any) => {
         const entry = row.original as RestockEntry;
-        const date = getSafeDate(entry.restockedAt);
+        const date = getSafeDate(entry.restockedAt) || getSafeDate((entry as any).createdAt) || getSafeDate((entry as any).date) || getSafeDate((entry as any).timestamp);
         return date ? format(date, 'PPp') : 'N/A';
       },
     },
@@ -617,7 +649,7 @@ function RestockInventoryPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="Today's Items Restocked"
             value={stats.todaysItemsRestocked.toLocaleString()}
@@ -647,6 +679,13 @@ function RestockInventoryPage() {
             description="Items with zero quantity."
             isLoading={isLoading}
             className="border-destructive"
+          />
+          <StatCard
+            title="Total Restock Records"
+            value={stats.totalRestockRecords.toLocaleString()}
+            icon={History}
+            description="Recorded inventory restock transactions."
+            isLoading={isLoading}
           />
         </div>
 
