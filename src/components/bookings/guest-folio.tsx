@@ -213,25 +213,34 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     const bookingBills = (allBills || []).filter(bill => (bill as any).bookingId === booking.id);
     bookingBills.forEach(bill => {
         const billDate = getSafeDate(bill.createdAt);
-        if (billDate) {
-            bill.items.forEach((item, index) => {
-                // Only include charges that are related to the room (not other services)
-                // We check if the item is marked as a room charge or if it's from a room bill
-                const staffName = bill.createdByName || 'Unknown';
-                charges.push({
-                    id: `${bill.id}-${item.id}-${index}`,
-                    date: billDate,
-                    description: `${item.name} (x${item.quantity}) - by ${staffName}`,
-                    charge: item.price * item.quantity,
-                    status: 'Unpaid' as const, // Initially mark as Unpaid
-                    originalItem: item,
-                    originalBill: bill,
-                });
+        if (!billDate) return;
+        const billTotal = Math.max(0, Number(bill.total || 0));
+        const explicitPaidItemsTotal = (bill.items || []).filter(item => item.paid === true)
+          .reduce((sum, item) => sum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
+        const recordedPaidAmount = typeof bill.paidAmount === 'number'
+          ? bill.paidAmount
+          : bill.paid ? billTotal : explicitPaidItemsTotal;
+        let remainingAllocatedPayment = Math.max(0, Math.min(billTotal, recordedPaidAmount) - explicitPaidItemsTotal);
+        (bill.items || []).forEach((item, index) => {
+            const staffName = bill.createdByName || 'Unknown';
+            const itemTotal = Math.max(0, Number(item.price || 0) * Number(item.quantity || 0));
+            let itemIsPaid = bill.paid === true || item.paid === true;
+            if (!itemIsPaid && remainingAllocatedPayment > 0) {
+                const allocation = Math.min(itemTotal, remainingAllocatedPayment);
+                remainingAllocatedPayment = Math.max(0, remainingAllocatedPayment - allocation);
+                itemIsPaid = allocation >= itemTotal - 0.005;
+            }
+            charges.push({
+                id: `${bill.id}-${item.id}-${index}`,
+                date: billDate,
+                description: `${item.name} (x${item.quantity}) - by ${staffName}`,
+                charge: itemTotal,
+                status: itemIsPaid ? 'Paid' as const : 'Unpaid' as const,
+                originalItem: item,
+                originalBill: bill,
             });
-        }
+        });
     });
-
-    charges.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // Filter payments to show this booking's payments
     // Include all payments linked to this booking that are paid (not refunded)
@@ -298,35 +307,18 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
     // The positivePayments already includes the room charge from the payment transaction we added
     const calculatedTotalPayments = positivePayments; // Includes room charge + other payments, excludes refunds
 
-    // Room charge is always Paid, so skip it in payment allocation
-    // Calculate remaining payments after accounting for room charge
-    const roomChargeAmount = booking.totalAmount || 0;
-    let remainingPayments = positivePayments - roomChargeAmount;
-
-    const finalCharges = charges.map(charge => {
-        // Room charge is always Paid - don't deduct payments from it
-        if (charge.id === `booking-${booking.id}`) {
-            return { ...charge, status: 'Paid' as const };
-        }
-
-        // For additional bills, check if there are enough remaining payments to cover them
-        if (remainingPayments >= charge.charge) {
-            remainingPayments -= charge.charge;
-            return { ...charge, status: 'Paid' as const };
-        }
-        // Otherwise, it's Unpaid
-        return charge;
-    });
-
-    const calculatedTotalCharges = charges.reduce((sum, t) => sum + t.charge, 0);
-
-    // Balance = Only unpaid additional bills (room charge is always Paid)
-    // Since room charge is always Paid, balance only includes unpaid additional charges
-    const calculatedBalance = finalCharges
-        .filter(c => c.id !== `booking-${booking.id}` && c.status === 'Unpaid')
-        .reduce((sum, c) => sum + c.charge, 0);
-
-    const calculatedTotalUnpaid = finalCharges.filter(c => c.status === 'Unpaid').reduce((sum, c) => sum + c.charge, 0);
+    // Bill payment allocations belong to their own bill. Never let a new renewal
+    // payment silently settle or hide an older unpaid bill in the guest folio.
+    const calculatedTotalCharges = charges.reduce((sum, charge) => sum + charge.charge, 0);
+    const calculatedBalance = bookingBills.reduce((sum, bill) => {
+        const total = Math.max(0, Number(bill.total || 0));
+        const paid = typeof bill.paidAmount === 'number'
+          ? bill.paidAmount
+          : bill.paid ? total : (bill.items || []).filter(item => item.paid === true)
+              .reduce((itemSum, item) => itemSum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
+        return sum + Math.max(0, total - Math.min(total, Math.max(0, paid)));
+    }, 0);
+    const calculatedTotalUnpaid = calculatedBalance;
 
     return { allCharges: finalCharges, allPaymentTransactions: paymentTransactions, totalCharges: calculatedTotalCharges, totalPayments: calculatedTotalPayments, balance: calculatedBalance, totalUnpaid: calculatedTotalUnpaid };
   }, [booking, allBills, allPayments, allReturns, readOnly]);
