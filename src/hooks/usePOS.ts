@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Customer, StockItem, StockSale, HeldSale, UserProfile, Payment, UnifiedItem, Bill } from '@/lib/types';
+import { logAuditEvent } from '@/lib/audit-log';
 import { useToast } from './use-toast';
 import { useBranch } from '@/contexts/branch-context';
 import { getNewDocumentData } from '@/lib/branch-helpers';
@@ -594,6 +595,17 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         } as HeldSale);
         setHoldName(name);
 
+        void logAuditEvent(firestore, {
+          action: restoredSaleId ? 'Update' : 'Create', module: 'Running Tables', entityType: 'Running Table',
+          entityId: saleId, entityName: name,
+          userId: userProfile.uid || userProfile.id || '', userName: userProfile.name || 'Unknown user',
+          userEmail: userProfile.email || '', userRole: userProfile.role || '',
+          branchId: branchContext.currentBranch?.id || 'global', branchName: branchContext.currentBranch?.name || 'Global',
+          description: `${restoredSaleId ? 'Updated' : 'Created'} running table "${name}"`,
+          changes: [{ field: 'items', before: restoredSaleData?.cart?.length || 0, after: combinedItems.length }],
+          details: { totalAmount: combinedItems.reduce((sum, item) => sum + Number(item.price || item.sellingPrice || 0) * Number(item.sellQuantity || 0), 0), itemCount: combinedItems.length, linkedBillId: restoredSaleData?.linkedBillId || null },
+          collectionName: getCollectionPath('heldSales'), documentId: saleId,
+        });
         toast({ variant: 'success', title: 'Table Added', description: `The table "${name}" has been ${restoredSaleId ? 'updated' : 'added to running tables.'}.` });
 
         if (clearCartOnSuccess) {
@@ -655,6 +667,16 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
         fetch('/api/lan-sync/cloud-sync', { method: 'POST' }).catch(() => {});
       }
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Running Tables', entityType: 'Running Table',
+        entityId: saleToDelete.id, entityName: saleToDelete.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: branchContext.currentBranch?.id || 'global', branchName: branchContext.currentBranch?.name || 'Global',
+        description: `Deleted running table "${saleToDelete.name}" and released its stock reservation`,
+        details: { itemCount: saleToDelete.cart?.length || 0, linkedBillId: saleToDelete.linkedBillId || null },
+        collectionName, documentId: saleToDelete.id,
+      });
       return;
     }
 
@@ -714,6 +736,16 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         }
       }
       transaction.delete(heldSaleRef);
+    });
+    void logAuditEvent(firestore, {
+      action: 'Delete', module: 'Running Tables', entityType: 'Running Table',
+      entityId: saleToDelete.id, entityName: saleToDelete.name,
+      userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+      userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+      branchId: branchContext.currentBranch?.id || 'global', branchName: branchContext.currentBranch?.name || 'Global',
+      description: `Deleted running table "${saleToDelete.name}" and released its stock reservation`,
+      details: { itemCount: saleToDelete.cart?.length || 0, linkedBillId: saleToDelete.linkedBillId || null },
+      collectionName: getCollectionPath('heldSales'), documentId: saleToDelete.id,
     });
   };
 
@@ -1222,6 +1254,17 @@ export const usePOS = ({ userProfile, toast }: UsePOSProps) => {
         if (!createdSale) {
             throw new Error("Sale creation failed within the transaction.");
         }
+        void logAuditEvent(firestore, {
+          action: 'Sale', module: context === 'hotel' ? 'Hotel POS' : 'Point of Sale',
+          entityType: 'POS Sale', entityId: createdSale.id, entityName: createdSale.saleId || createdSale.id,
+          userId: userProfile.uid || userProfile.id || '', userName: userProfile.name || 'Unknown user',
+          userEmail: userProfile.email || '', userRole: userProfile.role || '',
+          branchId: branchContext.currentBranch?.id || 'global', branchName: branchContext.currentBranch?.name || 'Global',
+          description: `Completed ${paymentStatus.toLowerCase()} sale ${createdSale.saleId || createdSale.id}`,
+          changes: [{ field: 'paymentStatus', before: null, after: paymentStatus }, { field: 'totalAmount', before: null, after: total }],
+          details: { paymentMethod, customerId: createdSale.customerId || customer?.id || null, customerName: createdSale.customerName || customer?.name || '', itemCount: createdSale.items?.length || allItems.length, context, initialPaymentAmount: initialPaymentAmount || 0 },
+          status: 'Success', collectionName: getCollectionPath('stockSales'), documentId: createdSale.id,
+        });
         return createdSale;
 
     } catch (e: any) {
