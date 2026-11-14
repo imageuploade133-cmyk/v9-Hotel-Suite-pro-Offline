@@ -497,7 +497,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         title: isOffline ? 'Renewal Saved Offline' : isLocalMasterHost() ? 'Renewal Saved to LAN Master' : 'Booking Renewed Successfully',
         description: renewalCharge > 0
           ? `${booking.guestName}'s stay was extended. ${formatCurrency(renewalCharge)} was recorded in the guest folio. Existing unpaid bills were left unchanged.${isOffline || isLocalMasterHost() ? ' The saved changes are queued to sync with cloud when internet returns.' : ''}`
-          : `${booking.guestName}'s stay was extended. No additional room charge was due.${isOffline ? ' The queued changes will sync when internet returns.' : ''}`,
+          : `${booking.guestName}'s stay was extended. No additional room charge was due.${isOffline || isLocalMasterHost() ? ' The saved changes are queued to sync with cloud when internet returns.' : ''}`,
       });
       onSuccess();
       onClose();
