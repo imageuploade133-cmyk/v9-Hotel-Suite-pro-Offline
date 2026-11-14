@@ -144,10 +144,14 @@ export function LocalizationForm() {
                         timestamp: serverTimestamp(),
                         userId: userProfile.uid,
                         userName: userProfile.name,
-                        changeType: 'Update',
-                        entityType: 'Settings',
-                        entityId: 'Localization',
-                        details: 'Updated currency and region settings.',
+                        userEmail: userProfile.email || user.email || '',
+                        userRole: userProfile.role || '',
+                        branchId: (userProfile as any).branchId || 'global',
+                        changeType: 'Update', action: 'Update', module: 'Settings',
+                        entityType: 'Localization', entityId: 'global', entityName: 'Localization',
+                        collectionName: 'settings', documentId: 'global', status: 'Success',
+                        description: 'Updated business country, currency and phone region settings.',
+                        details: { settingsGroup: 'Localization' },
                         changes,
                     });
 
