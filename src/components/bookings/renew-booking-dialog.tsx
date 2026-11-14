@@ -301,15 +301,6 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
     setIsSaving(true);
     try {
-      if (requireBillsPaid && (isOffline || isLocalMasterHost())) {
-        const cachedBills = offlineOutstandingBills;
-        if (!cachedBills) throw new Error('Guest bills are not available in the offline cache. Reconnect or open the guest folio to synchronize bills before renewing.');
-        const cachedOutstanding = getOutstanding(cachedBills);
-        if (cachedOutstanding > 0.005) {
-          throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(cachedOutstanding)} in outstanding bills. Settle the old bills before renewing.`);
-        }
-      }
-
       const bookingUpdate = {
         checkOutDate: Timestamp.fromDate(newCheckOut),
         updatedAt: Timestamp.fromDate(now),
@@ -385,10 +376,45 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
       };
 
       if (isOffline || isLocalMasterHost()) {
-        // The LAN Master durably records the whole group locally before returning.
-        // A browser without the LAN Master queues this atomic batch in Firestore's persistent IndexedDB cache.
-        if (isOffline && !isLocalMasterHost() && requireBillsPaid && offlineOutstandingBills === null) {
-          throw new Error('Cannot verify outstanding guest bills from the offline cache. Renewal has been stopped safely.');
+        // Re-read the offline schedule and room record immediately before queuing the mutation.
+        let cachedBookings: Booking[] | null = Array.isArray(allBookings) ? allBookings : null;
+        let roomForLocalWrite: Room | null = room || null;
+        let cachedBills = offlineOutstandingBills;
+        if (isLocalMasterHost()) {
+          cachedBookings = await fetchLocalLanCollection<Booking>('bookings');
+          const localRooms = await fetchLocalLanCollection<Room>('rooms');
+          roomForLocalWrite = localRooms.find(localRoom => localRoom.id === booking.roomId) || null;
+          cachedBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
+        }
+        if (!cachedBookings) throw new Error('The offline booking schedule is unavailable. Renewal has been stopped to avoid a room double-booking.');
+        const currentCachedBooking = cachedBookings.find(candidate => candidate.id === booking.id);
+        if (!currentCachedBooking || !['Active', 'Checked-in'].includes(currentCachedBooking.status)) {
+          throw new Error('The current booking could not be verified in the offline schedule. Refresh bookings and retry.');
+        }
+        if (currentCachedBooking.roomId !== booking.roomId || currentCachedBooking.roomNumber !== booking.roomNumber) {
+          throw new Error('The guest room assignment changed. Refresh bookings before renewing.');
+        }
+        const cachedCheckIn = getSafeDate(currentCachedBooking.checkInDate);
+        const cachedCheckOut = getSafeDate(currentCachedBooking.checkOutDate);
+        if (!cachedCheckIn || !cachedCheckOut || !originalCheckOut || !isSameDay(cachedCheckIn, originalCheckIn!) || !isSameDay(cachedCheckOut, originalCheckOut)) {
+          throw new Error('The booking dates have changed since this renewal was opened. Refresh and try again.');
+        }
+        const latestConflicts = cachedBookings.filter(candidate => {
+          if (candidate.id === booking.id || candidate.roomNumber !== booking.roomNumber
+            || !['Booked', 'Reserved', 'Active', 'Checked-in'].includes(candidate.status)) return false;
+          const start = getSafeDate(candidate.checkInDate);
+          const end = getSafeDate(candidate.checkOutDate);
+          if (!start || !end) return true;
+          return startOfDay(start) < newCheckOut && startOfDay(end) > startOfDay(data.newCheckInDate);
+        });
+        if (latestConflicts.length) throw new Error('Renewal blocked: the latest offline room schedule contains an overlapping booking.');
+        if (!roomForLocalWrite) throw new Error('The room record is missing from the offline cache. Reconnect and synchronize rooms before renewing.');
+        if (requireBillsPaid) {
+          if (!cachedBills) throw new Error('Guest bills are not available in the offline cache. Renewal has been stopped safely.');
+          const cachedOutstanding = getOutstanding(cachedBills);
+          if (cachedOutstanding > 0.005) {
+            throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(cachedOutstanding)} in outstanding bills. Settle the old bills before renewing.`);
+          }
         }
         const batch = writeBatch(firestore);
         batch.update(bookingRef, bookingUpdate);
@@ -400,7 +426,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         batch.set(auditRef, auditData);
         const localMutations = [
           { collectionName: 'bookings', docId: booking.id, action: 'update' as const, data: { ...bookingUpdate, checkOutDate: newCheckOut.toISOString(), updatedAt: now.toISOString(), lastRenewedAt: now.toISOString() } },
-          { collectionName: 'rooms', docId: booking.roomId, action: 'update' as const, data: { individualRoomStatus: { ...(room.individualRoomStatus || {}), [booking.roomNumber]: 'Occupied' } } },
+          { collectionName: 'rooms', docId: booking.roomId, action: 'update' as const, data: { individualRoomStatus: { ...(roomForLocalWrite.individualRoomStatus || {}), [booking.roomNumber]: 'Occupied' } } },
           ...(renewalCharge > 0 ? [
             { collectionName: `bookings/${booking.id}/bills`, docId: renewalBillRef.id, action: 'set' as const, data: { ...renewalBillData, createdAt: now.toISOString(), paidAt: now.toISOString() } },
             { collectionName: 'payments', docId: paymentRef.id, action: 'set' as const, data: { ...paymentData, transactionDate: now.toISOString() } },
