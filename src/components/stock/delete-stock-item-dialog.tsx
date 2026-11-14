@@ -17,6 +17,8 @@ import { useFirestore } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import type { StockItem } from '@/lib/types';
 import { Trash2 } from 'lucide-react';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 interface DeleteStockItemDialogProps {
   isOpen: boolean;
@@ -30,6 +32,7 @@ export function DeleteStockItemDialog({ isOpen, onClose, item, onSuccess, stockC
   const [isDeleting, setIsDeleting] = React.useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, userProfile } = useUser();
 
   const handleDelete = async () => {
     if (!firestore || !item) return;
@@ -44,6 +47,17 @@ export function DeleteStockItemDialog({ isOpen, onClose, item, onSuccess, stockC
           : stockCollection;
       const itemRef = doc(firestore, actualCollectionPath, item.id);
       await commitLocalFirstMutations([{ collectionName: actualCollectionPath, docId: item.id, action: 'delete' }], `stock-item-delete:${item.id}:${Date.now()}`, () => deleteDoc(itemRef));
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Inventory', entityType: 'Stock Item',
+        entityId: item.id, entityName: item.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '',
+        userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        branchId: item.branchId || 'global',
+        description: `Deleted inventory item "${item.name}"`,
+        details: { quantity: item.quantity, costPrice: item.costPrice, sellingPrice: item.sellingPrice, category: item.category },
+        collectionName: actualCollectionPath, documentId: item.id,
+      });
       toast({
         variant: 'success',
         title: 'Item Deleted',
