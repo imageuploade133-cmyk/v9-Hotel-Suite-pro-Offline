@@ -111,7 +111,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
       setOfflineValidationReady(false);
       try {
         let rows: Booking[] | null = null;
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (isLocalMasterHost() || (typeof navigator !== 'undefined' && !navigator.onLine)) {
           rows = Array.isArray(allBookings) ? allBookings : null;
           if (isLocalMasterHost()) {
             try {
@@ -298,7 +298,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
     setIsSaving(true);
     try {
-      if (requireBillsPaid && isOffline) {
+      if (requireBillsPaid && (isOffline || isLocalMasterHost())) {
         const cachedBills = offlineOutstandingBills;
         if (!cachedBills) throw new Error('Guest bills are not available in the offline cache. Reconnect or open the guest folio to synchronize bills before renewing.');
         const cachedOutstanding = getOutstanding(cachedBills);
