@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
     staffPerDayRate: 50,
     enableRestock: true,
     enableGuestReportSound: true,
+    requireGuestBillsPaidBeforeRenewal: false,
     paymentMethods: [] as string[],
 };
 
