@@ -40,6 +40,7 @@ import { Separator } from '@/components/ui/separator';
 import { ROLE_TEMPLATES } from '@/lib/role-templates';
 import { FormDescription } from '@/components/ui/form';
 import { getAvailablePermissions } from '@/lib/permission-categories';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const roleSchema = z.object({
   name: z.string().min(1, 'Role name is required.'),
@@ -74,7 +75,7 @@ export default function CreateRolePage() {
     const { toast } = useToast();
     const firestore = useFirestore();
     const router = useRouter();
-    const { dynamicPermissionGroups } = useUser();
+    const { user, userProfile, dynamicPermissionGroups } = useUser();
     const { branches } = useBranch();
     const [openAccordions, setOpenAccordions] = React.useState<string[]>([]);
 
@@ -128,7 +129,15 @@ export default function CreateRolePage() {
                 createdAt: serverTimestamp(),
             };
             const rolesCollection = collection(firestore, 'roles');
-            await addDoc(rolesCollection, dataToSave);
+            const roleRef = await addDoc(rolesCollection, dataToSave);
+            void logAuditEvent(firestore, {
+              action: 'Create', module: 'Staff', entityType: 'Role', entityId: roleRef.id, entityName: values.name,
+              userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+              userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+              description: `Created staff role "${values.name}"`,
+              details: { description: values.description || '', permissions: values.permissions || [], isGlobalRole: values.isGlobalRole, applicableBranches: values.applicableBranches || [] },
+              collectionName: 'roles', documentId: roleRef.id,
+            });
             toast({ variant: 'success', title: 'Role Created', description: `The "${values.name}" role has been created.` });
             router.push('/roles');
         } catch (error: any) {
