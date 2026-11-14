@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { TopHeader } from '@/components/top-header';
+import { logAuditEvent } from '@/lib/audit-log';
 
 function StaffPage() {
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -67,6 +68,15 @@ function StaffPage() {
 
     try {
         await updateDoc(userRef, { isActive: newStatus });
+        void logAuditEvent(firestore, {
+          action: 'Status Change', module: 'Staff', entityType: 'Staff Account',
+          entityId: staffToToggle.uid, entityName: staffToToggle.name,
+          userId: (staffToToggle as any).updatedByUid || '', userName: (staffToToggle as any).updatedByName || 'Staff manager',
+          description: `${newStatus ? 'Activated' : 'Disabled'} staff account for ${staffToToggle.name}`,
+          changes: [{ field: 'isActive', before: !newStatus, after: newStatus }],
+          details: { staffEmail: staffToToggle.email || '', staffRole: staffToToggle.role || '' },
+          collectionName: 'users', documentId: staffToToggle.uid,
+        });
         toast({
             variant: 'success',
             title: 'Status Updated',
