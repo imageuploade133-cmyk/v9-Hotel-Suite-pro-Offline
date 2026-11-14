@@ -38,7 +38,7 @@ import { logAuditEvent } from '@/lib/audit-log';
 const renewSchema = z.object({
   newCheckInDate: z.date({ required_error: 'New check-in date is required' }),
   newCheckOutDate: z.date({ required_error: 'New check-out date is required' }),
-  paymentMethod: z.string().min(1, 'Payment method is required.'),
+  paymentMethod: z.string().optional(),
 });
 
 type RenewFormValues = z.infer<typeof renewSchema>;
@@ -261,6 +261,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
     try {
       // Allocate immutable IDs before the transaction so retries cannot create duplicate folio rows.
       const bookingRef = doc(firestore, 'bookings', booking.id);
+      const roomRef = booking.roomId ? doc(firestore, 'rooms', booking.roomId) : null;
       const paymentRef = doc(collection(firestore, 'payments'));
       const renewalBillRef = doc(collection(firestore, `bookings/${booking.id}/bills`));
       const newCheckIn = startOfDay(data.newCheckInDate);
@@ -273,6 +274,9 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
         const currentBookingSnapshot = await transaction.get(bookingRef);
         if (!currentBookingSnapshot.exists()) throw new Error('This booking no longer exists.');
         const currentBooking = currentBookingSnapshot.data() as Booking;
+        if (!roomRef) throw new Error('The booking has no valid room assignment. Contact an administrator.');
+        const currentRoomSnapshot = await transaction.get(roomRef);
+        if (!currentRoomSnapshot.exists()) throw new Error('The assigned room record no longer exists.');
         if (!['Active', 'Checked-in'].includes(currentBooking.status)) {
           throw new Error('Only a currently checked-in guest can renew a stay. Refresh the booking and try again.');
         }
@@ -318,8 +322,10 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
           lastRenewedByName: userProfile.name || user.displayName || user.email || 'Unknown user',
         };
         transaction.update(bookingRef, updateData);
+        transaction.update(roomRef, { [`individualRoomStatus.${currentBooking.roomNumber}`]: 'Occupied' });
 
         if (renewalCharge > 0) {
+          if (!data.paymentMethod) throw new Error('Select a payment method for the additional renewal charge.');
           const billItem = {
             id: `renewal-${renewalBillRef.id}`,
             billId: renewalBillRef.id,
@@ -464,6 +470,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                               <FormControl>
                                 <Button
                                   variant="outline"
+                                  disabled
                                   className={cn(
                                     "w-full pl-3 text-left font-normal",
                                     !field.value && "text-muted-foreground"
@@ -490,10 +497,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                                     form.setValue('newCheckOutDate', undefined);
                                   }
                                 }}
-                                disabled={(date) => {
-                                  // Disable dates in the past (before today)
-                                  return isBefore(startOfDay(date), startOfDay(new Date()));
-                                }}
+                                disabled={(date) => !originalCheckIn || !isSameDay(date, originalCheckIn)}
                                 initialFocus
                               />
                             </PopoverContent>
@@ -524,7 +528,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                                   {field.value ? (
                                     format(field.value, "MMM dd, yyyy")
                                   ) : (
-                                    <span>{watchNewCheckIn ? "Pick a date" : "Select check-in first"}</span>
+                                    <span>{watchNewCheckIn ? "Original check-in date is fixed" : "Select check-in first"}</span>
                                   )}
                                   <Calendar className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
