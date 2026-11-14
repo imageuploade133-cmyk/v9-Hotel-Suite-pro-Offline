@@ -34,7 +34,7 @@ export function BookingDialogs({
   reloadBookings,
 }: any) {
 
-  const { rooms, isLoading, allBookings, allBillsData, additionalPaymentsData, refetchBills, areBillsLoading } = useBookings();
+  const { rooms, isLoading, allBookings, allBillsData, additionalPaymentsData, additionalPaymentsLoading, refetchBills, areBillsLoading } = useBookings();
 
   const {
     isNewBookingOpen,
@@ -178,8 +178,10 @@ export function BookingDialogs({
         onSuccess={reloadBookings}
         allBookings={allBookings}
         allBills={allBillsData}
+        allPayments={additionalPaymentsData}
         isDataLoading={isLoading}
         isBillsLoading={areBillsLoading}
+        isPaymentsLoading={additionalPaymentsLoading}
       />
     </>
   );
