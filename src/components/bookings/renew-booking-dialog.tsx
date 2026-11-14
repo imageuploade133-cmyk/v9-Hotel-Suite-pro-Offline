@@ -61,9 +61,10 @@ interface RenewBookingDialogProps {
   allBookings?: Booking[] | null;
   allBills?: Bill[] | null;
   isDataLoading?: boolean;
+  isBillsLoading?: boolean;
 }
 
-export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, allBookings, allBills, isDataLoading = false }: RenewBookingDialogProps) {
+export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, allBookings, allBills, isDataLoading = false, isBillsLoading = false }: RenewBookingDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, userProfile } = useUser();
@@ -160,7 +161,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     if (!isOpen || !booking) return;
     let cancelled = false;
     const resolveBills = async () => {
-      let bills = Array.isArray(allBills) && !isDataLoading ? allBills.filter(bill => bill.bookingId === booking.id) : null;
+      let bills = Array.isArray(allBills) && !isBillsLoading ? allBills.filter(bill => bill.bookingId === booking.id) : null;
       if ((typeof navigator !== 'undefined' && !navigator.onLine) || isLocalMasterHost()) {
         try {
           const localBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
@@ -171,7 +172,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     };
     void resolveBills();
     return () => { cancelled = true; };
-  }, [isOpen, booking?.id, allBills, isDataLoading]);
+  }, [isOpen, booking?.id, allBills, isBillsLoading]);
 
   // Check for conflicts when dates change
   React.useEffect(() => {
