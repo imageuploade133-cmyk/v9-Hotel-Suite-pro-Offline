@@ -12,7 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Clock } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
-import { doc, setDoc, writeBatch, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, writeBatch, collection, Timestamp } from 'firebase/firestore';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 import { Skeleton } from '../ui/skeleton';
 import { useSettings } from '@/contexts/settings-context';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -84,6 +85,8 @@ export function HotelPolicyForm() {
         try {
             const batch = writeBatch(firestore);
             const settingsDocRef = doc(firestore, 'settings', 'global');
+            const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
+            const now = new Date();
 
             const changes: {field: string, before: any, after: any}[] = [];
             for (const key in data) {
@@ -102,9 +105,8 @@ export function HotelPolicyForm() {
 
             if (changes.length > 0) {
                 batch.set(settingsDocRef, data, { merge: true });
-                const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-                batch.set(auditLogRef, {
-                    timestamp: serverTimestamp(),
+                const auditData = {
+                    timestamp: Timestamp.fromDate(now),
                     userId: userProfile.uid,
                     userName: userProfile.name,
                     userEmail: userProfile.email || user.email || '',
@@ -116,8 +118,12 @@ export function HotelPolicyForm() {
                     description: 'Updated hotel-wide check-in, check-out and booking policies.',
                     details: { policy: 'Hotel Policy' },
                     changes,
-                });
-                await batch.commit();
+                };
+                batch.set(auditLogRef, auditData);
+                await commitLocalFirstMutations([
+                    { collectionName: 'settings', docId: 'global', action: 'set', data: { ...data, updatedAt: now.toISOString() } as any },
+                    { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set', data: { ...auditData, timestamp: now.toISOString() } as any },
+                ], `hotel-policy:${auditLogRef.id}`, () => batch.commit());
             }
 
             toast({
