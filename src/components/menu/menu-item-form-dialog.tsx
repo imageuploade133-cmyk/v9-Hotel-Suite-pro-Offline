@@ -73,6 +73,7 @@ import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '../ui/switch';
 import { AddCategoryDialog } from '../stock-keeper/add-category-dialog';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
 import {
@@ -262,6 +263,14 @@ export function MenuItemFormDialog({
           `menu-category-create:${selectedMenuId}:${categoryRef.id}`,
           () => setDoc(categoryRef, { ...categoryData, createdAt: serverTimestamp() })
         );
+        void logAuditEvent(firestore, {
+          action: 'Create', module: 'Menu', entityType: 'Menu Category',
+          entityId: categoryRef.id, entityName: name,
+          userId: userProfile.uid || userProfile.id || '', userName: userProfile.name || 'Unknown user',
+          userEmail: userProfile.email || '', userRole: userProfile.role || '',
+          description: `Created menu category "${name}"`,
+          collectionName: `menus/${selectedMenuId}/categories`, documentId: categoryRef.id,
+        });
         toast({ variant: 'success', title: 'Category Added', description: `${name} has been added to the menu.` });
         form.setValue('category', name);
         return true;
@@ -307,6 +316,20 @@ export function MenuItemFormDialog({
               `menu-item-update:${item.id}:${Date.now()}`,
               () => updateDoc(docRef, itemData)
             );
+            void logAuditEvent(firestore, {
+              action: 'Update', module: 'Menu', entityType: 'Menu Item',
+              entityId: item.id, entityName: data.name,
+              userId: userProfile.uid || userProfile.id || '', userName: userProfile.name || 'Unknown user',
+              userEmail: userProfile.email || '', userRole: userProfile.role || '',
+              description: `Updated menu item "${data.name}"`,
+              changes: [
+                { field: 'name', before: item.name, after: data.name },
+                { field: 'price', before: item.price, after: data.price },
+                { field: 'category', before: item.category, after: data.category },
+              ],
+              details: { menuId, description: data.description || '', promoPrice: data.promoPrice || null },
+              collectionName: `menus/${menuId}/items`, documentId: item.id,
+            });
             toast({ variant: 'success', title: 'Item Updated' });
         } else {
             const itemRef = doc(collection(firestore, `menus/${menuId}/items`));
@@ -316,6 +339,16 @@ export function MenuItemFormDialog({
               `menu-item-create:${itemRef.id}`,
               () => setDoc(itemRef, { ...itemData, createdAt: serverTimestamp() })
             );
+            void logAuditEvent(firestore, {
+              action: 'Create', module: 'Menu', entityType: 'Menu Item',
+              entityId: itemRef.id, entityName: data.name,
+              userId: userProfile.uid || userProfile.id || '', userName: userProfile.name || 'Unknown user',
+              userEmail: userProfile.email || '', userRole: userProfile.role || '',
+              description: `Added menu item "${data.name}" at ${data.price}`,
+              changes: [{ field: 'price', before: null, after: data.price }],
+              details: { menuId, category: data.category, description: data.description || '', promoPrice: data.promoPrice || null },
+              collectionName: `menus/${menuId}/items`, documentId: itemRef.id,
+            });
             toast({ variant: 'success', title: 'Item Added' });
         }
 

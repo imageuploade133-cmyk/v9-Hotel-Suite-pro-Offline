@@ -1,4 +1,5 @@
-import { addDoc, collection, Firestore, Timestamp } from 'firebase/firestore';
+import { collection, doc, Firestore, setDoc, Timestamp } from 'firebase/firestore';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
 
 export type AuditAction =
   | 'Login' | 'Logout' | 'Create' | 'Update' | 'Delete' | 'Restock'
@@ -39,17 +40,24 @@ export async function logAuditEvent(firestore: Firestore | null | undefined, eve
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .flatMap(value => value.toLowerCase().split(/[^a-z0-9@._-]+/g))
     .filter(value => value.length > 1))).slice(0, 200);
-  try {
-    await addDoc(collection(firestore, 'globalAuditLog'), {
+  const auditRef = doc(collection(firestore, 'globalAuditLog'));
+  const auditRecord = {
       changeType: event.action, action: event.action, module: event.module,
       entityType: event.entityType, entityId: event.entityId || event.documentId || '',
       entityName: event.entityName || '', collectionName: event.collectionName || '',
       documentId: event.documentId || event.entityId || '', userId: event.userId,
       userName: event.userName, userEmail: event.userEmail || '', userRole: event.userRole || '',
-      branchId: event.branchId || 'global', branchName: event.branchName || 'Global',
+      branchId: event.branchId || 'global', branchName: event.branchName || event.branchId || 'Global',
       description: event.description, details: event.details || {}, changes: event.changes || [],
       status: event.status || 'Success', timestamp: Timestamp.now(), keywords, schemaVersion: 2,
-    });
+  };
+
+  try {
+    await commitLocalFirstMutations(
+      [{ collectionName: 'globalAuditLog', docId: auditRef.id, action: 'set', data: auditRecord }],
+      `global-audit:${auditRef.id}`,
+      () => setDoc(auditRef, auditRecord)
+    );
     return true;
   } catch (error) {
     console.error('[GlobalAudit] Could not queue activity record:', error);

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 import withAuth from '@/components/auth/withAuth';
 import { PagePermission } from '@/lib/permissions';
 import { Plus, ConciergeBell, DollarSign, CalendarCheck, Package, TrendingUp, RotateCcw, ChevronDown } from 'lucide-react';
@@ -157,6 +158,16 @@ function ServicesPage() {
         try {
             const serviceRef = doc(firestore, getCollectionPath('services'), selectedService.id);
             await commitLocalFirstMutations([{ collectionName: getCollectionPath('services'), docId: selectedService.id, action: 'delete' }], `service-delete:${selectedService.id}:${Date.now()}`, () => deleteDoc(serviceRef));
+            void logAuditEvent(firestore, {
+              action: 'Delete', module: 'Services & Foods', entityType: 'Service / Food Item',
+              entityId: selectedService.id, entityName: selectedService.name,
+              userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+              userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+              branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+              description: `Deleted service/food item "${selectedService.name}"`,
+              details: { price: selectedService.price || selectedService.sellingPrice || 0, category: selectedService.category || '' },
+              collectionName: getCollectionPath('services'), documentId: selectedService.id,
+            });
             toast({ variant: 'success', title: 'Service Deleted' });
             handleSuccess();
         } catch (error: any) {

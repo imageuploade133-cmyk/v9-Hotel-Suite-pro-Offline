@@ -88,6 +88,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile';
 import { BottomSheet } from '../ui/bottom-sheet';
 import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required.'),
@@ -548,6 +549,22 @@ export function AddEditServiceItemDialog({
           `service-update:${service.id}:${Date.now()}`,
           () => updateDoc(serviceRef, serviceData)
         );
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Services & Foods', entityType: 'Service / Food Item',
+          entityId: service.id, entityName: data.name,
+          userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+          userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+          branchId: (service as any).branchId || 'global', branchName: (service as any).branchName || 'Global',
+          description: `Updated service/food item "${data.name}"`,
+          changes: [
+            { field: 'name', before: service.name, after: data.name },
+            { field: 'price', before: service.price, after: data.price },
+            { field: 'costPrice', before: service.costPrice, after: data.costPrice },
+            { field: 'quantity', before: service.quantity, after: data.quantity },
+          ],
+          details: { category: data.category, trackQuantity: data.trackQuantity },
+          collectionName: actualCollectionPath, documentId: service.id,
+        });
         toast({ variant: 'success', title: 'Service Updated' });
       } else {
         const baseServiceData = {
@@ -600,6 +617,17 @@ export function AddEditServiceItemDialog({
             }
           }
         );
+        void logAuditEvent(firestore, {
+          action: 'Create', module: 'Services & Foods', entityType: 'Service / Food Item',
+          entityId: serviceDocRef.id, entityName: data.name,
+          userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+          userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+          branchId: data.selectedBranchId || 'global',
+          description: `Created service/food item "${data.name}"`,
+          changes: [{ field: 'price', before: null, after: data.price }, { field: 'costPrice', before: null, after: data.costPrice }],
+          details: { category: data.category, quantity: data.quantity || 0, trackQuantity: data.trackQuantity, menuId: data.menuId || null },
+          collectionName: actualCollectionPath, documentId: serviceDocRef.id,
+        });
         if (data.menuId && data.menuId !== 'none') {
           toast({ variant: 'success', title: 'Item Added', description: `${data.name} has been added to Services and the selected Menu.` });
         } else {

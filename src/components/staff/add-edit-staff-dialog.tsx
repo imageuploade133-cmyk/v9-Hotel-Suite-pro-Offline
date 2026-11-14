@@ -35,6 +35,7 @@ import { useUser } from '@/contexts/user-context';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useBranch } from '@/contexts/branch-context';
 import { Checkbox } from '../ui/checkbox';
+import { logAuditEvent } from '@/lib/audit-log';
 
 
 const staffSchema = z.object({
@@ -334,6 +335,7 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
   const { toast } = useToast();
   const firestore = useFirestore();
   const auth = useAuth();
+  const { user: currentUser, userProfile: currentUserProfile } = useUser();
   const isEditMode = !!staffMember;
   const isMobile = useIsMobile();
   // All Firebase users have full admin access
@@ -413,6 +415,22 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
             assignedBranches: data.assignedBranches || [],
         });
 
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Staff', entityType: 'Staff Account',
+          entityId: staffMember.uid, entityName: data.name,
+          userId: currentUser?.uid || currentUserProfile?.uid || currentUserProfile?.id || '',
+          userName: currentUserProfile?.name || currentUser?.email || 'Unknown user',
+          userEmail: currentUserProfile?.email || currentUser?.email || '', userRole: currentUserProfile?.role || '',
+          description: `Updated staff account for ${data.name}`,
+          changes: [
+            { field: 'name', before: staffMember.name, after: data.name },
+            { field: 'role', before: staffMember.role, after: newRoleName },
+            { field: 'monthlySalary', before: staffMember.monthlySalary || 0, after: data.monthlySalary || 0 },
+            { field: 'assignedBranches', before: staffMember.assignedBranches || [], after: data.assignedBranches || [] },
+          ],
+          details: { email: staffMember.email, shift: data.shift || null, permissionsCount: newPermissions.length },
+          collectionName: 'users', documentId: staffMember.uid,
+        });
         toast({ variant: 'success', title: 'Staff Updated' });
         onSuccess();
       } else {
@@ -500,6 +518,17 @@ export function AddEditStaffDialog({ open, onOpenChange, staffMember, onSuccess 
           // Saved locally in IndexedDB & LAN Store
         }
 
+        void logAuditEvent(firestore, {
+          action: 'Create', module: 'Staff', entityType: 'Staff Account',
+          entityId: newUid, entityName: data.name,
+          userId: currentUser?.uid || currentUserProfile?.uid || currentUserProfile?.id || '',
+          userName: currentUserProfile?.name || currentUser?.email || 'Unknown user',
+          userEmail: currentUserProfile?.email || currentUser?.email || '', userRole: currentUserProfile?.role || '',
+          description: `Created staff account for ${data.name}`,
+          changes: [{ field: 'role', before: null, after: roleName }, { field: 'isActive', before: null, after: isActive }],
+          details: { staffEmail: data.email, shift: data.shift || null, assignedBranches: data.assignedBranches || [], createdOnline },
+          collectionName: 'users', documentId: newUid,
+        });
         toast({
           variant: 'success',
           title: createdOnline ? 'Staff Created' : 'Staff Created (Offline Mode)',

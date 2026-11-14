@@ -63,6 +63,7 @@ import type { DateRange } from 'react-day-picker';
 import { usePermissions } from '@/hooks/use-permissions';
 import { CreditCard } from 'lucide-react';
 import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const RUNNING_TABLES_COLUMN_LABELS: Record<string, string> = {
   name: 'Table Name',
@@ -563,6 +564,16 @@ function RunningTablesPage() {
         transaction.delete(heldSaleRef);
       });
 
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Running Tables', entityType: 'Running Table',
+        entityId: selectedSale.id, entityName: selectedSale.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+        description: `Deleted running table "${selectedSale.name}" and returned its items to stock`,
+        details: { itemCount: selectedSale.cart?.length || 0, linkedBillId: selectedSale.linkedBillId || null },
+        collectionName: getCollectionPath('heldSales'), documentId: selectedSale.id,
+      });
       toast({ variant: 'success', title: 'Running Table Deleted', description: 'The table was deleted and items were returned to stock.' });
       setReloadCounter(c => c + 1);
       handleCloseDialog();
@@ -650,6 +661,17 @@ function RunningTablesPage() {
         transaction.delete(heldSaleRef);
       });
 
+      void logAuditEvent(firestore, {
+        action: 'Status Change', module: 'Running Tables', entityType: 'Running Table',
+        entityId: selectedSale.id, entityName: selectedSale.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+        description: `Reset running table "${selectedSale.name}" and returned its items to stock`,
+        changes: [{ field: 'status', before: 'Running', after: 'Reset' }],
+        details: { itemCount: selectedSale.cart?.length || 0, linkedBillId: selectedSale.linkedBillId || null },
+        collectionName: getCollectionPath('heldSales'), documentId: selectedSale.id,
+      });
       toast({ variant: 'success', title: 'Running Table Reset', description: 'The table has been reset and items returned to stock.' });
       setReloadCounter(c => c + 1);
       handleCloseDialog();
@@ -680,6 +702,16 @@ function RunningTablesPage() {
 
       await updateDoc(saleRef, { cart: updatedCart });
 
+      void logAuditEvent(firestore, {
+        action: 'Update', module: 'Dockets', entityType: 'Docket',
+        entityId: selectedSale.id, entityName: selectedSale.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+        description: `Reset printed quantities for docket "${selectedSale.name}"`,
+        changes: [{ field: 'printedQuantity', before: 'Previously printed', after: 0 }],
+        collectionName: getCollectionPath('heldSales'), documentId: selectedSale.id,
+      });
       toast({ variant: 'success', title: 'Items Unprinted', description: 'All items have been marked as unprinted. You can now print them again.' });
       setReloadCounter(c => c + 1);
       handleCloseDialog();
@@ -705,6 +737,16 @@ function RunningTablesPage() {
       // Update held sale
       await updateDoc(saleRef, { cart: updatedCart });
 
+      void logAuditEvent(firestore, {
+        action: 'Print', module: 'Dockets', entityType: 'Docket',
+        entityId: saleToPrint.id, entityName: saleToPrint.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+        description: `Marked all items as printed for docket "${saleToPrint.name}"`,
+        details: { itemCount: updatedCart.length, totalItems: updatedCart.reduce((sum, item) => sum + Number(item.sellQuantity || 0), 0) },
+        collectionName: getCollectionPath('heldSales'), documentId: saleToPrint.id,
+      });
       // If this is billed to a room, also update the linked Bill's print status
       if (saleToPrint.linkedBillId && saleToPrint.customer?.id) {
         const billRef = doc(firestore, `bookings/${saleToPrint.customer.id}/bills`, saleToPrint.linkedBillId);
@@ -758,6 +800,16 @@ function RunningTablesPage() {
 
       // Update held sale
       await updateDoc(saleRef, { cart: updatedCart });
+      void logAuditEvent(firestore, {
+        action: 'Print', module: 'Dockets', entityType: 'Docket',
+        entityId: unprintedSale.id, entityName: unprintedSale.name,
+        userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+        userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+        branchId: currentBranch?.id || 'global', branchName: currentBranch?.name || 'Global',
+        description: `Printed previously unprinted items for docket "${unprintedSale.name}"`,
+        details: { itemCount: updatedCart.length, totalItems: updatedCart.reduce((sum, item) => sum + Number(item.sellQuantity || 0), 0) },
+        collectionName: getCollectionPath('heldSales'), documentId: unprintedSale.id,
+      });
 
       // If this is billed to a room, also update the linked Bill's print status
       if (unprintedSale.linkedBillId && unprintedSale.customer?.id) {
