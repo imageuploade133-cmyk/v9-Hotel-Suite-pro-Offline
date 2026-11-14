@@ -95,7 +95,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     if (!isOpen || !booking?.roomNumber || !firestore) return;
     let cancelled = false;
     const toConflictRows = (rows: Booking[]) => rows
-      .filter(candidate => candidate.id !== booking.id && candidate.roomNumber === booking.roomNumber
+      .filter(candidate => candidate.id !== booking.id && candidate.roomId === booking.roomId
         && ['Booked', 'Reserved', 'Active', 'Checked-in'].includes(candidate.status))
       .map(candidate => ({
         id: candidate.id,
@@ -154,7 +154,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     };
     void resolve();
     return () => { cancelled = true; };
-  }, [booking?.id, booking?.roomNumber, firestore, isOpen, allBookings, isDataLoading]);
+  }, [booking?.id, booking?.roomNumber, booking?.roomId, firestore, isOpen, allBookings, isDataLoading]);
 
   React.useEffect(() => {
     if (!isOpen || !booking) return;
@@ -407,7 +407,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
           throw new Error('The booking dates have changed since this renewal was opened. Refresh and try again.');
         }
         const latestConflicts = cachedBookings.filter(candidate => {
-          if (candidate.id === booking.id || candidate.roomNumber !== booking.roomNumber
+          if (candidate.id === booking.id || candidate.roomId !== booking.roomId
             || !['Booked', 'Reserved', 'Active', 'Checked-in'].includes(candidate.status)) return false;
           const start = getSafeDate(candidate.checkInDate);
           const end = getSafeDate(candidate.checkOutDate);
@@ -460,7 +460,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
           if (!currentCheckout || !currentCheckin || !isSameDay(currentCheckin, data.newCheckInDate) || newCheckOut <= startOfDay(currentCheckout)) {
             throw new Error('The booking dates changed. Refresh the booking and retry.');
           }
-          const roomBookingsQuery = query(collection(firestore, 'bookings'), where('roomNumber', '==', currentBooking.roomNumber), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
+          const roomBookingsQuery = query(collection(firestore, 'bookings'), where('roomId', '==', currentBooking.roomId), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
           const roomBookingsSnapshot = await transaction.get(roomBookingsQuery);
           const conflicts = roomBookingsSnapshot.docs.filter(snapshot => {
             if (snapshot.id === booking.id) return false;
