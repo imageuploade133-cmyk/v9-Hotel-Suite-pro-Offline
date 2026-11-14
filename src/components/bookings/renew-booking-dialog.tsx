@@ -160,7 +160,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     if (!isOpen || !booking) return;
     let cancelled = false;
     const resolveBills = async () => {
-      let bills = Array.isArray(allBills) ? allBills.filter(bill => bill.bookingId === booking.id) : null;
+      let bills = Array.isArray(allBills) && !isDataLoading ? allBills.filter(bill => bill.bookingId === booking.id) : null;
       if ((typeof navigator !== 'undefined' && !navigator.onLine) || isLocalMasterHost()) {
         try {
           const localBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
@@ -171,7 +171,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     };
     void resolveBills();
     return () => { cancelled = true; };
-  }, [isOpen, booking?.id, allBills]);
+  }, [isOpen, booking?.id, allBills, isDataLoading]);
 
   // Check for conflicts when dates change
   React.useEffect(() => {
