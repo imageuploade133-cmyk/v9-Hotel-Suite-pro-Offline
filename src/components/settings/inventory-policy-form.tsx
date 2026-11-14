@@ -17,6 +17,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useSettings } from '@/contexts/settings-context';
 import { AccordionItem, AccordionTrigger, AccordionContent } from '../ui/accordion';
 import { Switch } from '../ui/switch';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const inventoryPolicySchema = z.object({
   stockAlertPhoneNumber: z.string().optional(),
@@ -28,7 +29,7 @@ type InventoryPolicyFormValues = z.infer<typeof inventoryPolicySchema>;
 
 export function InventoryPolicyForm() {
     const { toast } = useToast();
-    const { user } = useUser();
+    const { user, userProfile } = useUser();
     const firestore = useFirestore();
     const { settings, isLoading: isSettingsLoading } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -63,6 +64,14 @@ export function InventoryPolicyForm() {
         try {
             const settingsDocRef = doc(firestore, 'settings', 'global');
             await setDoc(settingsDocRef, data, { merge: true });
+            void logAuditEvent(firestore, {
+                action: 'Update', module: 'Settings', entityType: 'Inventory Policy', entityId: 'global', entityName: 'Inventory Policy',
+                userId: user.uid, userName: userProfile?.name || user.displayName || user.email || 'Unknown user',
+                userEmail: userProfile?.email || user.email || '', userRole: userProfile?.role || '',
+                description: 'Updated global inventory and stock-control policies',
+                changes: (Object.keys(data) as (keyof InventoryPolicyFormValues)[]).filter(key => JSON.stringify((settings as any)?.[key]) !== JSON.stringify(data[key])).map(key => ({ field: key, before: (settings as any)?.[key] ?? null, after: data[key] })),
+                collectionName: 'settings', documentId: 'global',
+            });
 
             toast({ title: 'Inventory Policy Updated', variant: 'success' });
             form.reset(data, { keepDirty: false });

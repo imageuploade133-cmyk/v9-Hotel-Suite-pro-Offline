@@ -59,6 +59,7 @@ import { RewardReceiptDialog } from '@/components/salary/reward-receipt-dialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { logAuditEvent } from '@/lib/audit-log';
 
 
 export interface StaffSalaryData {
@@ -431,10 +432,14 @@ function SalaryPage() {
             timestamp: serverTimestamp(),
             userId: adminProfile.uid,
             userName: adminProfile.name,
-            changeType: 'Create',
-            entityType: 'Payroll',
-            entityId: `payroll-${Date.now()}`,
-            details: `Processed payroll for ${staffList.length} staff member(s), totaling ${formatCurrency(totalAmount)}.`,
+            userEmail: adminProfile.email || '',
+            userRole: adminProfile.role || '',
+            branchId: (adminProfile as any).branchId || 'global',
+            changeType: 'Create', action: 'Create', module: 'Payroll',
+            entityType: 'Payroll', entityId: `payroll-${Date.now()}`, entityName: `Payroll - ${format(payPeriod.start, 'MMM yyyy')}`,
+            collectionName: 'expenses', status: 'Success',
+            description: `Processed payroll for ${staffList.length} staff member(s), totaling ${formatCurrency(totalAmount)}.`,
+            details: { staffCount: staffList.length, totalAmount, paymentMethod, periodStart: payPeriod.start.toISOString(), periodEnd: payPeriod.end.toISOString() },
         });
 
         await batch.commit();
@@ -497,10 +502,14 @@ function SalaryPage() {
             timestamp: serverTimestamp(),
             userId: admin.uid,
             userName: admin.name,
-            changeType: 'Create',
-            entityType: 'Salary Advance',
-            entityId: staffData.profile.uid,
-            details: `Recorded salary advance for ${staffData.profile.name}, totaling ${formatCurrency(amount)}.`,
+            userEmail: admin.email || '',
+            userRole: admin.role || '',
+            branchId: (admin as any).branchId || 'global',
+            changeType: 'Create', action: 'Create', module: 'Payroll',
+            entityType: 'Salary Advance', entityId: deductionRef.id, entityName: staffData.profile.name,
+            collectionName: `users/${staffData.profile.uid}/salaryDeductions`, documentId: deductionRef.id, status: 'Success',
+            description: `Recorded salary advance for ${staffData.profile.name}, totaling ${formatCurrency(amount)}.`,
+            details: { staffId: staffData.profile.uid, staffName: staffData.profile.name, amount, notes: notes || '' },
         });
 
         if (staffData.profile.phoneNumber && settings?.googleAppsScriptUrl) {
@@ -557,10 +566,14 @@ function SalaryPage() {
             timestamp: serverTimestamp(),
             userId: adminProfile.uid,
             userName: adminProfile.name,
-            changeType: 'Delete',
-            entityType: 'Salary Advance',
-            entityId: actionsDocket.userId,
-            details: `Reversed salary deduction of ${formatCurrency(actionsDocket.amount)} for ${actionsDocket.userName}.`,
+            userEmail: adminProfile.email || '',
+            userRole: adminProfile.role || '',
+            branchId: (adminProfile as any).branchId || 'global',
+            changeType: 'Delete', action: 'Delete', module: 'Payroll',
+            entityType: 'Salary Advance', entityId: actionsDocket.id, entityName: actionsDocket.userName,
+            collectionName: `users/${actionsDocket.userId}/salaryDeductions`, documentId: actionsDocket.id, status: 'Success',
+            description: `Reversed salary deduction of ${formatCurrency(actionsDocket.amount)} for ${actionsDocket.userName}.`,
+            details: { staffId: actionsDocket.userId, amount: actionsDocket.amount, notes: actionsDocket.notes || '' },
         });
 
         await batch.commit();
@@ -610,10 +623,14 @@ function SalaryPage() {
                 timestamp: serverTimestamp(),
                 userId: adminProfile.uid,
                 userName: adminProfile.name,
-                changeType: 'Delete',
-                entityType: 'Reward',
-                entityId: actionsReward.userId,
-                details: `Cancelled reward of ${formatCurrency(actionsReward.amount)} for ${actionsReward.userName}.`,
+                userEmail: adminProfile.email || '',
+                userRole: adminProfile.role || '',
+                branchId: (adminProfile as any).branchId || 'global',
+                changeType: 'Delete', action: 'Cancel', module: 'Payroll',
+                entityType: 'Reward', entityId: actionsReward.id, entityName: actionsReward.userName,
+                collectionName: `users/${actionsReward.userId}/salaryRewards`, documentId: actionsReward.id, status: 'Success',
+                description: `Cancelled reward of ${formatCurrency(actionsReward.amount)} for ${actionsReward.userName}.`,
+                details: { staffId: actionsReward.userId, amount: actionsReward.amount },
             });
 
             await batch.commit();
@@ -654,10 +671,14 @@ function SalaryPage() {
                 timestamp: serverTimestamp(),
                 userId: adminProfile.uid,
                 userName: adminProfile.name,
-                changeType: 'Delete',
-                entityType: 'Salary Advance',
-                entityId: staffData.profile.uid,
-                details: `Reset all salary deductions for ${staffData.profile.name} for the current period.`,
+                userEmail: adminProfile.email || '',
+                userRole: adminProfile.role || '',
+                branchId: (adminProfile as any).branchId || 'global',
+                changeType: 'Delete', action: 'Delete', module: 'Payroll',
+                entityType: 'Salary Advance', entityId: staffData.profile.uid, entityName: staffData.profile.name,
+                collectionName: `users/${staffData.profile.uid}/salaryDeductions`, status: 'Success',
+                description: `Reset all salary deductions for ${staffData.profile.name} for the current period.`,
+                details: { staffId: staffData.profile.uid, deletedCount: deductionsSnapshot.size, periodStart: payPeriod.start.toISOString(), periodEnd: payPeriod.end.toISOString() },
             });
 
             await batch.commit();
@@ -691,10 +712,14 @@ function SalaryPage() {
                 timestamp: serverTimestamp(),
                 userId: adminProfile.uid,
                 userName: adminProfile.name,
-                changeType: 'Delete',
-                entityType: 'Payroll',
-                entityId: profile.uid,
-                details: `Reversed salary payment for ${profile.name}, totaling ${formatCurrency(remainingSalary)}.`,
+                userEmail: adminProfile.email || '',
+                userRole: adminProfile.role || '',
+                branchId: (adminProfile as any).branchId || 'global',
+                changeType: 'Delete', action: 'Delete', module: 'Payroll',
+                entityType: 'Payroll', entityId: profile.uid, entityName: profile.name,
+                collectionName: 'expenses', status: 'Success',
+                description: `Reversed salary payment for ${profile.name}, totaling ${formatCurrency(remainingSalary)}.`,
+                details: { staffId: profile.uid, staffName: profile.name, amount: remainingSalary },
             });
 
             await batch.commit();
@@ -742,10 +767,14 @@ function SalaryPage() {
                 timestamp: serverTimestamp(),
                 userId: adminProfile.uid,
                 userName: adminProfile.name,
-                changeType: 'Create',
-                entityType: 'Reward',
-                entityId: staffData.profile.uid,
-                details: `Gave a reward of ${formatCurrency(amount)} to ${staffData.profile.name}.`,
+                userEmail: adminProfile.email || '',
+                userRole: adminProfile.role || '',
+                branchId: (adminProfile as any).branchId || 'global',
+                changeType: 'Create', action: 'Create', module: 'Payroll',
+                entityType: 'Reward', entityId: rewardRef.id, entityName: staffData.profile.name,
+                collectionName: `users/${staffData.profile.uid}/salaryRewards`, documentId: rewardRef.id, status: 'Success',
+                description: `Gave a reward of ${formatCurrency(amount)} to ${staffData.profile.name}.`,
+                details: { staffId: staffData.profile.uid, amount, notes },
             });
 
             await batch.commit();
@@ -1185,7 +1214,17 @@ function SalaryPage() {
             </DialogHeader>
             {!showDocketReverseConfirm ? (
                  <div className="grid gap-3 py-4">
-                    <Button variant="outline" className="justify-start" onClick={() => { setDocketToPrint(actionsDocket); setActionsDocket(null); }}>
+                    <Button variant="outline" className="justify-start" onClick={() => {
+                      if (firestore && actionsDocket) void logAuditEvent(firestore, {
+                        action: 'Print', module: 'Payroll', entityType: 'Salary Docket', entityId: actionsDocket.id, entityName: actionsDocket.userName,
+                        userId: adminUser?.uid || adminProfile?.uid || '', userName: adminProfile?.name || adminUser?.email || 'Unknown user',
+                        userEmail: adminProfile?.email || adminUser?.email || '', userRole: adminProfile?.role || '',
+                        description: `Printed salary docket for ${actionsDocket.userName}`,
+                        details: { staffId: actionsDocket.userId, amount: actionsDocket.amount, notes: actionsDocket.notes || '' },
+                        collectionName: `users/${actionsDocket.userId}/salaryDeductions`, documentId: actionsDocket.id,
+                      });
+                      setDocketToPrint(actionsDocket); setActionsDocket(null);
+                    }}>
                         <Printer className="mr-2 h-4 w-4" />
                         Print Docket
                     </Button>
@@ -1234,6 +1273,14 @@ function SalaryPage() {
                         variant="outline"
                         className="justify-start"
                         onClick={() => {
+                            if (firestore && actionsReward) void logAuditEvent(firestore, {
+                              action: 'Print', module: 'Payroll', entityType: 'Salary Reward Receipt', entityId: actionsReward.id, entityName: actionsReward.userName,
+                              userId: adminUser?.uid || adminProfile?.uid || '', userName: adminProfile?.name || adminUser?.email || 'Unknown user',
+                              userEmail: adminProfile?.email || adminUser?.email || '', userRole: adminProfile?.role || '',
+                              description: `Printed reward receipt for ${actionsReward.userName}`,
+                              details: { staffId: actionsReward.userId, amount: actionsReward.amount, notes: actionsReward.notes || '' },
+                              collectionName: `users/${actionsReward.userId}/salaryRewards`, documentId: actionsReward.id,
+                            });
                             setRewardToPrint(actionsReward);
                             setActionsReward(null);
                         }}

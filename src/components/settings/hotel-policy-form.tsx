@@ -104,10 +104,14 @@ export function HotelPolicyForm() {
                     timestamp: serverTimestamp(),
                     userId: userProfile.uid,
                     userName: userProfile.name,
-                    changeType: 'Update',
-                    entityType: 'Settings',
-                    entityId: 'Hotel Policy',
-                    details: 'Updated hotel-wide policies.',
+                    userEmail: userProfile.email || user.email || '',
+                    userRole: userProfile.role || '',
+                    branchId: (userProfile as any).branchId || 'global',
+                    changeType: 'Update', action: 'Update', module: 'Settings',
+                    entityType: 'Hotel Policy', entityId: 'global', entityName: 'Hotel Policy',
+                    collectionName: 'settings', documentId: 'global', status: 'Success',
+                    description: 'Updated hotel-wide check-in, check-out and booking policies.',
+                    details: { policy: 'Hotel Policy' },
                     changes,
                 });
                 await batch.commit();

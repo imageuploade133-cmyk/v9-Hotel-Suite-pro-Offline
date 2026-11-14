@@ -18,6 +18,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
 import { uploadImage } from '@/lib/helpers';
 import Image from 'next/image';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const bankAccountSchema = z.object({
   bankName: z.string().optional(),
@@ -34,7 +35,7 @@ const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
 
 export function BankAccountSettingsForm() {
     const { toast } = useToast();
-    const { user } = useUser();
+    const { user, userProfile } = useUser();
     const firestore = useFirestore();
     const { settings, isLoading: isSettingsLoading, refreshSettings } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -130,6 +131,14 @@ export function BankAccountSettingsForm() {
             };
 
             await setDoc(settingsDocRef, dataToSave, { merge: true });
+            void logAuditEvent(firestore, {
+                action: 'Update', module: 'Settings', entityType: 'Bank Account Settings', entityId: 'global', entityName: 'Business Bank Details',
+                userId: user.uid, userName: userProfile?.name || user.displayName || user.email || 'Unknown user',
+                userEmail: userProfile?.email || user.email || '', userRole: userProfile?.role || '',
+                description: 'Updated business bank account and receipt payment details',
+                changes: (['bankName', 'accountName', 'accountNumber', 'bankLogoUrl'] as const).filter(key => (settings as any)?.[key] !== (dataToSave as any)[key]).map(key => ({ field: key, before: (settings as any)?.[key] || '', after: (dataToSave as any)[key] || '' })),
+                collectionName: 'settings', documentId: 'global',
+            });
 
             toast({
                 title: 'Bank Details Updated',

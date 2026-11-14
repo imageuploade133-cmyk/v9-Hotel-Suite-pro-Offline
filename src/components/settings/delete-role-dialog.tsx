@@ -15,6 +15,8 @@ import type { Role } from '@/lib/types';
 import { useFirestore } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { Button } from '../ui/button';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 interface DeleteRoleDialogProps {
   open: boolean;
@@ -25,6 +27,7 @@ interface DeleteRoleDialogProps {
 export function DeleteRoleDialog({ open, onOpenChange, role }: DeleteRoleDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user, userProfile } = useUser();
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleDelete = async () => {
@@ -36,6 +39,14 @@ export function DeleteRoleDialog({ open, onOpenChange, role }: DeleteRoleDialogP
     try {
       const roleRef = doc(firestore, 'roles', role.id);
       await deleteDoc(roleRef);
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Staff', entityType: 'Role', entityId: role.id, entityName: role.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted staff role "${role.name}"`,
+        details: { permissions: role.permissions || [], isGlobalRole: role.isGlobalRole || false },
+        collectionName: 'roles', documentId: role.id,
+      });
 
       toast({
         variant: 'success',

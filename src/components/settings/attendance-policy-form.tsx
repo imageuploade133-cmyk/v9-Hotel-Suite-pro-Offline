@@ -122,10 +122,14 @@ export function AttendancePolicyForm() {
                     timestamp: serverTimestamp(),
                     userId: userProfile.uid,
                     userName: userProfile.name,
-                    changeType: 'Update',
-                    entityType: 'Settings',
-                    entityId: 'Attendance Policy',
-                    details: 'Updated staff attendance policy.',
+                    userEmail: userProfile.email || user.email || '',
+                    userRole: userProfile.role || '',
+                    branchId: (userProfile as any).branchId || 'global',
+                    changeType: 'Update', action: 'Update', module: 'Settings',
+                    entityType: 'Attendance Policy', entityId: 'global', entityName: 'Attendance Policy',
+                    collectionName: 'settings', documentId: 'global', status: 'Success',
+                    description: 'Updated staff attendance, shift and late-deduction policies.',
+                    details: { settingsGroup: 'Attendance Policy' },
                     changes,
                 });
 

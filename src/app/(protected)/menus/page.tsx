@@ -74,6 +74,8 @@ import { Badge } from '@/components/ui/badge';
 import { SyncMenuDialog } from '@/components/menu/sync-menu-dialog';
 import { uploadImage } from '@/lib/helpers';
 import { Label } from '@/components/ui/label';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const menuSchema = z.object({
   name: z.string().min(1, 'Menu name is required.'),
@@ -306,6 +308,7 @@ function MenuFormDialog({
   const [isSaving, setIsSaving] = React.useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user, userProfile } = useUser();
   const { settings } = useSettings();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -412,6 +415,14 @@ function MenuFormDialog({
           `menu-update:${menu!.id}:${Date.now()}`,
           () => updateDoc(menuRef, menuData)
         );
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Menu', entityType: 'Menu', entityId: menu!.id, entityName: data.name,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Updated menu "${data.name}"`,
+          changes: [{ field: 'name', before: menu!.name, after: data.name }, { field: 'description', before: menu!.description || '', after: data.description || '' }, { field: 'coverImageUrl', before: menu!.coverImageUrl || '', after: finalCoverImageUrl || '' }],
+          collectionName: 'menus', documentId: menu!.id,
+        });
         toast({ title: 'Menu Updated', description: `"${data.name}" has been updated.` });
         onSuccess();
       } else {
@@ -423,6 +434,14 @@ function MenuFormDialog({
           `menu-create:${docRef.id}`,
           () => setDoc(docRef, { ...menuData, slug, createdAt: serverTimestamp() })
         );
+        void logAuditEvent(firestore, {
+          action: 'Create', module: 'Menu', entityType: 'Menu', entityId: docRef.id, entityName: data.name,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Created menu "${data.name}"`,
+          details: { slug, description: data.description || '', coverImageUrl: finalCoverImageUrl || '' },
+          collectionName: 'menus', documentId: docRef.id,
+        });
         toast({ title: 'Menu Created', description: `"${data.name}" has been created.` });
         onSuccess(docRef.id);
       }
@@ -523,6 +542,7 @@ function MenuFormDialog({
 function AuthenticatedMenusPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, userProfile } = useUser();
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMenu, setEditingMenu] = React.useState<Menu | null>(null);
   const [deletingMenu, setDeletingMenu] = React.useState<Menu | null>(null);
@@ -632,6 +652,14 @@ function AuthenticatedMenusPage() {
       );
       // Note: Deleting subcollections (the items and categories) should ideally be handled by a Cloud Function.
       // This client-side delete only removes the menu document itself.
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Menu', entityType: 'Menu', entityId: actionsMenu.id, entityName: actionsMenu.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted menu "${actionsMenu.name}" (menu document only; subcollections are retained)`,
+        details: { slug: actionsMenu.slug || '', itemCount: actionsMenu.itemCount || 0, categoryCount: actionsMenu.categoryCount || 0 },
+        collectionName: 'menus', documentId: actionsMenu.id,
+      });
       toast({
         variant: 'success',
         title: 'Menu Deleted',
