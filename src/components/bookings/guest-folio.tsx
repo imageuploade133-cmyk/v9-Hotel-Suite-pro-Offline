@@ -235,6 +235,8 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
           ? bill.paidAmount as number
           : bill.paid ? billTotal : explicitPaidItemsTotal;
         if (!hasRecordedPaidAmount && !bill.paid && legacyUnallocatedPayments > 0) {
+            // Consume legacy payments already represented by paid item flags before allocating any remainder.
+            legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - Math.min(legacyUnallocatedPayments, explicitPaidItemsTotal));
             const legacyAllocation = Math.min(Math.max(0, billTotal - billPaidAmount), legacyUnallocatedPayments);
             billPaidAmount += legacyAllocation;
             legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - legacyAllocation);
