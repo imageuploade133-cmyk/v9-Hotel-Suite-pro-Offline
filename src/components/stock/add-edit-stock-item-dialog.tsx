@@ -84,6 +84,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
 import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { logAuditEvent } from '@/lib/audit-log';
 import {
   Command,
   CommandEmpty,
@@ -388,6 +389,23 @@ export function AddEditStockItemDialog({
               `stock-item-update:${item.id}:${Date.now()}`,
               () => updateDoc(itemRef, itemData)
             );
+            void logAuditEvent(firestore, {
+              action: 'Update', module: 'Inventory', entityType: 'Stock Item',
+              entityId: item.id, entityName: data.name,
+              userId: userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || 'Unknown user',
+              userEmail: userProfile?.email || '', userRole: userProfile?.role || '',
+              branchId: (item as any).branchId || 'global',
+              description: `Updated inventory item "${data.name}"`,
+              changes: [
+                { field: 'name', before: item.name, after: data.name },
+                { field: 'quantity', before: item.quantity, after: data.quantity },
+                { field: 'costPrice', before: item.costPrice, after: data.costPrice },
+                { field: 'sellingPrice', before: item.sellingPrice, after: data.sellingPrice },
+                { field: 'category', before: item.category, after: data.category },
+              ],
+              details: { supplier: data.supplier || '', barcode: data.barcode || '' },
+              collectionName: actualCollectionPath, documentId: item.id,
+            });
             toast({ variant: 'success', title: 'Item Updated', description: `${data.name} has been updated.` });
         } else {
             const batch = writeBatch(firestore);
@@ -408,9 +426,17 @@ export function AddEditStockItemDialog({
                 userId: userProfile.uid,
                 userName: userProfile.name,
                 changeType: 'Create',
+                action: 'Create',
+                module: 'Inventory',
                 entityType: 'Stock Item',
                 entityId: newItemRef.id,
-                details: `Created new stock item: ${data.name}`,
+                entityName: data.name,
+                userEmail: userProfile.email || '',
+                userRole: userProfile.role || '',
+                branchId: (userProfile as any).branchId || 'global',
+                status: 'Success',
+                description: `Created new stock item: ${data.name}`,
+                details: { quantity: data.quantity, costPrice: data.costPrice, sellingPrice: data.sellingPrice, category: data.category },
                 changes: [{ field: 'item', before: null, after: 'Created' }],
                 notes: `Initial stock: ${data.quantity}`,
                 keywords: ['create', 'stock', data.name.toLowerCase(), data.category.toLowerCase()]
@@ -421,9 +447,17 @@ export function AddEditStockItemDialog({
               userId: userProfile.uid,
               userName: userProfile.name,
               changeType: 'Create',
+              action: 'Create',
+              module: 'Inventory',
               entityType: 'Stock Item',
               entityId: newItemRef.id,
-              details: `Created new stock item: ${data.name}`,
+              entityName: data.name,
+              userEmail: userProfile.email || '',
+              userRole: userProfile.role || '',
+              branchId: (userProfile as any).branchId || 'global',
+              status: 'Success',
+              description: `Created new stock item: ${data.name}`,
+              details: { quantity: data.quantity, costPrice: data.costPrice, sellingPrice: data.sellingPrice, category: data.category },
               changes: [{ field: 'item', before: null, after: 'Created' }],
               notes: `Initial stock: ${data.quantity}`,
               keywords: ['create', 'stock', data.name.toLowerCase(), data.category.toLowerCase()],
