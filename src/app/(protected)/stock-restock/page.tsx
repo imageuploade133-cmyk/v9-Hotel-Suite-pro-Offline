@@ -199,6 +199,7 @@ function RestockInventoryPage() {
       todaysItemsRestocked,
       todaysRestockCost: formatCurrency(todaysRestockCost),
       totalItemsRestocked,
+      totalRestockRecords: safeRestockHistory.length,
       totalRestockCost: formatCurrency(totalRestockCost),
     };
   }, [stockItems, restockHistory, currency]);
@@ -256,9 +257,19 @@ function RestockInventoryPage() {
       if (!firestore || !userProfile) throw new Error('Not authenticated');
 
       // Prepare stock balance and restock ledger as one durable Master-PC transaction.
-      const stockPath = isBranchMode && currentBranchId ? `branches/${currentBranchId}/stock` : 'stock';
+      // Resolve the exact source collection for this item. Global mode can contain
+      // root, branch and POS stock records together, so never infer its source from
+      // the currently selected branch alone.
+      const itemBranchId = (item as any).branchId || (isBranchMode ? currentBranchId : null);
+      const itemPosId = (item as any).posId || null;
+      const stockPath = itemBranchId
+        ? (itemPosId
+          ? `branches/${itemBranchId}/pointOfSales/${itemPosId}/stock`
+          : `branches/${itemBranchId}/stock`)
+        : 'stock';
+      const historyPath = itemBranchId ? `branches/${itemBranchId}/restockHistory` : 'restockHistory';
       const stockRef = doc(firestore, stockPath, item.id);
-      const restockEntryRef = doc(collection(firestore, getCollectionPath('restockHistory')));
+      const restockEntryRef = doc(collection(firestore, historyPath));
       const previousQuantity = Math.max(0, Number(item.quantity || 0));
       const nextQuantity = previousQuantity + quantity;
       const previousCostPrice = Math.max(0, Number(item.costPrice ?? 0));
@@ -285,17 +296,17 @@ function RestockInventoryPage() {
       };
 
       // Add branch ID for branch-isolated collections
-      if (isBranchMode && currentBranchId) {
-        restockEntryData.branchId = currentBranchId;
-        restockEntryData.branchName = currentBranch?.name || currentBranchId;
+      if (itemBranchId) {
+        restockEntryData.branchId = itemBranchId;
+        restockEntryData.branchName = itemBranchId === currentBranchId ? (currentBranch?.name || itemBranchId) : itemBranchId;
       }
+      if (itemPosId) restockEntryData.posId = itemPosId;
 
       // Only add notes if it has a value
       if (bulkRestockNotes && bulkRestockNotes.trim()) {
         restockEntryData.notes = bulkRestockNotes.trim();
       }
 
-      const historyPath = getCollectionPath('restockHistory');
       await commitLocalFirstMutations([
         { collectionName: stockPath, docId: item.id, action: 'update', data: { costPrice: costPerUnit, sellingPrice, updatedAt: new Date().toISOString() } },
         { collectionName: historyPath, docId: restockEntryRef.id, action: 'set', data: restockEntryData },
@@ -638,7 +649,7 @@ function RestockInventoryPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="Today's Items Restocked"
             value={stats.todaysItemsRestocked.toLocaleString()}
@@ -668,6 +679,13 @@ function RestockInventoryPage() {
             description="Items with zero quantity."
             isLoading={isLoading}
             className="border-destructive"
+          />
+          <StatCard
+            title="Total Restock Records"
+            value={stats.totalRestockRecords.toLocaleString()}
+            icon={History}
+            description="Recorded inventory restock transactions."
+            isLoading={isLoading}
           />
         </div>
 
