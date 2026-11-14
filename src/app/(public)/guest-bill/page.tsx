@@ -10,7 +10,7 @@ import { useFirestore, useCollection } from '@/firebase';
 import type { Booking, Bill, Payment, StockReturn } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSearchParams } from 'next/navigation';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, orderBy } from 'firebase/firestore';
 import { GuestFolio } from '@/components/bookings/guest-folio';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { SettingsProvider } from '@/contexts/settings-context';
@@ -20,6 +20,7 @@ function GuestViewBill() {
     const firestore = useFirestore();
     const searchParams = useSearchParams();
     const roomNumber = searchParams.get('room');
+    const bookingId = searchParams.get('booking');
 
     const [booking, setBooking] = React.useState<Booking | null>(null);
     const [loadingBooking, setLoadingBooking] = React.useState(true);
@@ -36,12 +37,21 @@ function GuestViewBill() {
 
     React.useEffect(() => {
         const fetchBooking = async () => {
-            if (!roomNumber || !firestore) {
+            if ((!roomNumber && !bookingId) || !firestore) {
                 setLoadingBooking(false);
                 return;
             }
             setLoadingBooking(true);
             try {
+                if (bookingId) {
+                    const bookingSnapshot = await getDoc(doc(firestore, 'bookings', bookingId));
+                    if (!bookingSnapshot.exists() || !['Active', 'Checked-in'].includes(String(bookingSnapshot.data().status))) {
+                        setBooking(null);
+                        toast({ variant: 'destructive', title: 'Guest Bill Unavailable', description: 'This booking is no longer active or the link is invalid.' });
+                    } else {
+                        setBooking({ id: bookingSnapshot.id, ...bookingSnapshot.data() } as Booking);
+                    }
+                } else {
                 const bookingsRef = collection(firestore, 'bookings');
                 const q = query(bookingsRef, where('roomNumber', '==', roomNumber), where('status', 'in', ['Active', 'Checked-in']));
                 const querySnapshot = await getDocs(q);
@@ -50,8 +60,14 @@ function GuestViewBill() {
                     toast({ variant: 'destructive', title: 'No Active Booking', description: `No active booking found for Room ${roomNumber}.` });
                     setBooking(null);
                 } else {
-                    const bookingDoc = querySnapshot.docs[0];
-                    setBooking({ id: bookingDoc.id, ...bookingDoc.data() } as Booking);
+                    if (querySnapshot.size > 1) {
+                        setBooking(null);
+                        toast({ variant: 'destructive', title: 'Ambiguous Guest Bill', description: 'More than one active booking uses this room number. Ask reception for a current guest bill link.' });
+                    } else {
+                        const bookingDoc = querySnapshot.docs[0];
+                        setBooking({ id: bookingDoc.id, ...bookingDoc.data() } as Booking);
+                    }
+                }
                 }
             } catch (error: any) {
                 console.error('Error fetching booking data:', error);
@@ -61,7 +77,7 @@ function GuestViewBill() {
             }
         };
         fetchBooking();
-    }, [roomNumber, firestore, toast]);
+    }, [roomNumber, bookingId, firestore, toast]);
 
     const isLoading = loadingBooking || areBillsLoading || arePaymentsLoading || areReturnsLoading;
 
