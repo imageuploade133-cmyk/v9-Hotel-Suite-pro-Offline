@@ -260,200 +260,228 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
   async function onSubmit(data: RenewFormValues) {
     if (!firestore || !booking || !userProfile || !user) return;
-
-    // Validate dates
-    if (!calculation.isValid) {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid Date Range',
-        description: 'Check-out date must be after check-in date.',
-      });
+    if (!calculation.isValid || !originalCheckOut) {
+      toast({ variant: 'destructive', title: 'Invalid Date Range', description: 'The new check-out date must be later than the current check-out date.' });
       return;
     }
-
-    // Check for conflicts
-    if (conflictCheckError || isCheckingConflicts) {
-      toast({ variant: 'destructive', title: 'Availability Not Verified', description: 'Room availability could not be confirmed. Refresh the conflict check and try again.' });
+    if (conflictCheckError || isCheckingConflicts || !offlineValidationReady || conflictingBookings.length > 0) {
+      toast({ variant: 'destructive', title: 'Room Availability Not Verified', description: conflictingBookings.length ? 'Another booking overlaps the requested extension.' : 'Refresh the room schedule before renewing. Renewal is blocked when availability cannot be verified.' });
       return;
     }
-
-    if (conflictingBookings.length > 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Booking Conflict',
-        description: `There ${conflictingBookings.length === 1 ? 'is' : 'are'} ${conflictingBookings.length} conflicting booking${conflictingBookings.length === 1 ? '' : 's'} for this room during the selected dates.`,
-      });
-      return;
-    }
-
-    // Validate room price
     if (!room?.price || !Number.isFinite(room.price) || room.price <= 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Room price is not available. Cannot calculate renewal cost.',
-      });
+      toast({ variant: 'destructive', title: 'Room Price Unavailable', description: 'A valid nightly room price is required to calculate the extension.' });
+      return;
+    }
+    if (calculation.additionalCharge > 0 && !data.paymentMethod) {
+      toast({ variant: 'destructive', title: 'Payment Method Required', description: 'Select the payment method collected for the additional renewal charge.' });
       return;
     }
 
-    // Validate payment method if there's a charge
-    if (calculation.additionalCharge > 0 && !data.paymentMethod) {
-      toast({
-        variant: 'destructive',
-        title: 'Payment Method Required',
-        description: 'Please select a payment method for the renewal.',
-      });
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const requireBillsPaid = settings?.requireGuestBillsPaidBeforeRenewal === true;
+    const now = new Date();
+    const newCheckOut = startOfDay(data.newCheckOutDate);
+    const renewalDateKey = format(newCheckOut, 'yyyyMMdd');
+    const renewalCharge = calculation.additionalCharge;
+    const renewalDescription = `Room renewal: ${calculation.extensionNights} additional night(s) through ${format(newCheckOut, 'MMM dd, yyyy')}`;
+    const bookingRef = doc(firestore, 'bookings', booking.id);
+    const roomRef = booking.roomId ? doc(firestore, 'rooms', booking.roomId) : null;
+    if (!roomRef) {
+      toast({ variant: 'destructive', title: 'Room Assignment Missing', description: 'This booking has no valid room assignment. Contact an administrator.' });
       return;
     }
+    const paymentRef = doc(firestore, 'payments', `booking-renewal-${booking.id}-${renewalDateKey}`);
+    const renewalBillRef = doc(firestore, `bookings/${booking.id}/bills`, `renewal-${renewalDateKey}`);
+    const auditRef = doc(collection(firestore, 'globalAuditLog'));
+    const actorName = userProfile.name || user.displayName || user.email || 'Unknown user';
+    const billPaidAmount = (bill: Bill) => Number(bill.paidAmount) || (bill.paid ? Number(bill.total || 0) : 0);
+    const getOutstanding = (bills: Bill[]) => bills.reduce((sum, bill) => sum + Math.max(0, Number(bill.total || 0) - billPaidAmount(bill)), 0);
 
     setIsSaving(true);
     try {
-      // Allocate immutable IDs before the transaction so retries cannot create duplicate folio rows.
-      const bookingRef = doc(firestore, 'bookings', booking.id);
-      const roomRef = booking.roomId ? doc(firestore, 'rooms', booking.roomId) : null;
-      const paymentRef = doc(collection(firestore, 'payments'));
-      const renewalBillRef = doc(collection(firestore, `bookings/${booking.id}/bills`));
-      const newCheckIn = startOfDay(data.newCheckInDate);
-      const newCheckOut = startOfDay(data.newCheckOutDate);
-      const renewalCharge = calculation.additionalCharge;
-      const renewalDescription = `Room renewal: ${calculation.nights} nights (${format(data.newCheckInDate, 'MMM dd, yyyy')} – ${format(data.newCheckOutDate, 'MMM dd, yyyy')})`;
+      if (requireBillsPaid && isOffline) {
+        const cachedBills = offlineOutstandingBills;
+        if (!cachedBills) throw new Error('Guest bills are not available in the offline cache. Reconnect or open the guest folio to synchronize bills before renewing.');
+        const cachedOutstanding = getOutstanding(cachedBills);
+        if (cachedOutstanding > 0.005) {
+          throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(cachedOutstanding)} in outstanding bills. Settle the old bills before renewing.`);
+        }
+      }
 
-      await runTransaction(firestore, async (transaction) => {
-        const currentBookingSnapshot = await transaction.get(bookingRef);
-        if (!currentBookingSnapshot.exists()) throw new Error('This booking no longer exists.');
-        const currentBooking = currentBookingSnapshot.data() as Booking;
-        if (!roomRef) throw new Error('The booking has no valid room assignment. Contact an administrator.');
-        const currentRoomSnapshot = await transaction.get(roomRef);
-        if (!currentRoomSnapshot.exists()) throw new Error('The assigned room record no longer exists.');
-        if (!['Active', 'Checked-in'].includes(currentBooking.status)) {
-          throw new Error('Only a currently checked-in guest can renew a stay. Refresh the booking and try again.');
-        }
-        if (currentBooking.roomNumber !== booking.roomNumber || currentBooking.roomId !== booking.roomId) {
-          throw new Error('The room assignment changed. Refresh the booking before renewing.');
-        }
-        const currentCheckout = getSafeDate(currentBooking.checkOutDate);
-        const currentCheckin = getSafeDate(currentBooking.checkInDate);
-        if (!currentCheckout || !currentCheckin) throw new Error('The current booking dates are invalid.');
-        if (!isSameDay(currentCheckin, data.newCheckInDate)) {
-          throw new Error('Renewal keeps the original check-in date. Change the check-out date only.');
-        }
-        if (newCheckOut <= startOfDay(currentCheckout)) {
-          throw new Error('The new check-out date must be later than the current check-out date.');
-        }
+      const bookingUpdate = {
+        checkOutDate: Timestamp.fromDate(newCheckOut),
+        updatedAt: Timestamp.fromDate(now),
+        updatedByUid: user.uid,
+        updatedByName: actorName,
+        lastRenewedAt: Timestamp.fromDate(now),
+        lastRenewedByUid: user.uid,
+        lastRenewedByName: actorName,
+      };
+      const billItem = {
+        id: `renewal-${renewalBillRef.id}`,
+        billId: renewalBillRef.id,
+        name: renewalDescription,
+        price: renewalCharge,
+        quantity: 1,
+        isService: true,
+        paid: true,
+        paymentId: paymentRef.id,
+        printedQuantity: 0,
+      };
+      const renewalBillData = {
+        id: renewalBillRef.id,
+        bookingId: booking.id,
+        items: [billItem],
+        total: renewalCharge,
+        paid: true,
+        paidAmount: renewalCharge,
+        paymentId: paymentRef.id,
+        paymentMethod: data.paymentMethod,
+        paidAt: Timestamp.fromDate(now),
+        createdAt: Timestamp.fromDate(now),
+        createdBy: user.uid,
+        createdByName: actorName,
+        renewal: true,
+        description: renewalDescription,
+      };
+      const paymentData = {
+        id: paymentRef.id,
+        bookingId: booking.id,
+        billId: renewalBillRef.id,
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail || '',
+        roomNumber: booking.roomNumber,
+        amount: renewalCharge,
+        paymentMethod: data.paymentMethod,
+        status: 'Paid',
+        transactionDate: Timestamp.fromDate(now),
+        type: 'Additional Charges',
+        createdByUid: user.uid,
+        createdByName: actorName,
+        items: [{ name: renewalDescription, price: renewalCharge, quantity: 1 }],
+        notes: `Stay renewal for booking ${booking.id}. Existing guest bills remain separate and unchanged.`,
+      };
+      const auditData = {
+        timestamp: Timestamp.fromDate(now),
+        userId: user.uid,
+        userName: actorName,
+        userEmail: userProfile.email || user.email || '',
+        userRole: userProfile.role || '',
+        branchId: (userProfile as any).branchId || 'global',
+        changeType: 'Update',
+        action: 'Update',
+        module: 'Bookings',
+        entityType: 'Booking Renewal',
+        entityId: booking.id,
+        entityName: booking.guestName,
+        collectionName: 'bookings',
+        documentId: booking.id,
+        status: 'Success',
+        description: `Extended ${booking.guestName}'s stay in Room ${booking.roomNumber} to ${format(newCheckOut, 'MMM dd, yyyy')}`,
+        details: { roomId: booking.roomId, roomNumber: booking.roomNumber, extensionNights: calculation.extensionNights, renewalCharge, paymentMethod: renewalCharge > 0 ? data.paymentMethod : null, renewalBillId: renewalCharge > 0 ? renewalBillRef.id : null, offlineQueued: isOffline },
+        changes: [{ field: 'checkOutDate', before: originalCheckOut.toISOString(), after: newCheckOut.toISOString() }],
+      };
 
-        // Re-read the room schedule inside the transaction to protect against concurrent reservations.
-        const roomBookingsQuery = query(
-          collection(firestore, 'bookings'),
-          where('roomNumber', '==', currentBooking.roomNumber),
-          where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in'])
-        );
-        const roomBookingsSnapshot = await transaction.get(roomBookingsQuery);
-        const conflicts = roomBookingsSnapshot.docs.filter(snapshot => {
-          if (snapshot.id === booking.id) return false;
-          const other = snapshot.data();
-          const otherStart = getSafeDate(other.checkInDate);
-          const otherEnd = getSafeDate(other.checkOutDate);
-          if (!otherStart || !otherEnd) return true;
-          return startOfDay(otherStart) < newCheckOut && startOfDay(otherEnd) > newCheckIn;
-        });
-        if (conflicts.length) {
-          throw new Error(`Renewal blocked: ${conflicts.length} conflicting booking(s) now exist for Room ${currentBooking.roomNumber}.`);
+      if (isOffline || isLocalMasterHost()) {
+        // The LAN Master durably records the whole group locally before returning.
+        // A browser without the LAN Master queues this atomic batch in Firestore's persistent IndexedDB cache.
+        if (isOffline && !isLocalMasterHost() && requireBillsPaid && offlineOutstandingBills === null) {
+          throw new Error('Cannot verify outstanding guest bills from the offline cache. Renewal has been stopped safely.');
         }
-
-        const updateData: Record<string, any> = {
-          checkOutDate: Timestamp.fromDate(newCheckOut),
-          updatedAt: serverTimestamp(),
-          updatedByUid: user.uid,
-          updatedByName: userProfile.name || user.displayName || user.email || 'Unknown user',
-          lastRenewedAt: serverTimestamp(),
-          lastRenewedByUid: user.uid,
-          lastRenewedByName: userProfile.name || user.displayName || user.email || 'Unknown user',
-        };
-        transaction.update(bookingRef, updateData);
-        transaction.update(roomRef, { [`individualRoomStatus.${currentBooking.roomNumber}`]: 'Occupied' });
-
+        const batch = writeBatch(firestore);
+        batch.update(bookingRef, bookingUpdate);
+        batch.update(roomRef, { [`individualRoomStatus.${booking.roomNumber}`]: 'Occupied' });
         if (renewalCharge > 0) {
-          if (!data.paymentMethod) throw new Error('Select a payment method for the additional renewal charge.');
-          const billItem = {
-            id: `renewal-${renewalBillRef.id}`,
-            billId: renewalBillRef.id,
-            name: renewalDescription,
-            price: renewalCharge,
-            quantity: 1,
-            isService: true,
-            paid: true,
-            paymentId: paymentRef.id,
-            printedQuantity: 0,
-          };
-          transaction.set(renewalBillRef, {
-            id: renewalBillRef.id,
-            bookingId: booking.id,
-            items: [billItem],
-            total: renewalCharge,
-            paid: true,
-            paidAmount: renewalCharge,
-            paymentId: paymentRef.id,
-            paymentMethod: data.paymentMethod,
-            paidAt: serverTimestamp(),
-            createdAt: serverTimestamp(),
-            createdBy: user.uid,
-            createdByName: userProfile.name || user.displayName || user.email || 'Unknown user',
-            renewal: true,
-            description: renewalDescription,
-          });
-          transaction.set(paymentRef, {
-            id: paymentRef.id,
-            bookingId: booking.id,
-            billId: renewalBillRef.id,
-            guestName: currentBooking.guestName,
-            guestEmail: currentBooking.guestEmail || '',
-            roomNumber: currentBooking.roomNumber,
-            amount: renewalCharge,
-            paymentMethod: data.paymentMethod,
-            status: 'Paid',
-            transactionDate: serverTimestamp(),
-            type: 'Additional Charges',
-            createdByUid: user.uid,
-            createdByName: userProfile.name || user.displayName || user.email || 'Unknown user',
-            items: [{ name: renewalDescription, price: renewalCharge, quantity: 1 }],
-            notes: `Stay renewal for booking ${booking.id}. Original room charge remains unchanged.`,
-          });
+          batch.set(renewalBillRef, renewalBillData);
+          batch.set(paymentRef, paymentData);
         }
-      });
+        batch.set(auditRef, auditData);
+        const localMutations = [
+          { collectionName: 'bookings', docId: booking.id, action: 'update' as const, data: { ...bookingUpdate, checkOutDate: newCheckOut.toISOString(), updatedAt: now.toISOString(), lastRenewedAt: now.toISOString() } },
+          { collectionName: 'rooms', docId: booking.roomId, action: 'update' as const, data: { [`individualRoomStatus.${booking.roomNumber}`]: 'Occupied' } },
+          ...(renewalCharge > 0 ? [
+            { collectionName: `bookings/${booking.id}/bills`, docId: renewalBillRef.id, action: 'set' as const, data: { ...renewalBillData, createdAt: now.toISOString(), paidAt: now.toISOString() } },
+            { collectionName: 'payments', docId: paymentRef.id, action: 'set' as const, data: { ...paymentData, transactionDate: now.toISOString() } },
+          ] : []),
+          { collectionName: 'globalAuditLog', docId: auditRef.id, action: 'set' as const, data: { ...auditData, timestamp: now.toISOString() } },
+        ];
+        if (isLocalMasterHost()) {
+          await commitLocalFirstMutations(localMutations, `booking-renewal:${booking.id}:${renewalDateKey}`, () => batch.commit());
+        } else {
+          // Firestore persists the write batch locally and sends it when connectivity returns.
+          void batch.commit().catch(error => console.error('[Renew Booking] Offline batch sync failed:', error));
+        }
+      } else {
+        await runTransaction(firestore, async transaction => {
+          const bookingSnapshot = await transaction.get(bookingRef);
+          if (!bookingSnapshot.exists()) throw new Error('This booking no longer exists.');
+          const currentBooking = bookingSnapshot.data() as Booking;
+          const roomSnapshot = await transaction.get(roomRef);
+          if (!roomSnapshot.exists()) throw new Error('The assigned room record no longer exists.');
+          const currentCheckout = getSafeDate(currentBooking.checkOutDate);
+          const currentCheckin = getSafeDate(currentBooking.checkInDate);
+          if (!['Active', 'Checked-in'].includes(currentBooking.status)) throw new Error('Only a checked-in guest can renew this booking.');
+          if (currentBooking.roomId !== booking.roomId || currentBooking.roomNumber !== booking.roomNumber) throw new Error('The room assignment changed. Refresh the booking.');
+          if (!currentCheckout || !currentCheckin || !isSameDay(currentCheckin, data.newCheckInDate) || newCheckOut <= startOfDay(currentCheckout)) {
+            throw new Error('The booking dates changed. Refresh the booking and retry.');
+          }
+          const roomBookingsQuery = query(collection(firestore, 'bookings'), where('roomNumber', '==', currentBooking.roomNumber), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
+          const roomBookingsSnapshot = await transaction.get(roomBookingsQuery);
+          const conflicts = roomBookingsSnapshot.docs.filter(snapshot => {
+            if (snapshot.id === booking.id) return false;
+            const other = snapshot.data();
+            const otherStart = getSafeDate(other.checkInDate);
+            const otherEnd = getSafeDate(other.checkOutDate);
+            if (!otherStart || !otherEnd) return true;
+            return startOfDay(otherStart) < newCheckOut && startOfDay(otherEnd) > startOfDay(data.newCheckInDate);
+          });
+          if (conflicts.length) throw new Error(`Renewal blocked: ${conflicts.length} overlapping booking(s) now exist for this room.`);
+
+          const billsQuery = query(collection(firestore, `bookings/${booking.id}/bills`));
+          const billsSnapshot = await transaction.get(billsQuery);
+          const currentBills = billsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as Bill));
+          const outstanding = getOutstanding(currentBills);
+          if (requireBillsPaid && outstanding > 0.005) {
+            throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(outstanding)} in outstanding bills. Settle the old bills before renewing.`);
+          }
+          transaction.update(bookingRef, bookingUpdate);
+          transaction.update(roomRef, { [`individualRoomStatus.${currentBooking.roomNumber}`]: 'Occupied' });
+          if (renewalCharge > 0) {
+            transaction.set(renewalBillRef, renewalBillData);
+            transaction.set(paymentRef, paymentData);
+          }
+          transaction.set(auditRef, auditData);
+        });
+      }
 
       void logAuditEvent(firestore, {
         action: 'Update', module: 'Bookings', entityType: 'Booking Renewal', entityId: booking.id,
-        entityName: booking.guestName, userId: user.uid,
-        userName: userProfile.name || user.displayName || user.email || 'Unknown user',
+        entityName: booking.guestName, userId: user.uid, userName: actorName,
         userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
-        description: `Extended ${booking.guestName}'s stay in Room ${booking.roomNumber} to ${format(newCheckOut, 'MMM dd, yyyy')}`,
-        changes: [{ field: 'checkOutDate', before: originalCheckOut?.toISOString() || '', after: newCheckOut.toISOString() }],
-        details: { roomId: booking.roomId, roomNumber: booking.roomNumber, nights: calculation.nights, renewalCharge, paymentMethod: renewalCharge > 0 ? data.paymentMethod : null, renewalBillId: renewalCharge > 0 ? renewalBillRef.id : null },
+        description: auditData.description,
+        changes: auditData.changes,
+        details: auditData.details,
         collectionName: 'bookings', documentId: booking.id,
       });
 
       toast({
         variant: 'success',
-        title: 'Booking Renewed Successfully',
+        title: isOffline ? 'Renewal Saved Offline' : 'Booking Renewed Successfully',
         description: renewalCharge > 0
-          ? `${booking.guestName}'s stay was extended. ${formatCurrency(renewalCharge)} was added to the guest folio and recorded as paid.`
-          : `${booking.guestName}'s stay was extended. No additional room charge was due.`,
+          ? `${booking.guestName}'s stay was extended. ${formatCurrency(renewalCharge)} was recorded in the guest folio. Existing unpaid bills were left unchanged.${isOffline ? ' The queued changes will sync when internet returns.' : ''}`
+          : `${booking.guestName}'s stay was extended. No additional room charge was due.${isOffline ? ' The queued changes will sync when internet returns.' : ''}`,
       });
       onSuccess();
       onClose();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Renewal Failed',
-        description: error.message || 'An unexpected error occurred while renewing the booking.',
-      });
+      toast({ variant: 'destructive', title: 'Renewal Failed', description: error.message || 'Could not renew this booking.' });
     } finally {
       setIsSaving(false);
     }
   }
 
   const hasDateChanges = watchNewCheckIn && watchNewCheckOut && (dateChangesSummary?.checkInChanged || dateChangesSummary?.checkOutChanged);
-  const canSubmit = form.formState.isValid && calculation.isValid && conflictingBookings.length === 0 && !conflictCheckError && !isCheckingConflicts;
+  const canSubmit = form.formState.isValid && calculation.isValid && conflictingBookings.length === 0 && !conflictCheckError && offlineValidationReady && !isCheckingConflicts;
 
   if (!booking) return null;
 
