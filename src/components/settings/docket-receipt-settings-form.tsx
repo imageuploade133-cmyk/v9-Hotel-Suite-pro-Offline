@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { useSettings } from '@/contexts/settings-context';
 import { doc, setDoc } from 'firebase/firestore';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const docketSettingsSchema = z.object({
   deductionReceiptTitle: z.string().optional(),
@@ -27,6 +29,7 @@ const defaultValues = {
 export function DocketReceiptSettingsForm() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user, userProfile } = useUser();
   const { settings, isLoading } = useSettings();
 
   const form = useForm<DocketSettingsFormValues>({
@@ -49,6 +52,14 @@ export function DocketReceiptSettingsForm() {
     try {
       const settingsDocRef = doc(firestore, 'settings', 'global');
       await setDoc(settingsDocRef, data, { merge: true });
+      if (user) void logAuditEvent(firestore, {
+        action: 'Update', module: 'Settings', entityType: 'Deduction Receipt Settings', entityId: 'global', entityName: 'Salary Docket Receipt',
+        userId: user.uid, userName: userProfile?.name || user.displayName || user.email || 'Unknown user',
+        userEmail: userProfile?.email || user.email || '', userRole: userProfile?.role || '',
+        description: 'Updated salary deduction and advance receipt title/footer',
+        changes: (['deductionReceiptTitle', 'deductionReceiptFooter'] as const).filter(key => (settings as any)?.[key] !== data[key]).map(key => ({ field: key, before: (settings as any)?.[key] || '', after: data[key] || '' })),
+        collectionName: 'settings', documentId: 'global',
+      });
       toast({
         variant: 'success',
         title: 'Settings Saved',
