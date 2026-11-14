@@ -16,6 +16,7 @@ import {
   Timestamp,
   getDoc,
   setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { Package, Plus, DollarSign, TrendingUp, Search, ChevronDown, Save, History, Printer, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -71,9 +72,19 @@ interface RestockEntry {
   quantityAdded: number;
   costPerUnit: number;
   totalCost: number;
+  previousQuantity?: number;
+  resultingQuantity?: number;
+  previousCostPrice?: number;
+  resultingCostPrice?: number;
+  previousSellingPrice?: number;
+  resultingSellingPrice?: number;
   notes?: string;
   restockedBy: string;
   restockedByUid: string;
+  restockedByEmail?: string;
+  restockedByRole?: string;
+  branchId?: string;
+  branchName?: string;
   restockedAt: Date | Timestamp;
   supplier?: string;
   invoiceNumber?: string;
@@ -86,6 +97,7 @@ function RestockInventoryPage() {
   const [reloadCounter, setReloadCounter] = React.useState(0);
   const [restockQuantities, setRestockQuantities] = React.useState<Record<string, string>>({});
   const [restockCosts, setRestockCosts] = React.useState<Record<string, string>>({});
+  const [restockSellingPrices, setRestockSellingPrices] = React.useState<Record<string, string>>({});
   const [savingStates, setSavingStates] = React.useState<Record<string, boolean>>({});
   const [isRestockDialogOpen, setIsRestockDialogOpen] = React.useState(false);
   const [selectedItem, setSelectedItem] = React.useState<StockItem | null>(null);
@@ -189,11 +201,16 @@ function RestockInventoryPage() {
     setRestockCosts(prev => ({ ...prev, [itemId]: value }));
   };
 
+  const handleSellingPriceChange = (itemId: string, value: string) => {
+    setRestockSellingPrices(prev => ({ ...prev, [itemId]: value }));
+  };
+
   const handleRestock = async (item: StockItem) => {
     const qtyStr = restockQuantities[item.id];
     const costStr = restockCosts[item.id];
+    const sellingPriceStr = restockSellingPrices[item.id];
 
-    if (!qtyStr || isNaN(Number(qtyStr)) || Number(qtyStr) <= 0) {
+    if (!qtyStr || !Number.isFinite(Number(qtyStr)) || Number(qtyStr) <= 0) {
       toast({
         variant: 'destructive',
         title: 'Invalid Quantity',
@@ -203,8 +220,17 @@ function RestockInventoryPage() {
     }
 
     const quantity = Number(qtyStr);
-    const costPerUnit = costStr && !isNaN(Number(costStr)) ? Number(costStr) : (item.costPrice || 0);
+    const costPerUnit = costStr !== undefined && costStr !== '' ? Number(costStr) : Number(item.costPrice ?? 0);
+    const sellingPrice = sellingPriceStr !== undefined && sellingPriceStr !== '' ? Number(sellingPriceStr) : Number(item.sellingPrice ?? 0);
+    if (!Number.isFinite(costPerUnit) || costPerUnit < 0 || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      toast({ variant: 'destructive', title: 'Invalid price', description: 'Enter a valid non-negative purchase cost and selling price.' });
+      return;
+    }
     const totalCost = quantity * costPerUnit;
+    if (!Number.isFinite(totalCost)) {
+      toast({ variant: 'destructive', title: 'Invalid restock value', description: 'The quantity multiplied by unit cost is too large.' });
+      return;
+    }
 
     setSavingStates(prev => ({ ...prev, [item.id]: true }));
 
@@ -215,7 +241,10 @@ function RestockInventoryPage() {
       const stockPath = isBranchMode && currentBranchId ? `branches/${currentBranchId}/stock` : 'stock';
       const stockRef = doc(firestore, stockPath, item.id);
       const restockEntryRef = doc(collection(firestore, getCollectionPath('restockHistory')));
-      const nextQuantity = Number(item.quantity || 0) + quantity;
+      const previousQuantity = Math.max(0, Number(item.quantity || 0));
+      const nextQuantity = previousQuantity + quantity;
+      const previousCostPrice = Math.max(0, Number(item.costPrice ?? 0));
+      const previousSellingPrice = Math.max(0, Number(item.sellingPrice ?? 0));
       if (!Number.isFinite(nextQuantity) || nextQuantity < 0) throw new Error('The resulting stock quantity is invalid.');
       const restockEntryData: Record<string, any> = {
         id: restockEntryRef.id,
@@ -224,14 +253,23 @@ function RestockInventoryPage() {
         quantityAdded: quantity,
         costPerUnit,
         totalCost,
-        restockedBy: userProfile.name || 'Unknown',
-        restockedByUid: userProfile.id || '',
+        previousQuantity,
+        resultingQuantity: nextQuantity,
+        previousCostPrice,
+        resultingCostPrice: costPerUnit,
+        previousSellingPrice,
+        resultingSellingPrice: sellingPrice,
+        restockedBy: userProfile.name || userProfile.email || 'Unknown',
+        restockedByUid: userProfile.uid || userProfile.id || '',
+        restockedByEmail: userProfile.email || '',
+        restockedByRole: userProfile.role || '',
         restockedAt: new Date().toISOString(),
       };
 
       // Add branch ID for branch-isolated collections
       if (isBranchMode && currentBranchId) {
         restockEntryData.branchId = currentBranchId;
+        restockEntryData.branchName = currentBranch?.name || currentBranchId;
       }
 
       // Only add notes if it has a value
@@ -241,10 +279,13 @@ function RestockInventoryPage() {
 
       const historyPath = getCollectionPath('restockHistory');
       await commitLocalFirstMutations([
+        { collectionName: stockPath, docId: item.id, action: 'update', data: { costPrice: costPerUnit, sellingPrice, updatedAt: new Date().toISOString() } },
         { collectionName: historyPath, docId: restockEntryRef.id, action: 'set', data: restockEntryData },
       ], `stock-restock:${restockEntryRef.id}`, async () => {
-        await updateDoc(stockRef, { quantity: increment(quantity), costPrice: costPerUnit, updatedAt: serverTimestamp() });
-        await setDoc(restockEntryRef, { ...restockEntryData, restockedAt: serverTimestamp() });
+        const batch = writeBatch(firestore);
+        batch.update(stockRef, { quantity: increment(quantity), costPrice: costPerUnit, sellingPrice, updatedAt: serverTimestamp() });
+        batch.set(restockEntryRef, { ...restockEntryData, restockedAt: serverTimestamp() });
+        await batch.commit();
       }, [{ collectionName: stockPath, itemId: item.id, quantityDelta: quantity, initialData: { ...item, id: item.id, quantity: Number(item.quantity || 0) } as any }]);
 
       toast({
@@ -259,6 +300,11 @@ function RestockInventoryPage() {
         return updated;
       });
       setRestockCosts(prev => {
+        const updated = { ...prev };
+        delete updated[item.id];
+        return updated;
+      });
+      setRestockSellingPrices(prev => {
         const updated = { ...prev };
         delete updated[item.id];
         return updated;
@@ -279,7 +325,8 @@ function RestockInventoryPage() {
   const handleQuickRestock = (item: StockItem) => {
     setSelectedItem(item);
     setRestockQuantities({ [item.id]: '' });
-    setRestockCosts({ [item.id]: String(item.costPrice || '') });
+    setRestockCosts({ [item.id]: String(item.costPrice ?? 0) });
+    setRestockSellingPrices({ [item.id]: String(item.sellingPrice ?? 0) });
     setIsRestockDialogOpen(true);
   };
 
@@ -385,6 +432,14 @@ function RestockInventoryPage() {
       },
     },
     {
+      id: 'restockSellingPrice',
+      header: 'New Selling Price',
+      cell: ({ row }: any) => {
+        const item = row.original as StockItem;
+        return <Input type="number" min="0" step="0.01" placeholder="Selling price" value={restockSellingPrices[item.id] ?? String(item.sellingPrice ?? 0)} onChange={(e) => handleSellingPriceChange(item.id, e.target.value)} className="w-32" disabled={!canManageItems} />;
+      },
+    },
+    {
       id: 'restockCost',
       header: 'New Cost/Unit',
       cell: ({ row }: any) => {
@@ -394,7 +449,7 @@ function RestockInventoryPage() {
             type="number"
             step="0.01"
             placeholder="Cost"
-            value={restockCosts[item.id] || item.costPrice || ''}
+            value={restockCosts[item.id] ?? String(item.costPrice ?? 0)}
             onChange={(e) => handleCostChange(item.id, e.target.value)}
             className="w-28"
             disabled={!canManageItems}
@@ -439,7 +494,7 @@ function RestockInventoryPage() {
         );
       },
     },
-  ], [restockQuantities, restockCosts, savingStates, canManageItems, settings, currency]);
+  ], [restockQuantities, restockCosts, restockSellingPrices, savingStates, canManageItems, settings, currency]);
 
   const historyColumns = React.useMemo(() => [
     {
@@ -456,6 +511,10 @@ function RestockInventoryPage() {
       header: 'Item',
     },
     {
+      accessorKey: 'previousQuantity', header: 'Before',
+      cell: ({ row }: any) => { const entry = row.original as RestockEntry; return <span className="tabular-nums">{Number(entry.previousQuantity ?? 0).toLocaleString()}</span>; },
+    },
+    {
       accessorKey: 'quantityAdded',
       header: 'Qty Added',
       cell: ({ row }: any) => {
@@ -464,12 +523,32 @@ function RestockInventoryPage() {
       },
     },
     {
+      accessorKey: 'resultingQuantity', header: 'After',
+      cell: ({ row }: any) => { const entry = row.original as RestockEntry; return <span className="font-semibold tabular-nums">{Number(entry.resultingQuantity ?? (Number(entry.previousQuantity || 0) + Number(entry.quantityAdded || 0))).toLocaleString()}</span>; },
+    },
+    {
       accessorKey: 'costPerUnit',
-      header: 'Cost/Unit',
+      header: 'Purchase Cost/Unit',
       cell: ({ row }: any) => {
         const entry = row.original as RestockEntry;
         return formatCurrency(entry.costPerUnit);
       },
+    },
+    {
+      accessorKey: 'previousCostPrice', header: 'Cost Before',
+      cell: ({ row }: any) => formatCurrency((row.original as RestockEntry).previousCostPrice ?? 0),
+    },
+    {
+      accessorKey: 'resultingCostPrice', header: 'Cost After',
+      cell: ({ row }: any) => { const entry = row.original as RestockEntry; return formatCurrency(entry.resultingCostPrice ?? entry.costPerUnit ?? 0); },
+    },
+    {
+      accessorKey: 'previousSellingPrice', header: 'Selling Before',
+      cell: ({ row }: any) => formatCurrency((row.original as RestockEntry).previousSellingPrice ?? 0),
+    },
+    {
+      accessorKey: 'resultingSellingPrice', header: 'Selling After',
+      cell: ({ row }: any) => formatCurrency((row.original as RestockEntry).resultingSellingPrice ?? 0),
     },
     {
       accessorKey: 'totalCost',
@@ -482,6 +561,22 @@ function RestockInventoryPage() {
     {
       accessorKey: 'restockedBy',
       header: 'Restocked By',
+    },
+    {
+      accessorKey: 'restockedByUid', header: 'Staff UID',
+      cell: ({ row }: any) => <span className="font-mono text-xs">{(row.original as RestockEntry).restockedByUid || '—'}</span>,
+    },
+    {
+      accessorKey: 'restockedByEmail', header: 'Staff Email',
+      cell: ({ row }: any) => <span>{(row.original as RestockEntry).restockedByEmail || '—'}</span>,
+    },
+    {
+      accessorKey: 'restockedByRole', header: 'Staff Role',
+      cell: ({ row }: any) => <span>{(row.original as RestockEntry).restockedByRole || '—'}</span>,
+    },
+    {
+      accessorKey: 'branchName', header: 'Branch',
+      cell: ({ row }: any) => <span>{(row.original as RestockEntry).branchName || (row.original as RestockEntry).branchId || 'Global'}</span>,
     },
     {
       accessorKey: 'notes',
@@ -710,7 +805,7 @@ function RestockInventoryPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="restock-cost">Cost per Unit</Label>
+                  <Label htmlFor="restock-cost">Purchase cost per unit</Label>
                   <Input
                     id="restock-cost"
                     type="number"
@@ -720,6 +815,11 @@ function RestockInventoryPage() {
                     onChange={(e) => handleCostChange(selectedItem.id, e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="restock-selling-price">New selling price</Label>
+                <Input id="restock-selling-price" type="number" min="0" step="0.01" placeholder="Enter selling price" value={restockSellingPrices[selectedItem.id] ?? String(selectedItem.sellingPrice ?? 0)} onChange={(e) => handleSellingPriceChange(selectedItem.id, e.target.value)} />
               </div>
 
               <div className="space-y-2">

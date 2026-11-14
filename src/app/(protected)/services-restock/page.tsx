@@ -37,7 +37,11 @@ type RestockHistoryEntry = {
   totalCost: number;
   previousCostPrice?: number;
   resultingCostPrice?: number;
+  previousSellingPrice?: number;
+  resultingSellingPrice?: number;
   restockedBy: string;
+  restockedByEmail?: string;
+  restockedByRole?: string;
   restockedByUid: string;
   restockedAt: any;
   notes?: string;
@@ -56,6 +60,7 @@ function ServicesRestockPage() {
   const [selectedItemId, setSelectedItemId] = React.useState('');
   const [quantity, setQuantity] = React.useState('');
   const [unitCost, setUnitCost] = React.useState('');
+  const [sellingPrice, setSellingPrice] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [reloadCounter, setReloadCounter] = React.useState(0);
@@ -88,8 +93,14 @@ function ServicesRestockPage() {
   };
 
   React.useEffect(() => {
-    if (selectedItem) setUnitCost(String(selectedItem.costPrice || 0));
-  }, [selectedItemId, selectedItem?.costPrice]);
+    if (selectedItem) {
+      setUnitCost(String(selectedItem.costPrice ?? 0));
+      setSellingPrice(String(selectedItem.price ?? 0));
+    } else {
+      setUnitCost('');
+      setSellingPrice('');
+    }
+  }, [selectedItemId, selectedItem?.costPrice, selectedItem?.price]);
 
   const handleRestock = async () => {
     if (!canRestock) {
@@ -99,8 +110,9 @@ function ServicesRestockPage() {
     if (!firestore || !userProfile || !selectedItem) return;
     const added = Number(quantity);
     const purchaseCost = Number(unitCost);
-    if (!Number.isFinite(added) || added <= 0 || !Number.isFinite(purchaseCost) || purchaseCost < 0) {
-      toast({ variant: 'destructive', title: 'Invalid restock details', description: 'Enter a quantity greater than zero and a valid non-negative unit cost.' });
+    const updatedSellingPrice = Number(sellingPrice);
+    if (!Number.isFinite(added) || added <= 0 || !Number.isFinite(purchaseCost) || purchaseCost < 0 || !Number.isFinite(updatedSellingPrice) || updatedSellingPrice < 0) {
+      toast({ variant: 'destructive', title: 'Invalid restock details', description: 'Enter a quantity greater than zero, a valid non-negative purchase unit cost, and a valid non-negative selling price.' });
       return;
     }
     setIsSaving(true);
@@ -113,6 +125,7 @@ function ServicesRestockPage() {
       const afterQty = beforeQty + added;
       const beforeCost = Math.max(0, Number(selectedItem.costPrice || 0));
       const afterCost = afterQty > 0 ? ((beforeQty * beforeCost) + (added * purchaseCost)) / afterQty : purchaseCost;
+      const beforeSellingPrice = Math.max(0, Number(selectedItem.price || 0));
       const entry: RestockHistoryEntry = {
         id: historyRef.id,
         itemId: selectedItem.id,
@@ -124,18 +137,22 @@ function ServicesRestockPage() {
         totalCost: added * purchaseCost,
         previousCostPrice: beforeCost,
         resultingCostPrice: afterCost,
+        previousSellingPrice: beforeSellingPrice,
+        resultingSellingPrice: updatedSellingPrice,
         restockedBy: userProfile.name || userProfile.email || 'Unknown user',
         restockedByUid: userProfile.uid || userProfile.id || '',
+        restockedByEmail: userProfile.email || '',
+        restockedByRole: userProfile.role || '',
         restockedAt: new Date().toISOString(),
         ...(selectedItem.branchId ? { branchId: selectedItem.branchId } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
       await commitLocalFirstMutations([
-        { collectionName: servicePath, docId: selectedItem.id, action: 'update', data: { quantity: afterQty, costPrice: afterCost, updatedAt: new Date().toISOString() } },
+        { collectionName: servicePath, docId: selectedItem.id, action: 'update', data: { quantity: afterQty, costPrice: afterCost, price: updatedSellingPrice, updatedAt: new Date().toISOString() } },
         { collectionName: historyPath, docId: historyRef.id, action: 'set', data: entry as any },
       ], `service-restock:${historyRef.id}`, async () => {
         const batch = writeBatch(firestore);
-        batch.update(serviceRef, { quantity: afterQty, costPrice: afterCost, updatedAt: serverTimestamp() });
+        batch.update(serviceRef, { quantity: afterQty, costPrice: afterCost, price: updatedSellingPrice, updatedAt: serverTimestamp() });
         batch.set(historyRef, { ...entry, restockedAt: serverTimestamp() });
         await batch.commit();
       });
@@ -174,6 +191,7 @@ function ServicesRestockPage() {
           </div>
           <div className="space-y-2"><Label htmlFor="service-restock-quantity">Quantity to add</Label><Input id="service-restock-quantity" type="number" min="0.01" step="any" value={quantity} onChange={event => setQuantity(event.target.value)} disabled={!selectedItem || isSaving} placeholder="Enter quantity" /></div>
           <div className="space-y-2"><Label htmlFor="service-restock-unit-cost">Purchase unit cost</Label><Input id="service-restock-unit-cost" type="number" min="0" step="0.01" value={unitCost} onChange={event => setUnitCost(event.target.value)} disabled={!selectedItem || isSaving} placeholder="Enter unit cost" /></div>
+          <div className="space-y-2"><Label htmlFor="service-restock-selling-price">New selling price</Label><Input id="service-restock-selling-price" type="number" min="0" step="0.01" value={sellingPrice} onChange={event => setSellingPrice(event.target.value)} disabled={!selectedItem || isSaving} placeholder="Enter selling price" /></div>
           <div className="space-y-2 md:col-span-2 xl:col-span-3"><Label htmlFor="service-restock-notes">Notes / supplier / invoice reference (optional)</Label><Textarea id="service-restock-notes" value={notes} onChange={event => setNotes(event.target.value)} disabled={isSaving} placeholder="Add supporting details for this restock" /></div>
           <div className="flex flex-col justify-end gap-2">
             <p className="text-sm text-muted-foreground">Restock value: <strong className="text-foreground">{formatMoney((Number(quantity) || 0) * (Number(unitCost) || 0))}</strong></p>
@@ -192,7 +210,7 @@ function ServicesRestockPage() {
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full min-w-[1120px] text-sm">
                 <thead className="bg-muted/60"><tr className="text-left">
-                  <th className="p-3">Date & time</th><th className="p-3">Item</th><th className="p-3 text-right">Before</th><th className="p-3 text-right">Added</th><th className="p-3 text-right">After</th><th className="p-3 text-right">Cost before</th><th className="p-3 text-right">Purchase unit cost</th><th className="p-3 text-right">Cost after</th><th className="p-3 text-right">Restock value</th><th className="p-3">Restocked by</th><th className="p-3">Notes</th>
+                  <th className="p-3">Date & time</th><th className="p-3">Item</th><th className="p-3 text-right">Before</th><th className="p-3 text-right">Added</th><th className="p-3 text-right">After</th><th className="p-3 text-right">Cost before</th><th className="p-3 text-right">Purchase unit cost</th><th className="p-3 text-right">Cost after</th><th className="p-3 text-right">Selling before</th><th className="p-3 text-right">Selling after</th><th className="p-3 text-right">Restock value</th><th className="p-3">Restocked by</th><th className="p-3">Notes</th>
                 </tr></thead>
                 <tbody>{visibleHistory.map(entry => <tr key={entry.id} className="border-t align-top">
                   <td className="whitespace-nowrap p-3">{formatDateTime(entry.restockedAt)}</td>
@@ -203,8 +221,10 @@ function ServicesRestockPage() {
                   <td className="p-3 text-right tabular-nums">{formatMoney(entry.previousCostPrice ?? 0)}</td>
                   <td className="p-3 text-right tabular-nums">{formatMoney(entry.costPerUnit || 0)}</td>
                   <td className="p-3 text-right tabular-nums">{formatMoney(entry.resultingCostPrice ?? entry.costPerUnit ?? 0)}</td>
+                  <td className="p-3 text-right tabular-nums">{formatMoney(entry.previousSellingPrice ?? 0)}</td>
+                  <td className="p-3 text-right tabular-nums">{formatMoney(entry.resultingSellingPrice ?? 0)}</td>
                   <td className="p-3 text-right font-semibold tabular-nums">{formatMoney(entry.totalCost || 0)}</td>
-                  <td className="p-3">{entry.restockedBy || 'Unknown'}<div className="text-xs text-muted-foreground">{entry.restockedByUid || ''}</div></td>
+                  <td className="p-3">{entry.restockedBy || 'Unknown'}<div className="text-xs text-muted-foreground">{entry.restockedByEmail || entry.restockedByUid || ''}{entry.restockedByRole ? ` · ${entry.restockedByRole}` : ''}</div></td>
                   <td className="max-w-[220px] whitespace-pre-wrap p-3 text-muted-foreground">{entry.notes || '—'}</td>
                 </tr>)}</tbody>
               </table>
