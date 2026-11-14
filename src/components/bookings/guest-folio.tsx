@@ -242,6 +242,8 @@ export const GuestFolio: React.FC<GuestFolioProps> = ({ booking, allBills, allPa
         });
     });
 
+    charges.sort((a, b) => a.date.getTime() - b.date.getTime());
+
     // Filter payments to show this booking's payments
     // Include all payments linked to this booking that are paid (not refunded)
     const bookingPayments = (allPayments || []).filter(p => {
