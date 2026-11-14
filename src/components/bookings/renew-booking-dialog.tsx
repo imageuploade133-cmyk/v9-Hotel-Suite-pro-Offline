@@ -116,7 +116,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
           if (isLocalMasterHost()) {
             try {
               const localRows = await fetchLocalLanCollection<Booking>('bookings');
-              if (localRows.length) rows = localRows;
+              rows = localRows;
             } catch {}
           }
         } else {
@@ -129,7 +129,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
             if (isLocalMasterHost()) {
               try {
                 const localRows = await fetchLocalLanCollection<Booking>('bookings');
-                if (localRows.length) rows = localRows;
+                rows = localRows;
               } catch {}
             }
           }
@@ -164,7 +164,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
       if ((typeof navigator !== 'undefined' && !navigator.onLine) || isLocalMasterHost()) {
         try {
           const localBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
-          if (localBills.length) bills = localBills;
+          if (isLocalMasterHost()) bills = localBills;
         } catch {}
       }
       if (!cancelled) setOfflineOutstandingBills(bills);
