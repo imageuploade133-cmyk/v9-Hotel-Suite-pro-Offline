@@ -18,8 +18,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { doc, collection, getDocs, where, query, runTransaction, serverTimestamp } from 'firebase/firestore';
-import type { Booking, Room } from '@/lib/types';
+import { doc, collection, getDocs, where, query, runTransaction, writeBatch, Timestamp } from 'firebase/firestore';
+import type { Booking, Room, Bill } from '@/lib/types';
 import { format, startOfDay, addDays, differenceInDays, isSameDay, isBefore, isValid } from 'date-fns';
 import { getSafeDate } from '@/lib/helpers';
 import { useUser } from '@/contexts/user-context';
@@ -34,6 +34,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { logAuditEvent } from '@/lib/audit-log';
+import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
 const renewSchema = z.object({
   newCheckInDate: z.date({ required_error: 'New check-in date is required' }),
@@ -57,9 +59,12 @@ interface RenewBookingDialogProps {
   booking: Booking | null;
   room?: Room;
   onSuccess: () => void;
+  allBookings?: Booking[] | null;
+  allBills?: Bill[] | null;
+  isDataLoading?: boolean;
 }
 
-export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }: RenewBookingDialogProps) {
+export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, allBookings, allBills, isDataLoading = false }: RenewBookingDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, userProfile } = useUser();
@@ -71,6 +76,8 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
   const [allOtherBookings, setAllOtherBookings] = React.useState<ConflictingBooking[]>([]);
   const [isCheckingConflicts, setIsCheckingConflicts] = React.useState(false);
   const [conflictCheckError, setConflictCheckError] = React.useState(false);
+  const [offlineValidationReady, setOfflineValidationReady] = React.useState(false);
+  const [offlineOutstandingBills, setOfflineOutstandingBills] = React.useState<Bill[] | null>(null);
 
   const form = useForm<RenewFormValues>({
     resolver: zodResolver(renewSchema),
@@ -84,44 +91,88 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
   const originalCheckIn = React.useMemo(() => getSafeDate(booking?.checkInDate), [booking]);
   const originalCheckOut = React.useMemo(() => getSafeDate(booking?.checkOutDate), [booking]);
 
-  // Fetch all bookings for this room to check for conflicts
+  // Resolve availability from Firestore online, or from the already-cached/LAN data offline.
   React.useEffect(() => {
-    if (isOpen && booking?.roomNumber && firestore) {
+    if (!isOpen || !booking?.roomNumber || !firestore) return;
+    let cancelled = false;
+    const toConflictRows = (rows: Booking[]) => rows
+      .filter(candidate => candidate.id !== booking.id && candidate.roomNumber === booking.roomNumber
+        && ['Booked', 'Reserved', 'Active', 'Checked-in'].includes(candidate.status))
+      .map(candidate => ({
+        id: candidate.id,
+        guestName: candidate.guestName,
+        checkInDate: getSafeDate(candidate.checkInDate),
+        checkOutDate: getSafeDate(candidate.checkOutDate),
+        status: candidate.status,
+      }))
+      .filter((candidate): candidate is ConflictingBooking => !!candidate.checkInDate && !!candidate.checkOutDate);
+    const resolve = async () => {
+      setIsCheckingConflicts(true);
       setConflictCheckError(false);
-      const fetchBookings = async () => {
-        setIsCheckingConflicts(true);
-        try {
-          const q = query(
-            collection(firestore, 'bookings'),
-            where('roomNumber', '==', booking.roomNumber),
-            where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in'])
-          );
-
-          const querySnapshot = await getDocs(q);
-          const otherBookings: ConflictingBooking[] = querySnapshot.docs.filter(snapshot => snapshot.id !== booking.id).map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              guestName: data.guestName,
-              checkInDate: getSafeDate(data.checkInDate)!,
-              checkOutDate: getSafeDate(data.checkOutDate)!,
-              status: data.status,
-            };
-          }).filter(b => b.checkInDate && b.checkOutDate);
-
-          setAllOtherBookings(otherBookings);
+      setOfflineValidationReady(false);
+      try {
+        let rows: Booking[] | null = null;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          rows = Array.isArray(allBookings) ? allBookings : null;
+          if (isLocalMasterHost()) {
+            try {
+              const localRows = await fetchLocalLanCollection<Booking>('bookings');
+              if (localRows.length) rows = localRows;
+            } catch {}
+          }
+        } else {
+          try {
+            const q = query(collection(firestore, 'bookings'), where('roomNumber', '==', booking.roomNumber), where('status', 'in', ['Booked', 'Reserved', 'Active', 'Checked-in']));
+            const snapshot = await getDocs(q);
+            rows = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as Booking));
+          } catch {
+            rows = Array.isArray(allBookings) ? allBookings : null;
+            if (isLocalMasterHost()) {
+              try {
+                const localRows = await fetchLocalLanCollection<Booking>('bookings');
+                if (localRows.length) rows = localRows;
+              } catch {}
+            }
+          }
+        }
+        if (!rows) throw new Error('No cached booking schedule is available to verify this room.');
+        const conflicts = toConflictRows(rows);
+        if (!cancelled) {
+          setAllOtherBookings(conflicts);
           setConflictCheckError(false);
-        } catch (error) {
-          console.error('Error fetching bookings:', error);
+          setOfflineValidationReady(true);
+        }
+      } catch (error) {
+        console.error('[Renew Booking] Availability validation failed:', error);
+        if (!cancelled) {
           setAllOtherBookings([]);
           setConflictCheckError(true);
-        } finally {
-          setIsCheckingConflicts(false);
+          setOfflineValidationReady(false);
         }
-      };
-      fetchBookings();
-    }
-  }, [booking?.id, booking?.roomNumber, firestore, isOpen]);
+      } finally {
+        if (!cancelled) setIsCheckingConflicts(false);
+      }
+    };
+    void resolve();
+    return () => { cancelled = true; };
+  }, [booking?.id, booking?.roomNumber, firestore, isOpen, allBookings, isDataLoading]);
+
+  React.useEffect(() => {
+    if (!isOpen || !booking) return;
+    let cancelled = false;
+    const resolveBills = async () => {
+      let bills = Array.isArray(allBills) ? allBills.filter(bill => bill.bookingId === booking.id) : null;
+      if ((typeof navigator !== 'undefined' && !navigator.onLine) || isLocalMasterHost()) {
+        try {
+          const localBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
+          if (localBills.length) bills = localBills;
+        } catch {}
+      }
+      if (!cancelled) setOfflineOutstandingBills(bills);
+    };
+    void resolveBills();
+    return () => { cancelled = true; };
+  }, [isOpen, booking?.id, allBills]);
 
   // Check for conflicts when dates change
   React.useEffect(() => {
