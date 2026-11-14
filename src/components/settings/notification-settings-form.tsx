@@ -17,6 +17,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '../ui/switch';
 import { AccordionItem, AccordionTrigger, AccordionContent } from '../ui/accordion';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const notificationSettingsSchema = z.object({
   enableNotificationSound: z.boolean().default(true),
@@ -29,7 +30,7 @@ type NotificationSettingsFormValues = z.infer<typeof notificationSettingsSchema>
 
 export function NotificationSettingsForm() {
     const { toast } = useToast();
-    const { user } = useUser();
+    const { user, userProfile } = useUser();
     const firestore = useFirestore();
     const { settings, isLoading: isSettingsLoading } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -104,6 +105,14 @@ export function NotificationSettingsForm() {
         try {
             const settingsDocRef = doc(firestore, 'settings', 'global');
             await setDoc(settingsDocRef, data, { merge: true });
+            void logAuditEvent(firestore, {
+                action: 'Update', module: 'Settings', entityType: 'Notification Settings', entityId: 'global', entityName: 'Notification Sounds',
+                userId: user.uid, userName: userProfile?.name || user.displayName || user.email || 'Unknown user',
+                userEmail: userProfile?.email || user.email || '', userRole: userProfile?.role || '',
+                description: 'Updated order and guest-report notification sound settings',
+                changes: (Object.keys(data) as (keyof NotificationSettingsFormValues)[]).filter(key => JSON.stringify((settings as any)?.[key]) !== JSON.stringify(data[key])).map(key => ({ field: key, before: (settings as any)?.[key] ?? null, after: data[key] })),
+                collectionName: 'settings', documentId: 'global',
+            });
 
             toast({
                 title: 'Notification Settings Updated',
