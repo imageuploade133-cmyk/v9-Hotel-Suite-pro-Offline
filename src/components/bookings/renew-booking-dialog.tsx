@@ -332,12 +332,6 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
     const renewalBillRef = doc(firestore, `bookings/${booking.id}/bills`, `renewal-${renewalDateKey}`);
     const auditRef = doc(collection(firestore, 'globalAuditLog'));
     const actorName = userProfile.name || user.displayName || user.email || 'Unknown user';
-    const billPaidAmount = (bill: Bill) => typeof bill.paidAmount === 'number'
-      ? bill.paidAmount
-      : bill.paid ? Number(bill.total || 0) : (bill.items || []).filter(item => item.paid === true)
-          .reduce((sum, item) => sum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
-    const getOutstanding = (bills: Bill[]) => bills.reduce((sum, bill) => sum + Math.max(0, Number(bill.total || 0) - billPaidAmount(bill)), 0);
-
     setIsSaving(true);
     try {
       const bookingUpdate = {
