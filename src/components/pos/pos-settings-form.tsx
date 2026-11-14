@@ -33,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const posSettingsSchema = z.object({
   // Business Info
@@ -546,17 +547,6 @@ export function POSSettingsForm() {
 
         if (batch && settingsDocRef) {
           batch.set(settingsDocRef, settingsToSave, { merge: true });
-          const auditLogRef = doc(collection(firestore!, 'globalAuditLog'));
-          batch.set(auditLogRef, {
-            timestamp: serverTimestamp(),
-            userId: userProfile.uid,
-            userName: userProfile.name,
-            changeType: 'Update',
-            entityType: 'Settings',
-            entityId: `POS Settings${currentBranchId && currentBranchId !== 'global' ? ` - ${currentBranch?.name || currentBranchId}` : ''}`,
-            details: `Updated POS receipt and invoice settings for ${currentBranchId === 'global' || !currentBranchId ? 'Global' : currentBranch?.name || 'Branch'}.`,
-            changes: changes.length > 0 ? changes : [{ field: 'Bank Logo', before: 'No change', after: 'Updated' }],
-          });
           // Firestore queues writes while offline; the explicit local record also
           // covers ImgBB retries and sessions running without a cloud Firestore client.
           await batch.commit();
@@ -579,6 +569,19 @@ export function POSSettingsForm() {
             window.dispatchEvent(new Event('online'));
           }
         }
+      }
+
+      if (firestore && (changes.length > 0 || data.posReceiptLogoFile || data.bankLogoFile || data.hotelPosReceiptLogoFile)) {
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Point of Sale Settings', entityType: 'POS Settings', entityId: collectionPath, entityName: contextLabel,
+          userId: user.uid, userName: userProfile.name || user.displayName || user.email || 'Unknown user',
+          userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+          branchId: currentBranchId || 'global', branchName: currentBranch?.name || (currentBranchId === 'global' || !currentBranchId ? 'Global' : currentBranchId),
+          description: `Updated POS receipt, docket, invoice and terminal print settings for ${contextLabel}`,
+          changes: changes.length > 0 ? changes : [{ field: 'Receipt logo', before: 'Previous image', after: 'Updated image' }],
+          details: { collectionPath, settingsCount: Object.keys(settingsToSave).length },
+          collectionName: collectionPath, documentId: 'settings',
+        });
       }
 
       if (firestore && typeof navigator !== 'undefined' && navigator.onLine) {
