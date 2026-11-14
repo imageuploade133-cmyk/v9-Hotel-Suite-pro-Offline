@@ -23,6 +23,7 @@ import { getSafeDate, uploadImage } from '@/lib/helpers';
 import { useRouter } from 'next/navigation';
 import { Form } from '@/components/ui/form';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const DEFAULT_IMGBB_API_KEY = '162d7a9c40da4493e504e77f14e5efb4';
 
@@ -160,6 +161,22 @@ function CreateBookingPage() {
                 () => batch.commit()
             );
 
+            void logAuditEvent(firestore, {
+                action: data.bookingType === 'checkin' ? 'Check-in' : 'Create',
+                module: 'Bookings',
+                entityType: 'Booking',
+                entityId: newBookingId,
+                entityName: data.guestName,
+                userId: user.uid,
+                userName: userProfile.name || user.email || 'Unknown user',
+                userEmail: userProfile.email || user.email || '',
+                userRole: userProfile.role || '',
+                description: `Created booking for ${data.guestName} in room ${data.roomNumber}`,
+                changes: [{ field: 'status', before: null, after: newBookingData.status }, { field: 'amount', before: null, after: totalAmount }],
+                details: { bookingType: data.bookingType, roomNumber: data.roomNumber, checkInDate: data.checkInDate.toISOString(), checkOutDate: data.checkOutDate.toISOString() },
+                collectionName: 'bookings',
+                documentId: newBookingId,
+            });
             handleBookingSuccess();
 
         } catch (e: any) {
