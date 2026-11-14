@@ -415,6 +415,7 @@ export interface Payment {
   createdByUid: string;
   createdByName?: string;
   bookingId?: string;
+  billId?: string;
   guestName?: string;
   guestEmail?: string;
   guestPhotoURL?: string;

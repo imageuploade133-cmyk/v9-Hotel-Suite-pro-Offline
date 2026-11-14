@@ -12,7 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Clock } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
-import { doc, setDoc, writeBatch, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, writeBatch, collection, Timestamp } from 'firebase/firestore';
+import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import { Skeleton } from '../ui/skeleton';
 import { useSettings } from '@/contexts/settings-context';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -25,6 +27,7 @@ const hotelPolicySchema = z.object({
   checkInTimeOption: z.enum(['exact', 'default']).default('exact'),
   defaultCheckInTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Please enter a valid time in HH:mm format.').optional(),
   allowSameDayBooking: z.boolean().default(false),
+  requireGuestBillsPaidBeforeRenewal: z.boolean().default(false),
 }).refine(data => {
     if (data.checkInTimeOption === 'default' && !data.defaultCheckInTime) {
         return false;
@@ -41,7 +44,7 @@ export function HotelPolicyForm() {
     const { toast } = useToast();
     const { user, userProfile } = useUser();
     const firestore = useFirestore();
-    const { settings, isLoading: isSettingsLoading } = useSettings();
+    const { settings, isLoading: isSettingsLoading, refreshSettings } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
 
     const form = useForm<HotelPolicyFormValues>({
@@ -51,6 +54,7 @@ export function HotelPolicyForm() {
             checkInTimeOption: 'exact',
             defaultCheckInTime: '14:00',
             allowSameDayBooking: false,
+            requireGuestBillsPaidBeforeRenewal: false,
         },
     });
 
@@ -63,6 +67,7 @@ export function HotelPolicyForm() {
                 checkInTimeOption: settings.checkInTimeOption || 'exact',
                 defaultCheckInTime: settings.defaultCheckInTime || '14:00',
                 allowSameDayBooking: settings.allowSameDayBooking || false,
+                requireGuestBillsPaidBeforeRenewal: settings.requireGuestBillsPaidBeforeRenewal === true,
             });
         }
     }, [settings, form]);
@@ -81,6 +86,8 @@ export function HotelPolicyForm() {
         try {
             const batch = writeBatch(firestore);
             const settingsDocRef = doc(firestore, 'settings', 'global');
+            const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
+            const now = new Date();
 
             const changes: {field: string, before: any, after: any}[] = [];
             for (const key in data) {
@@ -99,9 +106,8 @@ export function HotelPolicyForm() {
 
             if (changes.length > 0) {
                 batch.set(settingsDocRef, data, { merge: true });
-                const auditLogRef = doc(collection(firestore, 'globalAuditLog'));
-                batch.set(auditLogRef, {
-                    timestamp: serverTimestamp(),
+                const auditData = {
+                    timestamp: Timestamp.fromDate(now),
                     userId: userProfile.uid,
                     userName: userProfile.name,
                     userEmail: userProfile.email || user.email || '',
@@ -113,10 +119,23 @@ export function HotelPolicyForm() {
                     description: 'Updated hotel-wide check-in, check-out and booking policies.',
                     details: { policy: 'Hotel Policy' },
                     changes,
-                });
-                await batch.commit();
+                };
+                batch.set(auditLogRef, auditData);
+                const localMutations = [
+                    { collectionName: 'settings', docId: 'global', action: 'update' as const, data: { ...data, updatedAt: now.toISOString() } as any },
+                    { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set' as const, data: { ...auditData, timestamp: now.toISOString() } as any },
+                ];
+                if (isLocalMasterHost()) {
+                    await commitLocalFirstMutations(localMutations, `hotel-policy:${auditLogRef.id}`, () => batch.commit());
+                } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    // Firestore IndexedDB persistence stores this batch locally and syncs it on reconnection.
+                    void batch.commit().catch(error => console.error('[Hotel Policy] Offline settings sync failed:', error));
+                } else {
+                    await batch.commit();
+                }
             }
 
+            refreshSettings();
             toast({
                 title: 'Hotel Policy Updated',
                 description: `Your hotel policies have been successfully updated.`,
@@ -224,6 +243,29 @@ export function HotelPolicyForm() {
                                                     <FormLabel>Default Check-out Time</FormLabel>
                                                     <FormControl><Input type="time" {...field} value={field.value || ''} className="w-48" /></FormControl>
                                                     <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <Separator />
+
+                                    <div>
+                                        <h4 className="font-medium text-foreground mb-2">Renewal & Guest Billing Policy</h4>
+                                        <FormField
+                                            control={form.control}
+                                            name="requireGuestBillsPaidBeforeRenewal"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                    <div className="space-y-1 pr-4">
+                                                        <FormLabel className="text-base">Require Guest Bills to Be Paid Before Room Renewal</FormLabel>
+                                                        <FormDescription>
+                                                            When ON, a guest with any outstanding room or service bill cannot renew until the outstanding balance is settled. When OFF, renewal is allowed and the old balance remains on the guest folio.
+                                                        </FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
                                                 </FormItem>
                                             )}
                                         />

@@ -34,7 +34,7 @@ export function BookingDialogs({
   reloadBookings,
 }: any) {
 
-  const { rooms, isLoading, allBookings, allBillsData, additionalPaymentsData, refetchBills } = useBookings();
+  const { rooms, isLoading, allBookings, allBillsData, additionalPaymentsData, additionalPaymentsLoading, refetchBills, areBillsLoading } = useBookings();
 
   const {
     isNewBookingOpen,
@@ -176,6 +176,12 @@ export function BookingDialogs({
         booking={bookingToRenew}
         room={rooms?.find(r => r.id === bookingToRenew?.roomId)}
         onSuccess={reloadBookings}
+        allBookings={allBookings}
+        allBills={allBillsData}
+        allPayments={additionalPaymentsData}
+        isDataLoading={isLoading}
+        isBillsLoading={areBillsLoading}
+        isPaymentsLoading={additionalPaymentsLoading}
       />
     </>
   );
