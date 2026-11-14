@@ -237,7 +237,7 @@ function BookingsPage() {
                     onViewBill={(booking: Booking) => setActionState({ ...actionState, bookingToViewBill: booking })}
                     onPayBills={(booking: Booking) => setActionState({ ...actionState, bookingToPayBills: booking })}
                     onUpdateRoomStatus={handleUpdateRoomStatus}
-                    onRenew={() => {}}
+                    onRenew={(booking: Booking) => setActionState(prev => ({ ...prev, bookingToRenew: booking }))}
                     onMarkAsPaid={(booking: Booking) => setActionState({ ...actionState, bookingToMarkAsPaid: booking })}
                     onToggleCollectPayment={handleToggleCollectPayment}
                     onReprintInvoice={handleReprintInvoice}
