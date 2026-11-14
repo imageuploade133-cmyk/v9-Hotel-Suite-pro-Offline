@@ -27,6 +27,8 @@ import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { getSafeDate } from '@/lib/helpers';
 import { useDayPicker, type DayProps } from 'react-day-picker';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const reservationSchema = z.object({
   guestName: z.string().min(1, 'Guest name is required'),
@@ -49,6 +51,7 @@ interface EditReservationDialogProps {
 export function EditReservationDialog({ isOpen, onClose, booking, onSuccess }: EditReservationDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user, userProfile } = useUser();
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<ReservationFormValues>({
@@ -77,6 +80,20 @@ export function EditReservationDialog({ isOpen, onClose, booking, onSuccess }: E
         checkOutDate: Timestamp.fromDate(data.checkOutDate),
       });
 
+      void logAuditEvent(firestore, {
+        action: 'Update', module: 'Reservations', entityType: 'Booking',
+        entityId: booking.id, entityName: data.guestName,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '',
+        userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Updated reservation for ${data.guestName}`,
+        changes: [
+          { field: 'guestName', before: booking.guestName, after: data.guestName },
+          { field: 'checkInDate', before: getSafeDate(booking.checkInDate)?.toISOString() || '', after: data.checkInDate.toISOString() },
+          { field: 'checkOutDate', before: getSafeDate(booking.checkOutDate)?.toISOString() || '', after: data.checkOutDate.toISOString() },
+        ],
+        collectionName: 'bookings', documentId: booking.id,
+      });
       toast({
         variant: 'success',
         title: 'Reservation Updated',
