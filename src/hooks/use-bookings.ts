@@ -136,6 +136,7 @@ export const useBookings = () => {
         allBookings,
         allBookingsData: allBookings,
         additionalPaymentsData,
+        additionalPaymentsLoading,
         allBillsData,
         areBillsLoading,
         areBookingsLoading,
