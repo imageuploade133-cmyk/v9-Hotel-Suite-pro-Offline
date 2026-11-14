@@ -19,6 +19,7 @@ import { useSettings } from '@/contexts/settings-context';
 import { Switch } from '../ui/switch';
 import { AccordionItem, AccordionTrigger, AccordionContent } from '../ui/accordion';
 import { Textarea } from '../ui/textarea';
+import { logAuditEvent } from '@/lib/audit-log';
 
 const dailyReportSchema = z.object({
   enableDailyReport: z.boolean().default(false),
@@ -30,7 +31,7 @@ type DailyReportFormValues = z.infer<typeof dailyReportSchema>;
 
 export function DailyReportSettingsForm() {
     const { toast } = useToast();
-    const { user } = useUser();
+    const { user, userProfile } = useUser();
     const firestore = useFirestore();
     const { settings, isLoading: isSettingsLoading, refreshSettings } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -79,6 +80,14 @@ export function DailyReportSettingsForm() {
         try {
             const settingsDocRef = doc(firestore, 'settings', 'global');
             await setDoc(settingsDocRef, data, { merge: true });
+            void logAuditEvent(firestore, {
+                action: 'Update', module: 'Settings', entityType: 'Daily Report Settings', entityId: 'global', entityName: 'Daily Reports',
+                userId: user.uid, userName: userProfile?.name || user.displayName || user.email || 'Unknown user',
+                userEmail: userProfile?.email || user.email || '', userRole: userProfile?.role || '',
+                description: 'Updated daily report schedule and notification recipients',
+                changes: (Object.keys(data) as (keyof DailyReportFormValues)[]).filter(key => JSON.stringify((settings as any)?.[key]) !== JSON.stringify(data[key])).map(key => ({ field: key, before: (settings as any)?.[key] ?? null, after: data[key] })),
+                collectionName: 'settings', documentId: 'global',
+            });
 
             toast({
                 title: 'Daily Report Settings Updated',
