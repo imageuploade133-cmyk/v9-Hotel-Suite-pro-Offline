@@ -99,6 +99,8 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useParams } from 'next/navigation';
 import { useSettings } from '@/contexts/settings-context';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 import Image from 'next/image';
 
 
@@ -380,6 +382,7 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
   const { settings } = useSettings();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { user, userProfile } = useUser();
   const isMobile = useIsMobile();
 
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -586,6 +589,14 @@ function MenuEditorPageComponent({ menuId }: { menuId: string }) {
         `menu-item-delete:${menuId}:${item.id}:${Date.now()}`,
         () => deleteDoc(itemRef)
       );
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Menu', entityType: 'Menu Item', entityId: item.id, entityName: item.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted menu item "${item.name}"`,
+        details: { menuId, category: item.category || '', price: item.price || 0 },
+        collectionName: `menus/${menuId}/items`, documentId: item.id,
+      });
       toast({
         variant: 'success',
         title: 'Menu Item Deleted',
