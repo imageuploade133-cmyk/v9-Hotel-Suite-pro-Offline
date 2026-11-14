@@ -22,6 +22,8 @@ import { useFirestore } from '@/firebase';
 import { useSettings } from '@/contexts/settings-context';
 import { doc, updateDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 
 const customerSchema = z.object({
@@ -48,6 +50,7 @@ export function EditCustomerForm({ open, onOpenChange, customer, onSuccess, coll
   const { toast } = useToast();
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const { user, userProfile } = useUser();
   const formId = `edit-customer-form-${customer?.id}`;
 
   const { settings } = useSettings();
@@ -129,6 +132,14 @@ export function EditCustomerForm({ open, onOpenChange, customer, onSuccess, coll
         }
 
         await batch.commit();
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Customers', entityType: 'Customer', entityId: customer.id, entityName: values.name,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Updated customer profile for ${values.name}`,
+          changes: [{ field: 'name', before: customer.name, after: values.name }, { field: 'email', before: customer.email || '', after: values.email || '' }, { field: 'phoneNumber', before: customer.phoneNumber || '', after: values.phoneNumber || '' }],
+          collectionName: getCollectionPath('posCustomers'), documentId: customer.id,
+        });
 
         toast({ variant: 'success', title: 'Customer Updated', description: `${values.name}'s profile and active bookings have been updated.` });
         onSuccess();
