@@ -16,6 +16,8 @@ import { useFirestore } from '@/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import type { Customer } from '@/lib/types';
 import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 interface DeleteCustomerDialogProps {
   open: boolean;
@@ -29,6 +31,7 @@ export function DeleteCustomerDialog({ open, onOpenChange, customer, onSuccess, 
   const { toast } = useToast();
   const firestore = useFirestore();
   const { getCollectionPath } = useBranch();
+  const { user, userProfile } = useUser();
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleDelete = async () => {
@@ -39,6 +42,14 @@ export function DeleteCustomerDialog({ open, onOpenChange, customer, onSuccess, 
       const collectionPath = getCollectionPath(collectionName);
       const customerRef = doc(firestore, collectionPath, customer.id);
       await deleteDoc(customerRef);
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Customers', entityType: 'Customer', entityId: customer.id, entityName: customer.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        description: `Deleted customer profile for ${customer.name}`,
+        details: { email: customer.email || '', phoneNumber: customer.phoneNumber || '' },
+        collectionName: collectionPath, documentId: customer.id,
+      });
 
       toast({
         variant: 'success',
