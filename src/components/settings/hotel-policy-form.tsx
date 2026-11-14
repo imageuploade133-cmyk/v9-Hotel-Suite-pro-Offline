@@ -44,7 +44,7 @@ export function HotelPolicyForm() {
     const { toast } = useToast();
     const { user, userProfile } = useUser();
     const firestore = useFirestore();
-    const { settings, isLoading: isSettingsLoading } = useSettings();
+    const { settings, isLoading: isSettingsLoading, refreshSettings } = useSettings();
     const [isSaving, setIsSaving] = React.useState(false);
 
     const form = useForm<HotelPolicyFormValues>({
@@ -135,6 +135,7 @@ export function HotelPolicyForm() {
                 }
             }
 
+            refreshSettings();
             toast({
                 title: 'Hotel Policy Updated',
                 description: `Your hotel policies have been successfully updated.`,
