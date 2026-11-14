@@ -45,16 +45,23 @@ export const getGlobalAuditColumns = (): ColumnDef<StockAuditLog>[] => [
     {
         accessorKey: 'userName',
         header: 'User',
+        cell: ({ row }) => <div className="min-w-[130px]"><div className="font-medium">{row.original.userName || 'Unknown user'}</div><div className="text-xs text-muted-foreground">{row.original.userRole || row.original.userEmail || row.original.userId}</div></div>,
     },
     {
         accessorKey: 'changeType',
         header: 'Action',
-         cell: ({ row }) => <Badge className={getChangeColor(row.original.changeType)}>{row.original.changeType}</Badge>,
+         cell: ({ row }) => <div className="space-y-1"><Badge className={getChangeColor(row.original.changeType)}>{row.original.action || row.original.changeType}</Badge><div className="text-xs text-muted-foreground">{row.original.status || 'Success'}</div></div>,
 
     },
     {
+        accessorKey: 'module',
+        header: 'Module',
+        cell: ({ row }) => <div className="min-w-[110px]"><div className="font-medium">{row.original.module || row.original.entityType || row.original.collectionName || 'General'}</div><div className="text-xs text-muted-foreground">{row.original.branchName || row.original.branchId || 'Global'}</div></div>,
+    },
+    {
         accessorKey: 'entityType',
-        header: 'Entity Type',
+        header: 'Record Type',
+        cell: ({ row }) => <span>{row.original.entityType || row.original.collectionName || '—'}</span>,
     },
     {
         accessorKey: 'entityId',
@@ -71,7 +78,7 @@ export const getGlobalAuditColumns = (): ColumnDef<StockAuditLog>[] => [
                 {change.field.replace(/([A-Z])/g, ' $1')}
               </div>
             ))}
-             {row.original.notes && <p className="italic text-muted-foreground pt-1">{row.original.notes}</p>}
+             {(row.original.description || row.original.notes) && <p className="italic text-muted-foreground pt-1">{row.original.description || row.original.notes}</p>}
              {(row.original.details && typeof row.original.details === 'object' && 'message' in row.original.details) ? <p className="italic text-muted-foreground pt-1">{row.original.details.message}</p> :
              (row.original.details && typeof row.original.details === 'string') && <p className="italic text-muted-foreground pt-1">{row.original.details}</p>}
           </div>
