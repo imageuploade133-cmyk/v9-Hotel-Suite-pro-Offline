@@ -33,7 +33,6 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { logAuditEvent } from '@/lib/audit-log';
 import { commitLocalFirstMutations, fetchLocalLanCollection } from '@/lib/lan-sync/sync-helper';
 import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 
@@ -454,15 +453,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         });
       }
 
-      void logAuditEvent(firestore, {
-        action: 'Update', module: 'Bookings', entityType: 'Booking Renewal', entityId: booking.id,
-        entityName: booking.guestName, userId: user.uid, userName: actorName,
-        userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
-        description: auditData.description,
-        changes: auditData.changes,
-        details: auditData.details,
-        collectionName: 'bookings', documentId: booking.id,
-      });
+
 
       toast({
         variant: 'success',
