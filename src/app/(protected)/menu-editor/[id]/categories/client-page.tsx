@@ -258,6 +258,15 @@ export default function MenuCategoriesClientPage({ menu }: MenuCategoriesClientP
           `menu-category-order:${menu.id}:${newCategories.map(category => category.id).join(',')}:${Date.now()}`,
           () => batch.commit()
         );
+        void logAuditEvent(firestore, {
+          action: 'Update', module: 'Menu', entityType: 'Menu Category Ordering', entityId: menu.id, entityName: menu.name,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '', userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Reordered categories for menu "${menu.name}"`,
+          changes: [{ field: 'categoryOrder', before: categories.map(category => category.name), after: newCategories.map(category => category.name) }],
+          details: { menuId: menu.id, orderedCategoryIds: newCategories.map(category => category.id) },
+          collectionName: `menus/${menu.id}/categories`, documentId: menu.id,
+        });
         toast({ title: 'Order updated', description: 'Category order has been saved.' });
       } catch (error) {
           console.error("Error updating category order:", error);
