@@ -715,7 +715,7 @@ function SalaryPage() {
                 userEmail: adminProfile.email || '',
                 userRole: adminProfile.role || '',
                 branchId: (adminProfile as any).branchId || 'global',
-                changeType: 'Delete', action: 'Reverse', module: 'Payroll',
+                changeType: 'Delete', action: 'Delete', module: 'Payroll',
                 entityType: 'Payroll', entityId: profile.uid, entityName: profile.name,
                 collectionName: 'expenses', status: 'Success',
                 description: `Reversed salary payment for ${profile.name}, totaling ${formatCurrency(remainingSalary)}.`,
