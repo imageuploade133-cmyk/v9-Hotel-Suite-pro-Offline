@@ -18,6 +18,8 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import type { StockItem } from '@/lib/types';
 import { Trash2 } from 'lucide-react';
 import { useBranch } from '@/contexts/branch-context';
+import { useUser } from '@/contexts/user-context';
+import { logAuditEvent } from '@/lib/audit-log';
 
 interface DeleteStockKeeperItemDialogProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ export function DeleteStockKeeperItemDialog({ isOpen, onClose, item, onSuccess }
   const firestore = useFirestore();
   const { toast } = useToast();
   const { getCollectionPath } = useBranch();
+  const { user, userProfile } = useUser();
 
   const stockKeeperItemsCollection = React.useMemo(() => {
     return getCollectionPath('stockKeeperItems');
@@ -49,6 +52,17 @@ export function DeleteStockKeeperItemDialog({ isOpen, onClose, item, onSuccess }
           : stockKeeperItemsCollection;
       const itemRef = doc(firestore, actualCollectionPath, item.id);
       await commitLocalFirstMutations([{ collectionName: actualCollectionPath, docId: item.id, action: 'delete' }], `stock-keeper-item-delete:${item.id}:${Date.now()}`, () => deleteDoc(itemRef));
+      void logAuditEvent(firestore, {
+        action: 'Delete', module: 'Inventory', entityType: 'Stock Keeper Item',
+        entityId: item.id, entityName: item.name,
+        userId: user?.uid || userProfile?.uid || userProfile?.id || '',
+        userName: userProfile?.name || user?.email || 'Unknown user',
+        userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+        branchId: item.branchId || 'global',
+        description: `Deleted staging inventory item "${item.name}"`,
+        details: { quantity: item.quantity, costPrice: item.costPrice, sellingPrice: item.sellingPrice },
+        collectionName: actualCollectionPath, documentId: item.id,
+      });
       toast({
         variant: 'success',
         title: 'Item Deleted',
