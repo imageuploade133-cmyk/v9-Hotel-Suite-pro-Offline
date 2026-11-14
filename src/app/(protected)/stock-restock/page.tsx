@@ -64,6 +64,7 @@ import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBranch } from '@/contexts/branch-context';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { logAuditEvent } from '@/lib/audit-log';
 
 interface RestockEntry {
   id: string;
@@ -317,6 +318,23 @@ function RestockInventoryPage() {
         await batch.commit();
       }, [{ collectionName: stockPath, itemId: item.id, quantityDelta: quantity, initialData: { ...item, id: item.id, quantity: Number(item.quantity || 0) } as any }]);
 
+      void logAuditEvent(firestore, {
+        action: 'Restock', module: 'Inventory', entityType: 'Stock Item',
+        entityId: item.id, entityName: item.name,
+        userId: userProfile.uid || userProfile.id,
+        userName: userProfile.name || userProfile.email || 'Unknown user',
+        userEmail: userProfile.email || '', userRole: userProfile.role || '',
+        branchId: itemBranchId || 'global',
+        branchName: itemBranchId ? (itemBranchId === currentBranchId ? currentBranch?.name || itemBranchId : itemBranchId) : 'Global',
+        description: `Restocked ${item.name} by ${quantity} units`,
+        changes: [
+          { field: 'quantity', before: previousQuantity, after: nextQuantity },
+          { field: 'costPrice', before: previousCostPrice, after: costPerUnit },
+          { field: 'sellingPrice', before: previousSellingPrice, after: sellingPrice },
+        ],
+        details: { quantityAdded: quantity, totalCost, notes: bulkRestockNotes || '' },
+        collectionName: stockPath, documentId: item.id,
+      });
       toast({
         variant: 'success',
         title: 'Restocked Successfully',
