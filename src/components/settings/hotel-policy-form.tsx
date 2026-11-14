@@ -14,6 +14,7 @@ import { useFirestore } from '@/firebase';
 import { useUser } from '@/contexts/user-context';
 import { doc, writeBatch, collection, Timestamp } from 'firebase/firestore';
 import { commitLocalFirstMutations } from '@/lib/lan-sync/sync-helper';
+import { isLocalMasterHost } from '@/lib/lan-sync/is-local-master-host';
 import { Skeleton } from '../ui/skeleton';
 import { useSettings } from '@/contexts/settings-context';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -120,10 +121,18 @@ export function HotelPolicyForm() {
                     changes,
                 };
                 batch.set(auditLogRef, auditData);
-                await commitLocalFirstMutations([
-                    { collectionName: 'settings', docId: 'global', action: 'set', data: { ...data, updatedAt: now.toISOString() } as any },
-                    { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set', data: { ...auditData, timestamp: now.toISOString() } as any },
-                ], `hotel-policy:${auditLogRef.id}`, () => batch.commit());
+                const localMutations = [
+                    { collectionName: 'settings', docId: 'global', action: 'set' as const, data: { ...data, updatedAt: now.toISOString() } as any },
+                    { collectionName: 'globalAuditLog', docId: auditLogRef.id, action: 'set' as const, data: { ...auditData, timestamp: now.toISOString() } as any },
+                ];
+                if (isLocalMasterHost()) {
+                    await commitLocalFirstMutations(localMutations, `hotel-policy:${auditLogRef.id}`, () => batch.commit());
+                } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    // Firestore IndexedDB persistence stores this batch locally and syncs it on reconnection.
+                    void batch.commit().catch(error => console.error('[Hotel Policy] Offline settings sync failed:', error));
+                } else {
+                    await batch.commit();
+                }
             }
 
             toast({
