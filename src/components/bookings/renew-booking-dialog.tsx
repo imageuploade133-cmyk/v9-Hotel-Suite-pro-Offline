@@ -18,8 +18,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
-import { doc, Timestamp, collection, getDocs, where, query, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
-import type { Booking, Room, Payment } from '@/lib/types';
+import { doc, collection, getDocs, where, query, runTransaction, serverTimestamp } from 'firebase/firestore';
+import type { Booking, Room } from '@/lib/types';
 import { format, startOfDay, addDays, differenceInDays, isSameDay, isBefore, isValid } from 'date-fns';
 import { getSafeDate } from '@/lib/helpers';
 import { useUser } from '@/contexts/user-context';
@@ -189,13 +189,11 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
 
     const originalNights = differenceInDays(startOfDay(originalCheckOut), startOfDay(originalCheckIn));
     const newNights = calculation.nights;
-    const nightDifference = newNights - originalNights;
     const costDifference = calculation.additionalCharge;
 
     return {
       originalNights,
       newNights,
-      nightDifference: calculation.extensionNights,
       costDifference,
       checkInChanged: !isSameDay(originalCheckIn, watchNewCheckIn),
       checkOutChanged: !isSameDay(originalCheckOut, watchNewCheckOut),
@@ -609,11 +607,11 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess }
                           <Separator />
                           <div className="flex items-center justify-between">
                             <span className="text-sm">
-                              {dateChangesSummary.costDifference > 0 ? 'Additional Payment Required' : 'Refund Due'}
+                              Additional Payment Required
                             </span>
                             <span className={cn(
                               "font-bold text-lg",
-                              dateChangesSummary.costDifference > 0 ? "text-green-600" : "text-amber-600"
+                              "text-green-600"
                             )}>
                               {formatCurrency(Math.abs(dateChangesSummary.costDifference))}
                             </span>
