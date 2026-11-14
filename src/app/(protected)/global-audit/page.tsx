@@ -40,7 +40,8 @@ import { TopHeader } from '@/components/top-header';
 
 const PAGE_SIZE = 25;
 
-const CHANGE_TYPES = ['All', 'Create', 'Update', 'Delete', 'Login', 'Logout', 'Sale', 'Refund', 'Check-in', 'Check-out', 'Cancel', 'Bill'];
+const CHANGE_TYPES = ['All', 'Create', 'Update', 'Delete', 'Login', 'Logout', 'Restock', 'Sale', 'Refund', 'Transfer', 'Check-in', 'Check-out', 'Cancel', 'Bill', 'Print', 'Reprint', 'Payment', 'Status Change'];
+const MODULES = ['All', 'Bookings', 'Reservations', 'Inventory', 'Services & Foods', 'Menu', 'Point of Sale', 'Running Tables', 'Dockets', 'Customers', 'Staff', 'Payments', 'Settings', 'Housekeeping', 'Laundry', 'Gym', 'Salon', 'Other'];
 
 function PaginationControls({
   onPrev,
@@ -90,6 +91,8 @@ function GlobalAuditPage() {
   const [selectedStaffId, setSelectedStaffId] = React.useState<string>('all');
   const [selectedChangeType, setSelectedChangeType] = React.useState<string>('All');
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [selectedModule, setSelectedModule] = React.useState('All');
+  const [selectedStatus, setSelectedStatus] = React.useState('All');
 
   const { data: staffMembers } = useCollection<UserProfile>(React.useMemo(() => firestore ? query(collection(firestore, 'users'), orderBy('name')) : null, [firestore]));
 
@@ -109,6 +112,8 @@ function GlobalAuditPage() {
     if (dateRange?.to) constraints.push(where('timestamp', '<=', Timestamp.fromDate(dateRange.to)));
     if (selectedStaffId !== 'all') constraints.push(where('userId', '==', selectedStaffId));
     if (selectedChangeType !== 'All') constraints.push(where('changeType', '==', selectedChangeType));
+    if (selectedModule !== 'All') constraints.push(where('module', '==', selectedModule));
+    if (selectedStatus !== 'All') constraints.push(where('status', '==', selectedStatus));
 
     // Server-side search for broader fields
     if (searchTerm) {
@@ -161,16 +166,29 @@ function GlobalAuditPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [firestore, firstVisible, lastVisible, toast, dateRange, selectedStaffId, selectedChangeType, searchTerm]);
+  }, [firestore, firstVisible, lastVisible, toast, dateRange, selectedStaffId, selectedChangeType, selectedModule, selectedStatus, searchTerm]);
 
   React.useEffect(() => {
     fetchLogs('initial');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, selectedStaffId, selectedChangeType, searchTerm]);
+  }, [dateRange, selectedStaffId, selectedChangeType, selectedModule, selectedStatus, searchTerm]);
 
   const columns = React.useMemo(() => getGlobalAuditColumns(), []);
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const uniqueUsersOnPage = new Set(logs.map(log => log.userId)).size;
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayCountOnPage = logs.filter(log => {
+    const date = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp as any);
+    return !Number.isNaN(date.getTime()) && date >= todayStart;
+  }).length;
+  const exportCsv = () => {
+    const headers = ['Date & Time', 'User', 'Email', 'Role', 'Branch', 'Module', 'Action', 'Entity', 'Record ID', 'Description', 'Status'];
+    const rows = logs.map(log => [log.timestamp?.toDate ? log.timestamp.toDate().toISOString() : '', log.userName, log.userEmail || '', log.userRole || '', log.branchName || '', log.module || log.entityType || '', log.action || log.changeType, log.entityName || '', log.entityId || log.documentId || '', log.description || log.notes || '', log.status || 'Success']);
+    const csv = [headers, ...rows].map(row => row.map(value => '"' + String(value ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'global-audit-log.csv'; anchor.click(); URL.revokeObjectURL(url);
+  };
 
   if (isLoading && page === 1) {
     return <GlobalAuditLoading />;
@@ -180,6 +198,12 @@ function GlobalAuditPage() {
     <>
       <div className="flex flex-col gap-6">
         <TopHeader name="Global Audit Log" icon={<History />} />
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <Card><CardHeader className="pb-2"><CardDescription>Total matching records</CardDescription><CardTitle className="text-2xl tabular-nums">{totalCount.toLocaleString()}</CardTitle></CardHeader></Card>
+          <Card><CardHeader className="pb-2"><CardDescription>Records on this page today</CardDescription><CardTitle className="text-2xl tabular-nums">{todayCountOnPage}</CardTitle></CardHeader></Card>
+          <Card><CardHeader className="pb-2"><CardDescription>Staff represented on this page</CardDescription><CardTitle className="text-2xl tabular-nums">{uniqueUsersOnPage}</CardTitle></CardHeader></Card>
+          <Card><CardHeader className="pb-2"><CardDescription>Current page</CardDescription><CardTitle className="text-2xl tabular-nums">{logs.length} / {PAGE_SIZE}</CardTitle></CardHeader></Card>
+        </div>
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -200,6 +224,15 @@ function GlobalAuditPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <Select value={selectedModule} onValueChange={setSelectedModule}>
+                    <SelectTrigger className="w-full sm:w-auto"><SelectValue placeholder="All Modules" /></SelectTrigger>
+                    <SelectContent>{MODULES.map(module => <SelectItem key={module} value={module}>{module === 'All' ? 'All Modules' : module}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="w-full sm:w-auto"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                    <SelectContent>{['All', 'Success', 'Failed', 'Pending', 'Reversed'].map(status => <SelectItem key={status} value={status}>{status === 'All' ? 'All Statuses' : status}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button variant="outline" onClick={exportCsv} disabled={!logs.length}>Export CSV</Button>
                   <Select value={selectedChangeType} onValueChange={setSelectedChangeType}>
                     <SelectTrigger className="w-full sm:w-auto"><div className="flex items-center gap-2"><History className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="All Changes" /></div></SelectTrigger>
                     <SelectContent>
