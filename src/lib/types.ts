@@ -311,14 +311,26 @@ export interface Expense {
 
 export interface StockAuditLog {
   id: string;
-  changeType: 'Login' | 'Create' | 'Update' | 'Delete' | 'Restock' | 'Sale' | 'Refund' | 'Transfer';
+  changeType: 'Login' | 'Logout' | 'Create' | 'Update' | 'Delete' | 'Restock' | 'Sale' | 'Refund' | 'Transfer' | 'Check-in' | 'Check-out' | 'Cancel' | 'Bill' | 'Print' | 'Reprint' | 'Payment' | 'Status Change';
+  action?: string;
+  module?: string;
+  entityType?: string;
+  entityId?: string;
+  entityName?: string;
   collectionName?: string;
   documentId?: string;
   timestamp: Timestamp;
   userId: string;
   userName: string;
+  userEmail?: string;
+  userRole?: string;
+  branchId?: string;
+  branchName?: string;
+  description?: string;
+  status?: 'Success' | 'Failed' | 'Pending' | 'Reversed';
+  schemaVersion?: number;
   details: Record<string, any>;
-  changes?: { field: string, before: any, after: any }[];
+  changes?: { field: string; before: any; after: any }[];
   itemId?: string;
   itemName?: string;
   notes?: string;
