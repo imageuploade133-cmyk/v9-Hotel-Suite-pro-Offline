@@ -624,6 +624,15 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
     }
     try {
       await commitLocalFirstMutations(localMutations, 'guest-bill-payment:' + paymentRef.id, () => batch.commit());
+      void logAuditEvent(firestore, {
+        action: 'Payment', module: 'Payments', entityType: 'Guest Bill Payment',
+        entityId: paymentRef.id, entityName: booking.guestName,
+        userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+        userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+        description: `Recorded bill payment of ${amountToPay} for ${booking.guestName}`,
+        details: { bookingId: booking.id, paymentMethod, amount: amountToPay, billIds: currentBills.map(entry => entry.id) },
+        collectionName: 'payments', documentId: paymentRef.id,
+      });
       toast({ variant: 'success', title: 'Payment Successful', description: 'Successfully processed payment of ' + formatCurrency(amountToPay) + '.' });
       onSuccess();
     } catch (error) {
@@ -725,6 +734,16 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
             () => batch.commit()
         );
 
+        void logAuditEvent(firestore, {
+          action: 'Payment', module: 'Payments', entityType: 'Booking Payment',
+          entityId: booking.id, entityName: booking.guestName,
+          userId: user.uid, userName: userProfile.name || user.email || 'Unknown user',
+          userEmail: userProfile.email || user.email || '', userRole: userProfile.role || '',
+          description: `Marked reservation for ${booking.guestName} as paid`,
+          changes: [{ field: 'paymentStatus', before: booking.paymentStatus || 'Unpaid', after: 'Paid' }],
+          details: { amount: totalAmount, paymentMethod },
+          collectionName: 'payments', documentId: booking.id,
+        });
         toast({
             variant: 'success',
             title: 'Reservation Paid',
@@ -782,6 +801,16 @@ export const useBookingActions = ({ rooms, onSuccess = () => {} }: { rooms: Room
           [`individualRoomStatus.${room.roomNumber}`]: status === 'Vacant' ? null : status,
         });
 
+        void logAuditEvent(firestore, {
+          action: 'Status Change', module: 'Housekeeping', entityType: 'Room',
+          entityId: room.id, entityName: room.roomNumber,
+          userId: user?.uid || userProfile?.uid || userProfile?.id || '',
+          userName: userProfile?.name || user?.email || 'Unknown user',
+          userEmail: userProfile?.email || user?.email || '', userRole: userProfile?.role || '',
+          description: `Changed room ${room.roomNumber} status to ${status}`,
+          changes: [{ field: 'status', before: room.status, after: status }],
+          collectionName: 'rooms', documentId: room.id,
+        });
         toast({ variant: 'success', title: 'Status Updated', description: `Room ${room.roomNumber} is now marked as "${status}".` });
         onSuccess();
 
