@@ -176,6 +176,9 @@ export function BookingDialogs({
         booking={bookingToRenew}
         room={rooms?.find(r => r.id === bookingToRenew?.roomId)}
         onSuccess={reloadBookings}
+        allBookings={allBookings}
+        allBills={allBillsData}
+        isDataLoading={isLoading}
       />
     </>
   );
