@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { doc, collection, getDocs, where, query, runTransaction, writeBatch, Timestamp } from 'firebase/firestore';
-import type { Booking, Room, Bill } from '@/lib/types';
+import type { Booking, Room, Bill, Payment } from '@/lib/types';
 import { format, startOfDay, addDays, differenceInDays, isSameDay, isBefore, isValid } from 'date-fns';
 import { getSafeDate } from '@/lib/helpers';
 import { useUser } from '@/contexts/user-context';
@@ -52,6 +52,27 @@ interface ConflictingBooking {
   status: string;
 }
 
+function getGuestBillOutstandingBalance(bills: Bill[], payments: Payment[] = []): number {
+  let legacyUnallocatedPayments = payments
+    .filter(payment => payment.status === 'Paid' && payment.type === 'Additional Charges' && !payment.billId)
+    .reduce((sum, payment) => sum + Math.max(0, Number(payment.amount || 0)), 0);
+  return [...bills]
+    .sort((a, b) => (getSafeDate(a.createdAt)?.getTime() || 0) - (getSafeDate(b.createdAt)?.getTime() || 0))
+    .reduce((balance, bill) => {
+      const total = Math.max(0, Number(bill.total || 0));
+      const paidItems = (bill.items || []).filter(item => item.paid === true)
+        .reduce((sum, item) => sum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
+      const hasPaidAmount = typeof bill.paidAmount === 'number';
+      let paid = hasPaidAmount ? bill.paidAmount as number : bill.paid ? total : paidItems;
+      if (!hasPaidAmount && !bill.paid && legacyUnallocatedPayments > 0) {
+        const allocation = Math.min(Math.max(0, total - paid), legacyUnallocatedPayments);
+        paid += allocation;
+        legacyUnallocatedPayments = Math.max(0, legacyUnallocatedPayments - allocation);
+      }
+      return balance + Math.max(0, total - Math.min(total, Math.max(0, paid)));
+    }, 0);
+}
+
 interface RenewBookingDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -60,11 +81,13 @@ interface RenewBookingDialogProps {
   onSuccess: () => void;
   allBookings?: Booking[] | null;
   allBills?: Bill[] | null;
+  allPayments?: Payment[] | null;
   isDataLoading?: boolean;
   isBillsLoading?: boolean;
+  isPaymentsLoading?: boolean;
 }
 
-export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, allBookings, allBills, isDataLoading = false, isBillsLoading = false }: RenewBookingDialogProps) {
+export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, allBookings, allBills, allPayments, isDataLoading = false, isBillsLoading = false, isPaymentsLoading = false }: RenewBookingDialogProps) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, userProfile } = useUser();
@@ -78,6 +101,7 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
   const [conflictCheckError, setConflictCheckError] = React.useState(false);
   const [offlineValidationReady, setOfflineValidationReady] = React.useState(false);
   const [offlineOutstandingBills, setOfflineOutstandingBills] = React.useState<Bill[] | null>(null);
+  const [offlineGuestPayments, setOfflineGuestPayments] = React.useState<Payment[] | null>(null);
 
   const form = useForm<RenewFormValues>({
     resolver: zodResolver(renewSchema),
@@ -160,19 +184,29 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
   React.useEffect(() => {
     if (!isOpen || !booking) return;
     let cancelled = false;
-    const resolveBills = async () => {
+    const resolveGuestAccounts = async () => {
       let bills = Array.isArray(allBills) && !isBillsLoading ? allBills.filter(bill => bill.bookingId === booking.id) : null;
+      let payments = Array.isArray(allPayments) && !isPaymentsLoading ? allPayments.filter(payment => payment.bookingId === booking.id) : null;
       if ((typeof navigator !== 'undefined' && !navigator.onLine) || isLocalMasterHost()) {
         try {
-          const localBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
-          if (isLocalMasterHost()) bills = localBills;
+          if (isLocalMasterHost()) {
+            const [localBills, localPayments] = await Promise.all([
+              fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`),
+              fetchLocalLanCollection<Payment>('payments'),
+            ]);
+            bills = localBills;
+            payments = localPayments.filter(payment => payment.bookingId === booking.id);
+          }
         } catch {}
       }
-      if (!cancelled) setOfflineOutstandingBills(bills);
+      if (!cancelled) {
+        setOfflineOutstandingBills(bills);
+        setOfflineGuestPayments(payments);
+      }
     };
-    void resolveBills();
+    void resolveGuestAccounts();
     return () => { cancelled = true; };
-  }, [isOpen, booking?.id, allBills, isBillsLoading]);
+  }, [isOpen, booking?.id, allBills, allPayments, isBillsLoading, isPaymentsLoading]);
 
   // Check for conflicts when dates change
   React.useEffect(() => {
@@ -254,11 +288,8 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
   const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 
   const currentGuestBills = React.useMemo(() => offlineOutstandingBills ?? (allBills || []).filter(bill => bill.bookingId === booking?.id), [offlineOutstandingBills, allBills, booking?.id]);
-  const currentOutstandingBalance = React.useMemo(() => currentGuestBills.reduce((sum, bill) => {
-    const total = Math.max(0, Number(bill.total || 0));
-    const paid = typeof bill.paidAmount === 'number' ? bill.paidAmount : bill.paid ? total : (bill.items || []).filter(item => item.paid === true).reduce((itemSum, item) => itemSum + Math.max(0, Number(item.price || 0) * Number(item.quantity || 0)), 0);
-    return sum + Math.max(0, total - Math.min(total, Math.max(0, paid)));
-  }, 0), [currentGuestBills]);
+  const currentGuestPayments = React.useMemo(() => offlineGuestPayments ?? (allPayments || []).filter(payment => payment.bookingId === booking?.id), [offlineGuestPayments, allPayments, booking?.id]);
+  const currentOutstandingBalance = React.useMemo(() => getGuestBillOutstandingBalance(currentGuestBills, currentGuestPayments), [currentGuestBills, currentGuestPayments]);
 
   const getInitials = (name: string) => {
     if (!name) return '?';
@@ -388,11 +419,17 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         let cachedBookings: Booking[] | null = Array.isArray(allBookings) ? allBookings : null;
         let roomForLocalWrite: Room | null = room || null;
         let cachedBills = offlineOutstandingBills;
+        let cachedPayments = offlineGuestPayments;
         if (isLocalMasterHost()) {
           cachedBookings = await fetchLocalLanCollection<Booking>('bookings');
           const localRooms = await fetchLocalLanCollection<Room>('rooms');
           roomForLocalWrite = localRooms.find(localRoom => localRoom.id === booking.roomId) || null;
-          cachedBills = await fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`);
+          const [localBills, localPayments] = await Promise.all([
+            fetchLocalLanCollection<Bill>(`bookings/${booking.id}/bills`),
+            fetchLocalLanCollection<Payment>('payments'),
+          ]);
+          cachedBills = localBills;
+          cachedPayments = localPayments.filter(payment => payment.bookingId === booking.id);
         }
         if (!cachedBookings) throw new Error('The offline booking schedule is unavailable. Renewal has been stopped to avoid a room double-booking.');
         const currentCachedBooking = cachedBookings.find(candidate => candidate.id === booking.id);
@@ -418,8 +455,8 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
         if (latestConflicts.length) throw new Error('Renewal blocked: the latest offline room schedule contains an overlapping booking.');
         if (!roomForLocalWrite) throw new Error('The room record is missing from the offline cache. Reconnect and synchronize rooms before renewing.');
         if (requireBillsPaid) {
-          if (!cachedBills) throw new Error('Guest bills are not available in the offline cache. Renewal has been stopped safely.');
-          const cachedOutstanding = getOutstanding(cachedBills);
+          if (!cachedBills || !cachedPayments) throw new Error('Guest bills or payment history are not available in the offline cache. Renewal has been stopped safely.');
+          const cachedOutstanding = getGuestBillOutstandingBalance(cachedBills, cachedPayments);
           if (cachedOutstanding > 0.005) {
             throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(cachedOutstanding)} in outstanding bills. Settle the old bills before renewing.`);
           }
@@ -475,8 +512,11 @@ export function RenewBookingDialog({ isOpen, onClose, booking, room, onSuccess, 
 
           const billsQuery = query(collection(firestore, `bookings/${booking.id}/bills`));
           const billsSnapshot = await transaction.get(billsQuery);
+          const paymentsQuery = query(collection(firestore, 'payments'), where('bookingId', '==', booking.id));
+          const paymentsSnapshot = await transaction.get(paymentsQuery);
           const currentBills = billsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as Bill));
-          const outstanding = getOutstanding(currentBills);
+          const currentPayments = paymentsSnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() } as Payment));
+          const outstanding = getGuestBillOutstandingBalance(currentBills, currentPayments);
           if (requireBillsPaid && outstanding > 0.005) {
             throw new Error(`Renewal blocked by hotel policy. This guest has ${formatCurrency(outstanding)} in outstanding bills. Settle the old bills before renewing.`);
           }
